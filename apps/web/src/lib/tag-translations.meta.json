@@ -1,0 +1,16 @@
+{
+  "source": "https://github.com/EhTagTranslation/Database",
+  "release_url": "https://raw.githubusercontent.com/EhTagTranslation/DatabaseReleases/master/db.text.json",
+  "upstream_sha": "4c439df75ecdc8ad5f71f95734d2c95014013194",
+  "upstream_version": 7,
+  "generated_at": "2026-07-13T01:15:15.168096+00:00",
+  "namespaces": [
+    "female",
+    "male",
+    "mixed",
+    "language",
+    "other"
+  ],
+  "entry_count": 1363,
+  "license": "CC BY-NC-SA 3.0 by default; namespace-specific additional terms may apply"
+}

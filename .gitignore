@@ -1,0 +1,47 @@
+node_modules/
+.next/
+dist/
+target/
+.env*
+!.env.example
+!**/.env.example
+.DS_Store
+.idea/
+*.log
+*.tmp
+__pycache__/
+*.py[cod]
+storage/
+data/
+.cache/
+.tools/
+.data/
+.runtime/
+.private/
+
+# Local credentials and certificates
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*cookie*.txt
+*cookies*.json
+*headers.local.json
+config/local/
+
+# Document render/QA artifacts stay local
+docs/*-render/
+docs/*-render-*/
+docs/*-render*.png
+docs/*render*/*.png
+docs/project-feature-log-next.docx
+
+# Local upstream research and translation experiments
+BooruTagCart/
+EhTagTranslation-Database/
+characters.source.json
+characters.translation-in-progress.json
+character_translation_audit.jsonl
+character_translation_stats.json
+translate_character_names.py

@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+set -eu
+
+if command -v python3 >/dev/null 2>&1; then
+  exec python3 scripts/check_public_repo.py
+fi
+
+exec python scripts/check_public_repo.py

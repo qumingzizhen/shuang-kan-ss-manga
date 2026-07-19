@@ -1,0 +1,13 @@
+{
+  "name": "manga-platform-newwork",
+  "private": true,
+  "scripts": {
+    "dev": "powershell -ExecutionPolicy Bypass -File scripts/dev.ps1",
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:web": "npm --prefix apps/web run lint",
+    "dev:api:shim": "node services/dev-api/server.mjs",
+    "dev:api": "cargo run -p comic-platform-api",
+    "dev:worker": "cargo run -p comic-platform-download-worker"
+  }
+}

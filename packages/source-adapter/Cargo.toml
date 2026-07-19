@@ -1,0 +1,11 @@
+[package]
+name = "comic-platform-source-adapter"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+comic-platform-domain = { path = "../domain" }
+serde.workspace = true
+serde_json.workspace = true
+tokio.workspace = true

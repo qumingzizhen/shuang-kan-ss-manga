@@ -1,0 +1,10 @@
+[package]
+name = "comic-platform-task-queue"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+comic-platform-domain = { path = "../domain" }
+chrono.workspace = true
+tokio.workspace = true

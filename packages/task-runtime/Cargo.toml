@@ -1,0 +1,13 @@
+[package]
+name = "comic-platform-task-runtime"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+comic-platform-domain = { path = "../domain" }
+comic-platform-source-adapter = { path = "../source-adapter" }
+comic-platform-task-queue = { path = "../task-queue" }
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true

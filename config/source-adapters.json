@@ -1,0 +1,54 @@
+{
+  "version": "0.1.0",
+  "default_source_id": "fangliding",
+  "sources": [
+    {
+      "id": "fangliding",
+      "name": "Fangliding",
+      "homepage": null,
+      "version": "0.1.0",
+      "capabilities": ["search", "gallery", "download", "retry_folder"],
+      "enabled": true,
+      "notes": "Built-in adapter using the legacy Python Fangliding bridge.",
+      "bridge": {
+        "kind": "python",
+        "script": "scripts/fangliding_bridge.py",
+        "script_env": "FANGLIDING_BRIDGE_SCRIPT",
+        "python_env": ["FANGLIDING_PYTHON", "MANGA_BRIDGE_PYTHON"],
+        "page_commands": false
+      }
+    },
+    {
+      "id": "18comic",
+      "name": "18comic.vip",
+      "homepage": "https://18comic.vip/",
+      "version": "0.2.0",
+      "capabilities": ["search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"],
+      "enabled": true,
+      "notes": "API-first adapter using the official JM mobile API with the public website as a conservative fallback. It stops on login, captcha, ban, or rate-limit boundaries.",
+      "bridge": {
+        "kind": "python",
+        "script": "scripts/18comic_bridge.py",
+        "script_env": "COMIC18_BRIDGE_SCRIPT",
+        "python_env": ["COMIC18_PYTHON", "MANGA_BRIDGE_PYTHON"],
+        "page_commands": true
+      }
+    },
+    {
+      "id": "e-hentai",
+      "name": "E-Hentai",
+      "homepage": "https://e-hentai.org/",
+      "version": "0.1.0",
+      "capabilities": ["search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"],
+      "enabled": true,
+      "notes": "Conservative public-page adapter using scripts/ehentai_bridge.py. It parses search, gallery index pages, and single image pages without bypassing login, captcha, ban, or rate-limit boundaries.",
+      "bridge": {
+        "kind": "python",
+        "script": "scripts/ehentai_bridge.py",
+        "script_env": "EHENTAI_BRIDGE_SCRIPT",
+        "python_env": ["EHENTAI_PYTHON", "MANGA_BRIDGE_PYTHON"],
+        "page_commands": true
+      }
+    }
+  ]
+}

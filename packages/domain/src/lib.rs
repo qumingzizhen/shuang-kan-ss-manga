@@ -161,12 +161,29 @@ pub struct TaskSearchResult {
     pub gallery_url: String,
     pub title: String,
     pub tags: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thumbnail_url: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SourceSearchError {
+    pub source_id: SourceId,
+    pub source_name: String,
+    pub message: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum TaskOutput {
     SearchResults {
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        source_ids: Vec<SourceId>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        source_errors: Vec<SourceSearchError>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        excluded_tags: Vec<String>,
+        #[serde(default, skip_serializing_if = "is_zero")]
+        excluded_count: u32,
         results: Vec<TaskSearchResult>,
     },
     GalleryDownload {
@@ -357,12 +374,18 @@ pub enum TaskPayload {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CreateSearchTaskRequest {
     pub source_id: Option<SourceId>,
+    #[serde(default)]
+    pub source_ids: Vec<SourceId>,
     pub tags: Vec<String>,
     #[serde(default)]
     pub excluded_tags: Vec<String>,
     pub name: Option<String>,
     pub query: Option<String>,
     pub limit: u32,
+}
+
+fn is_zero(value: &u32) -> bool {
+    *value == 0
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

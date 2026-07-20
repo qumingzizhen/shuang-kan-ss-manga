@@ -6,8 +6,9 @@ import json
 import os
 import re
 import sys
+import threading
 import urllib.parse
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -16,7 +17,7 @@ import jmcomic_api_adapter
 
 from source_bridge_core import (
     BLOCKED_STATUSES,
-    DownloadStats,
+    DownloadProgressReporter,
     HttpClient,
     HttpStatusError,
     IMAGE_EXT_RE,
@@ -24,13 +25,15 @@ from source_bridge_core import (
     ImageTarget,
     ParsedHtml,
     absolute_url,
+    append_failed_page,
     clean_text,
-    content_type_from_suffix,
     find_nearby_image_url,
-    image_extension,
+    image_files,
     looks_like_access_challenge,
     now_iso,
     parse_html,
+    run_bounded_downloads,
+    save_image_target,
     sanitize_filename,
     status_message,
     strip_fragment,
@@ -467,29 +470,6 @@ def resolve_single_image_target(client: HttpClient, page_url: str, index: int, g
     return ImageTarget(index, page_url, image_urls[0], page_url)
 
 
-def image_files(folder: Path) -> set[int]:
-    indexes: set[int] = set()
-    if not folder.exists():
-        return indexes
-    for child in folder.iterdir():
-        if not child.is_file() or not IMAGE_EXT_RE.search(child.name):
-            continue
-        match = re.match(r"^(\d+)", child.stem)
-        if match:
-            indexes.add(int(match.group(1)))
-    return indexes
-
-
-def existing_image_for_index(folder: Path, index: int) -> Path | None:
-    if not folder.exists():
-        return None
-    prefix = f"{index:04d}"
-    for child in folder.iterdir():
-        if child.is_file() and child.stem == prefix and IMAGE_EXT_RE.search(child.name):
-            return child
-    return None
-
-
 def load_metadata(folder: Path) -> GalleryMeta:
     data = json.loads((folder / "metadata.json").read_text(encoding="utf-8"))
     tags = data.get("tags") if isinstance(data.get("tags"), dict) else {"tag": list(data.get("tags") or [])}
@@ -505,64 +485,14 @@ def load_metadata(folder: Path) -> GalleryMeta:
     )
 
 
-def write_failed_page(folder: Path, target: ImageTarget, error: str) -> None:
-    record = {
-        "timestamp": now_iso(),
-        "source_id": SOURCE_ID,
-        "index": target.index,
-        "page_url": target.page_url,
-        "image_url": target.image_url,
-        "error": error,
-    }
-    with (folder / "failed_pages.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
-def update_download_state(folder: Path, meta: GalleryMeta, stats: DownloadStats, total: int, last_index: int | None) -> None:
-    payload = {
-        "source_id": SOURCE_ID,
-        "gallery_url": meta.url,
-        "title": meta.title,
-        "total": total,
-        "done": stats.done,
-        "skipped": stats.skipped,
-        "failed": stats.failed,
-        "stopped": stats.stopped,
-        "last_index": last_index,
-        "updated_at": now_iso(),
-    }
-    write_json_atomic(
-        folder / "download_state.json",
-        payload,
-    )
-    print(f"{PROGRESS_PREFIX}{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}", file=sys.stderr, flush=True)
-
-
-def save_image_target(
-    client: HttpClient,
-    folder: Path,
-    target: ImageTarget,
-    overwrite: bool,
-    min_image_bytes: int,
-) -> tuple[Path, str | None, int, bool]:
-    existing = existing_image_for_index(folder, target.index)
-    if existing and not overwrite and existing.stat().st_size >= min_image_bytes:
-        return existing, content_type_from_suffix(existing.suffix), existing.stat().st_size, True
-
-    body, content_type = client.fetch_binary(target.image_url, referer=target.referer)
-    if len(body) < min_image_bytes:
-        raise RuntimeError(
-            f"Image response is too small for page {target.index}: {len(body)} bytes from {target.image_url}. "
-            "This usually means the source returned a placeholder or blocked image."
-        )
-    extension = image_extension(target.image_url, content_type)
-    file_path = folder / f"{target.index:04d}{extension}"
-    file_path.write_bytes(body)
-    return file_path, content_type, len(body), False
+_download_clients = threading.local()
 
 
 def download_one_target(folder: Path, target: ImageTarget, parsed: argparse.Namespace) -> bool:
-    client = HttpClient(parsed, source_label="18comic.vip")
+    client = getattr(_download_clients, "client", None)
+    if client is None:
+        client = HttpClient(parsed, source_label="18comic.vip")
+        _download_clients.client = client
     try:
         _file_path, _content_type, _byte_size, skipped = save_image_target(
             client,
@@ -576,93 +506,23 @@ def download_one_target(folder: Path, target: ImageTarget, parsed: argparse.Name
         client.polite_wait()
 
 
-def download_targets(folder: Path, meta: GalleryMeta, targets: list[ImageTarget], parsed: argparse.Namespace) -> DownloadStats:
-    stats = DownloadStats()
-    if download_concurrency(parsed) <= 1 or len(targets) <= 1:
-        client = HttpClient(parsed, source_label="18comic.vip")
-        forbidden_failures = 0
-        for target in targets:
-            try:
-                _file_path, _content_type, _byte_size, skipped = save_image_target(
-                    client,
-                    folder,
-                    target,
-                    parsed.overwrite,
-                    max(parsed.min_image_bytes, 0),
-                )
-                if skipped:
-                    stats.skipped += 1
-                else:
-                    stats.done += 1
-                forbidden_failures = 0
-            except HttpStatusError as error:
-                stats.failed += 1
-                if error.status in BLOCKED_STATUSES:
-                    forbidden_failures += 1
-                write_failed_page(folder, target, str(error))
-                if parsed.forbidden_stop_after and forbidden_failures >= parsed.forbidden_stop_after:
-                    stats.stopped = True
-                    break
-            except Exception as error:  # noqa: BLE001 - bridge must report per-page failures.
-                stats.failed += 1
-                write_failed_page(folder, target, str(error))
-                if parsed.max_failures and stats.failed >= parsed.max_failures:
-                    stats.stopped = True
-                    break
-            finally:
-                update_download_state(folder, meta, stats, len(targets), target.index)
-                client.polite_wait()
-        return stats
-
-    forbidden_failures = 0
-    next_index = 0
-    pending: dict[Any, ImageTarget] = {}
-    stop_scheduling = False
-
-    with ThreadPoolExecutor(max_workers=download_concurrency(parsed)) as executor:
-        def submit_next() -> None:
-            nonlocal next_index
-            if stop_scheduling or next_index >= len(targets):
-                return
-            target = targets[next_index]
-            next_index += 1
-            pending[executor.submit(download_one_target, folder, target, parsed)] = target
-
-        for _ in range(min(download_concurrency(parsed), len(targets))):
-            submit_next()
-
-        while pending:
-            completed, _pending = wait(pending.keys(), return_when=FIRST_COMPLETED)
-            for future in completed:
-                target = pending.pop(future)
-                try:
-                    skipped = future.result()
-                    if skipped:
-                        stats.skipped += 1
-                    else:
-                        stats.done += 1
-                    forbidden_failures = 0
-                except HttpStatusError as error:
-                    stats.failed += 1
-                    if error.status in BLOCKED_STATUSES:
-                        forbidden_failures += 1
-                    write_failed_page(folder, target, str(error))
-                    if parsed.forbidden_stop_after and forbidden_failures >= parsed.forbidden_stop_after:
-                        stats.stopped = True
-                        stop_scheduling = True
-                except Exception as error:  # noqa: BLE001 - bridge must report per-page failures.
-                    stats.failed += 1
-                    write_failed_page(folder, target, str(error))
-                    if parsed.max_failures and stats.failed >= parsed.max_failures:
-                        stats.stopped = True
-                        stop_scheduling = True
-                finally:
-                    update_download_state(folder, meta, stats, len(targets), target.index)
-
-                if not stop_scheduling:
-                    submit_next()
-
-    return stats
+def download_targets(folder: Path, meta: GalleryMeta, targets: list[ImageTarget], parsed: argparse.Namespace):
+    reporter = DownloadProgressReporter(
+        folder,
+        source_id=SOURCE_ID,
+        gallery_url=meta.url,
+        title=meta.title,
+        prefix=PROGRESS_PREFIX,
+    )
+    return run_bounded_downloads(
+        targets,
+        concurrency=download_concurrency(parsed),
+        worker=lambda target: download_one_target(folder, target, parsed),
+        on_failure=lambda target, error: append_failed_page(folder, SOURCE_ID, target, str(error)),
+        on_progress=reporter.report,
+        forbidden_stop_after=parsed.forbidden_stop_after,
+        max_failures=parsed.max_failures,
+    )
 
 
 def page_descriptors(meta: GalleryMeta) -> list[dict[str, Any]]:

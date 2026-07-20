@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -11,6 +12,10 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CONFIG_PATH = Path(os.environ.get("SOURCE_ADAPTER_CONFIG", PROJECT_ROOT / "config" / "source-adapters.json"))
 CAPABILITIES = {"search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"}
+HOSTNAME_PATTERN = re.compile(
+    r"^(?=.{1,253}$)(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)*"
+    r"[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$"
+)
 
 
 def fail(message: str) -> None:
@@ -86,6 +91,16 @@ def validate_source(source: dict[str, Any], seen_ids: set[str]) -> None:
     default_disabled_reason = source.get("default_disabled_reason")
     if default_disabled_reason is not None and not text(default_disabled_reason):
         fail(f"{source_id}: default_disabled_reason must be a non-empty string when set")
+
+    thumbnail_hosts = source.get("thumbnail_hosts")
+    if thumbnail_hosts is not None:
+        if not isinstance(thumbnail_hosts, list) or not thumbnail_hosts:
+            fail(f"{source_id}: thumbnail_hosts must be a non-empty hostname list when set")
+        normalized_hosts = [text(item).lower().rstrip(".") for item in thumbnail_hosts]
+        if not all(host and HOSTNAME_PATTERN.fullmatch(host) for host in normalized_hosts):
+            fail(f"{source_id}: thumbnail_hosts contains an invalid hostname")
+        if len(set(normalized_hosts)) != len(normalized_hosts):
+            fail(f"{source_id}: thumbnail_hosts must not contain duplicates")
 
 
 def text(value: object) -> str:

@@ -148,14 +148,22 @@ async fn create_search_task(
         ));
     }
 
-    let source_id = state
+    let source_ids = state
         .sources
-        .resolve_source_id(request.source_id.as_deref());
-    state
-        .sources
-        .require_capability(&source_id, SourceCapability::Search)
-        .map_err(|error| ApiError::bad_request(error.to_string()))?;
-    request.source_id = Some(source_id);
+        .resolve_source_ids(request.source_id.as_deref(), &request.source_ids);
+    if source_ids.is_empty() {
+        return Err(ApiError::bad_request(
+            "search task requires at least one source",
+        ));
+    }
+    for source_id in &source_ids {
+        state
+            .sources
+            .require_capability(source_id, SourceCapability::Search)
+            .map_err(|error| ApiError::bad_request(error.to_string()))?;
+    }
+    request.source_id = source_ids.first().cloned();
+    request.source_ids = source_ids;
 
     let title = if request.tags.is_empty() {
         request

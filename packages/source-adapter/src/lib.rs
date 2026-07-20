@@ -1,5 +1,11 @@
 use std::{
-    collections::HashMap, error::Error, fmt, future::Future, path::PathBuf, pin::Pin, sync::Arc,
+    collections::{HashMap, HashSet},
+    error::Error,
+    fmt,
+    future::Future,
+    path::PathBuf,
+    pin::Pin,
+    sync::Arc,
 };
 
 use comic_platform_domain::{
@@ -21,6 +27,7 @@ pub struct GallerySummary {
     pub gallery_url: String,
     pub title: String,
     pub tags: Vec<String>,
+    pub thumbnail_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -254,6 +261,24 @@ impl SourceAdapterRegistry {
             .to_string()
     }
 
+    pub fn resolve_source_ids(
+        &self,
+        source_id: Option<&str>,
+        source_ids: &[SourceId],
+    ) -> Vec<SourceId> {
+        let requested = if source_ids.is_empty() {
+            vec![self.resolve_source_id(source_id)]
+        } else {
+            source_ids.to_vec()
+        };
+        let mut seen = HashSet::new();
+        requested
+            .into_iter()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty() && seen.insert(value.clone()))
+            .collect()
+    }
+
     pub fn require_capability(
         &self,
         source_id: &str,
@@ -265,6 +290,11 @@ impl SourceAdapterRegistry {
             .ok_or_else(|| AdapterError::unknown_source(source_id))?;
         let descriptor = adapter.descriptor();
 
+        if !descriptor.enabled {
+            return Err(AdapterError::invalid_input(format!(
+                "source adapter {source_id} is disabled"
+            )));
+        }
         if !descriptor.supports(&capability) {
             return Err(AdapterError::unsupported_capability(source_id, capability));
         }
@@ -363,6 +393,7 @@ impl SourceAdapter for PythonBridgeAdapter {
                     gallery_url: item.url,
                     title: item.title,
                     tags: item.tags,
+                    thumbnail_url: item.thumbnail_url,
                 })
                 .collect())
         })
@@ -669,7 +700,10 @@ struct SearchBridgeItem {
     source_id: Option<SourceId>,
     title: String,
     url: String,
+    #[serde(default)]
     tags: Vec<String>,
+    #[serde(default)]
+    thumbnail_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

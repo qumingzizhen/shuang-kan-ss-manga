@@ -37,6 +37,51 @@ Browser
 
 The current default scaffold uses an in-memory task repository, in-memory event publisher, and in-memory task queue. PostgreSQL is already implemented behind the API service's `postgres` feature. SSE task events are exposed from the publisher boundary, with explicit lifecycle events such as `task_started`, `task_progressed`, `task_completed`, `task_failed`, and `task_canceled`. The API starts a local in-process worker by default so memory-mode tasks can be consumed before NATS is installed. NATS JetStream will replace the in-memory queue/publisher later without changing route handlers. Source-specific behavior is kept behind `packages/source-adapter` so new websites can be added without changing task routes or the web console.
 
+## Optimized Runtime Flows
+
+The development API and the Rust worker now use the same multi-source search
+contract: `source_ids`, partial `source_errors`, excluded-tag accounting, and
+normalized results. The execution mechanics differ by runtime, but both keep
+source order deterministic and bound concurrency through environment settings.
+
+```text
+Search request
+  -> validate enabled source capabilities
+  -> search sources with bounded concurrency
+  -> enrich missing tags with bounded concurrency
+  -> apply global excluded tags
+  -> deduplicate by source + gallery URL
+  -> return merged results plus partial source errors
+```
+
+The online reader separates viewport policy from transport work. The frontend's
+`reader-model.ts` calculates the small priority window; the development API
+deduplicates identical page requests, limits simultaneous bridge processes,
+and writes each successfully fetched page into the cache. Continuous mode
+eagerly warms only the nearest pages and leaves the rest to browser lazy loading.
+
+```text
+Visible page
+  -> reader load plan
+  -> single-flight page request
+  -> global bounded page-fetch queue
+  -> source bridge
+  -> local page cache
+  -> browser image response
+```
+
+Whole-gallery downloads keep source parsing inside each bridge while sharing
+scheduling and file mechanics in `scripts/source_bridge_core.py`. The common
+scheduler provides bounded workers, per-thread HTTP clients, atomic `.part`
+writes, consistent failure logs, and throttled progress events. This reduces
+duplicated code and avoids creating a new connection client for every page.
+
+The development API remains a local composition root rather than the production
+architecture. Reusable concurrency, search, source-registry, thumbnail-policy,
+and reader-window logic are extracted into small modules; production task
+execution continues to live behind Rust domain, adapter, queue, and runtime
+boundaries.
+
 ## Source Adapter Boundary
 
 Each website should be implemented behind a source adapter and registered with a descriptor exposed by `GET /v1/sources`:

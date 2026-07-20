@@ -80,6 +80,11 @@ Reader bookmarks are source-neutral as well:
 and `DELETE /v1/reader/sessions/{id}/bookmarks/{page}` removes it. Adapters do
 not store user reading metadata.
 
+Reader page transport is also bounded and deduplicated. Concurrent requests for
+the same session/page share one in-flight bridge call, while
+`DEV_API_READER_PAGE_CONCURRENCY` limits total page bridge processes. Batch page
+status reads scan the cache directory once per request instead of once per page.
+
 ## Login-Protected Sources
 
 Some sources are not public static websites. For sources that require an
@@ -172,6 +177,10 @@ crawler mechanics:
 - image response validation, extension detection, safe filename handling, and
   atomic JSON writes
 - common `DownloadStats` and `ImageTarget` structures
+- a bounded gallery-download scheduler with shared stop/failure handling
+- atomic image writes through temporary `.part` files
+- throttled progress reporting so large galleries do not rewrite task state for
+  every completed page
 
 The bridge script itself should only contain source-specific rules: URL
 patterns, search URL generation, selector/parser logic, gallery page inference,

@@ -1,4 +1,11 @@
 $SourceProjectRoot = Split-Path -Parent $PSScriptRoot
+$LegacyBridgePython = Join-Path (Split-Path -Parent $SourceProjectRoot) ".venv\Scripts\python.exe"
+
+# Resolve the bridge interpreter before switching to an ASCII subst drive. A
+# parent-directory virtualenv cannot be reached through the mapped drive root.
+if (-not $env:MANGA_BRIDGE_PYTHON -and (Test-Path -LiteralPath $LegacyBridgePython)) {
+  $env:MANGA_BRIDGE_PYTHON = $LegacyBridgePython
+}
 
 function Test-AsciiString {
   param(
@@ -94,7 +101,12 @@ New-Item -ItemType Directory -Force `
   -Path $env:NPM_CONFIG_CACHE, $env:CARGO_HOME, $env:RUSTUP_HOME, $env:PNPM_HOME, $env:YARN_CACHE_FOLDER, $TempRoot, $PythonPackages `
   | Out-Null
 
-$env:PYTHONPATH = if ($env:PYTHONPATH) { "$PythonPackages;$env:PYTHONPATH" } else { $PythonPackages }
+$ExistingPythonPath = @(
+  [string]$env:PYTHONPATH -split ";" |
+    ForEach-Object { $_.Trim() } |
+    Where-Object { $_ -and $_ -ne $PythonPackages }
+)
+$env:PYTHONPATH = (@($PythonPackages) + $ExistingPythonPath) -join ";"
 
 if (Test-Path $PostgresBin) {
   $env:Path = "$PostgresBin;$env:Path"
@@ -119,5 +131,6 @@ Write-Host "RUSTUP_HOME=$env:RUSTUP_HOME"
 Write-Host "CARGO_TARGET_DIR=$env:CARGO_TARGET_DIR"
 Write-Host "TEMP=$env:TEMP"
 Write-Host "PYTHONPATH=$env:PYTHONPATH"
+Write-Host "MANGA_BRIDGE_PYTHON=$env:MANGA_BRIDGE_PYTHON"
 Write-Host "PostgreSQL bin=$PostgresBin"
 Write-Host "Rust GNU bin=$RustGnuBin"

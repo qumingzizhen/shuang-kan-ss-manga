@@ -9,5 +9,6 @@ comic-platform-domain = { path = "../domain" }
 comic-platform-source-adapter = { path = "../source-adapter" }
 comic-platform-task-queue = { path = "../task-queue" }
 anyhow.workspace = true
+futures-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true

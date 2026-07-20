@@ -5,17 +5,19 @@ import contextlib
 import json
 import mimetypes
 import re
+import sys
 import time
 import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from datetime import datetime, timezone
 from html import unescape
 from html.parser import HTMLParser
 from http.cookiejar import MozillaCookieJar
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 
 IMAGE_EXT_RE = re.compile(r"\.(?:avif|gif|jpe?g|png|webp)(?:[?#].*)?$", re.IGNORECASE)
@@ -77,6 +79,191 @@ class ImageTarget:
     page_url: str
     image_url: str
     referer: str
+
+
+def image_files(folder: Path) -> set[int]:
+    indexes: set[int] = set()
+    if not folder.exists():
+        return indexes
+    for child in folder.iterdir():
+        if not child.is_file() or not IMAGE_EXT_RE.search(child.name):
+            continue
+        match = re.match(r"^(\d+)", child.stem)
+        if match:
+            indexes.add(int(match.group(1)))
+    return indexes
+
+
+def existing_image_for_index(folder: Path, index: int) -> Path | None:
+    if not folder.exists():
+        return None
+    prefix = f"{index:04d}"
+    for child in folder.iterdir():
+        if child.is_file() and child.stem == prefix and IMAGE_EXT_RE.search(child.name):
+            return child
+    return None
+
+
+def save_image_target(
+    client: "HttpClient",
+    folder: Path,
+    target: ImageTarget,
+    overwrite: bool,
+    min_image_bytes: int,
+) -> tuple[Path, str | None, int, bool]:
+    existing = existing_image_for_index(folder, target.index)
+    if existing and not overwrite:
+        existing_size = existing.stat().st_size
+        if existing_size >= min_image_bytes:
+            return existing, content_type_from_suffix(existing.suffix), existing_size, True
+
+    body, content_type = client.fetch_binary(target.image_url, referer=target.referer)
+    if len(body) < min_image_bytes:
+        raise RuntimeError(
+            f"Image response is too small for page {target.index}: {len(body)} bytes from {target.image_url}. "
+            "This usually means the source returned a placeholder or blocked image."
+        )
+    extension = image_extension(target.image_url, content_type)
+    file_path = folder / f"{target.index:04d}{extension}"
+    temporary = file_path.with_name(f".{file_path.name}.part")
+    temporary.write_bytes(body)
+    temporary.replace(file_path)
+    return file_path, content_type, len(body), False
+
+
+def append_failed_page(folder: Path, source_id: str, target: ImageTarget, error: str) -> None:
+    record = {
+        "timestamp": now_iso(),
+        "source_id": source_id,
+        "index": target.index,
+        "page_url": target.page_url,
+        "image_url": target.image_url,
+        "error": error,
+    }
+    with (folder / "failed_pages.jsonl").open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+class DownloadProgressReporter:
+    def __init__(
+        self,
+        folder: Path,
+        *,
+        source_id: str,
+        gallery_url: str,
+        title: str,
+        prefix: str,
+        min_interval: float = 0.25,
+    ) -> None:
+        self.folder = folder
+        self.source_id = source_id
+        self.gallery_url = gallery_url
+        self.title = title
+        self.prefix = prefix
+        self.min_interval = max(float(min_interval), 0.0)
+        self.last_emit = 0.0
+
+    def report(
+        self,
+        stats: DownloadStats,
+        total: int,
+        last_index: int | None,
+        *,
+        force: bool = False,
+    ) -> None:
+        now = time.monotonic()
+        completed = stats.done + stats.skipped + stats.failed
+        if not force and not stats.stopped and completed < total and now - self.last_emit < self.min_interval:
+            return
+        self.last_emit = now
+        payload = {
+            "source_id": self.source_id,
+            "gallery_url": self.gallery_url,
+            "title": self.title,
+            "total": total,
+            "done": stats.done,
+            "skipped": stats.skipped,
+            "failed": stats.failed,
+            "stopped": stats.stopped,
+            "last_index": last_index,
+            "updated_at": now_iso(),
+        }
+        write_json_atomic(self.folder / "download_state.json", payload)
+        print(
+            f"{self.prefix}{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+
+def run_bounded_downloads(
+    targets: list[ImageTarget],
+    *,
+    concurrency: int,
+    worker: Callable[[ImageTarget], bool],
+    on_failure: Callable[[ImageTarget, Exception], None],
+    on_progress: Callable[..., None],
+    forbidden_stop_after: int = 0,
+    max_failures: int = 0,
+) -> DownloadStats:
+    stats = DownloadStats()
+    limit = max(1, min(int(concurrency), 16))
+    forbidden_failures = 0
+    last_index: int | None = None
+    stop_scheduling = False
+
+    def record_result(target: ImageTarget, future: Any) -> None:
+        nonlocal forbidden_failures, last_index, stop_scheduling
+        last_index = target.index
+        try:
+            skipped = future.result()
+            if skipped:
+                stats.skipped += 1
+            else:
+                stats.done += 1
+            forbidden_failures = 0
+        except HttpStatusError as error:
+            stats.failed += 1
+            if error.status in BLOCKED_STATUSES:
+                forbidden_failures += 1
+            on_failure(target, error)
+            if forbidden_stop_after and forbidden_failures >= forbidden_stop_after:
+                stats.stopped = True
+                stop_scheduling = True
+        except Exception as error:  # noqa: BLE001 - callers need a per-page failure report.
+            stats.failed += 1
+            on_failure(target, error)
+            if max_failures and stats.failed >= max_failures:
+                stats.stopped = True
+                stop_scheduling = True
+        finally:
+            on_progress(stats, len(targets), target.index)
+
+    with ThreadPoolExecutor(max_workers=min(limit, max(len(targets), 1))) as executor:
+        pending: dict[Any, ImageTarget] = {}
+        next_index = 0
+
+        def submit_next() -> None:
+            nonlocal next_index
+            if stop_scheduling or next_index >= len(targets):
+                return
+            target = targets[next_index]
+            next_index += 1
+            pending[executor.submit(worker, target)] = target
+
+        for _ in range(min(limit, len(targets))):
+            submit_next()
+
+        while pending:
+            completed, _ = wait(pending, return_when=FIRST_COMPLETED)
+            for future in completed:
+                target = pending.pop(future)
+                record_result(target, future)
+                if not stop_scheduling:
+                    submit_next()
+
+    on_progress(stats, len(targets), last_index, force=True)
+    return stats
 
 
 class ParsedHtml(HTMLParser):

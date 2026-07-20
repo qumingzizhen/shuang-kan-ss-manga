@@ -254,6 +254,7 @@ dependencies = [
  "comic-platform-domain",
  "comic-platform-source-adapter",
  "comic-platform-task-queue",
+ "futures-util",
  "tokio",
  "tracing",
 ]

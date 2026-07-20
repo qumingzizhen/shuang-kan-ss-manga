@@ -224,7 +224,7 @@ export type RemoteReaderPageStatus = {
   source_id: string;
   page_index: number;
   page_url: string;
-  status: "pending" | "ready" | "failed";
+  status: "pending" | "loading" | "ready" | "failed";
   cached: boolean;
   size_bytes?: number | null;
   content_type?: string | null;

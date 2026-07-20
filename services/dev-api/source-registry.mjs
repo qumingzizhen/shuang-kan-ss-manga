@@ -50,6 +50,7 @@ export function publicSourceDescriptors(sourceAdapters) {
       python: _python,
       default_requires_any_env: _defaultRequiresAnyEnv,
       default_disabled_reason: _defaultDisabledReason,
+      thumbnail_hosts: _thumbnailHosts,
       ...descriptor
     } = source;
     const availability = sourceDefaultAvailability(source);

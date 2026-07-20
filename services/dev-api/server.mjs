@@ -1,7 +1,8 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import { createReadStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -11,7 +12,10 @@ import {
   materializeSourceAdapters,
   publicSourceDescriptors,
 } from "./source-registry.mjs";
-import { cleanTagList, searchResultMatchesExcludedTags } from "./search-filter.mjs";
+import { createAsyncLimiter, createSingleFlight, normalizeConcurrency } from "./async-pool.mjs";
+import { cleanTagList } from "./search-filter.mjs";
+import { executeSearchPipeline, SearchPipelineCanceledError } from "./search-pipeline.mjs";
+import { isPrivateHostname, validateThumbnailUrl } from "./thumbnail-policy.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
@@ -40,6 +44,9 @@ const librarySuspiciousImageBytes = Number(process.env.DEV_API_LIBRARY_SUSPICIOU
 const searchThumbnailTimeoutMs = Number(process.env.DEV_API_SEARCH_THUMBNAIL_TIMEOUT_MS || 10000);
 const searchThumbnailMaxBytes = Number(process.env.DEV_API_SEARCH_THUMBNAIL_MAX_BYTES || 5 * 1024 * 1024);
 const galleryDownloadConcurrency = Number(process.env.DEV_API_GALLERY_DOWNLOAD_CONCURRENCY || 0);
+const searchSourceConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_SOURCE_CONCURRENCY, 2, 8);
+const searchEnrichConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_ENRICH_CONCURRENCY, 4, 12);
+const readerPageConcurrency = normalizeConcurrency(process.env.DEV_API_READER_PAGE_CONCURRENCY, 3, 8);
 
 const tasks = new Map();
 const libraryShelf = new Map();
@@ -48,6 +55,9 @@ const readerPageFailures = new Map();
 const history = [];
 const subscribers = new Set();
 const runningChildren = new Map();
+const readerPageFetches = createSingleFlight();
+const searchThumbnailFetches = createSingleFlight();
+const scheduleReaderPageFetch = createAsyncLimiter(readerPageConcurrency);
 let saveChain = Promise.resolve();
 let readerSessionSaveChain = Promise.resolve();
 
@@ -789,80 +799,49 @@ async function runTask(task) {
   try {
     if (task.kind === "search") {
       const searchSources = taskSearchSources(task);
-      const results = [];
-      const seenResults = new Set();
-      const sourceErrors = [];
-      const excludedTags = cleanTagList(task.payload.excluded_tags);
-      let excludedCount = 0;
-
-      for (const [index, searchSource] of searchSources.entries()) {
-        if (task.status === "canceled") {
-          return;
-        }
-        task.progress = {
-          total: searchSources.length,
-          done: index,
-          failed: sourceErrors.length,
-          message: `searching ${searchSource.name}`,
-        };
-        touch(task);
-        publish("task_progressed", task);
-
-        try {
-          const result = await runBridge(
-            task,
-            [
-              "search",
-              "--tags-json",
-              JSON.stringify(task.payload.tags || []),
-              "--limit",
-              String(task.payload.limit || 10),
-              ...optionalArg("--name", task.payload.name),
-              ...optionalArg("--query", task.payload.query),
-            ],
-            searchSource.id,
-          );
-          for (const item of result.results || []) {
-            const normalized = {
-              source_id: item.source_id || searchSource.id,
-              gallery_url: item.url,
-              title: item.title,
-              tags: cleanTagList(item.tags),
-              thumbnail_url: textOrNull(item.thumbnail_url),
-            };
-            if (excludedTags.length && !normalized.tags.length) {
-              try {
-                const gallery = await runBridge(
-                  task,
-                  ["gallery", "--gallery-url", normalized.gallery_url],
-                  searchSource.id,
-                );
-                normalized.tags = cleanTagList(gallery.tags);
-              } catch (error) {
-                console.warn(
-                  `Could not enrich search tags for ${normalized.source_id} ${normalized.gallery_url}: ${error instanceof Error ? error.message : String(error)}`,
-                );
-              }
-            }
-            if (searchResultMatchesExcludedTags(normalized, excludedTags)) {
-              excludedCount += 1;
-              continue;
-            }
-            const key = `${normalized.source_id}|${normalized.gallery_url}`;
-            if (seenResults.has(key)) {
-              continue;
-            }
-            seenResults.add(key);
-            results.push(normalized);
+      const searchArgs = [
+        "search",
+        "--tags-json",
+        JSON.stringify(task.payload.tags || []),
+        "--limit",
+        String(task.payload.limit || 10),
+        ...optionalArg("--name", task.payload.name),
+        ...optionalArg("--query", task.payload.query),
+      ];
+      const searchReport = await executeSearchPipeline({
+        sources: searchSources,
+        request: task.payload,
+        sourceConcurrency: searchSourceConcurrency,
+        enrichConcurrency: searchEnrichConcurrency,
+        isCanceled: () => task.status === "canceled",
+        searchSource: (searchSource) => runBridge(task, searchArgs, searchSource.id),
+        enrichResult: (searchSource, item) =>
+          runBridge(task, ["gallery", "--gallery-url", item.gallery_url], searchSource.id),
+        onWarning: ({ message, error }) =>
+          console.warn(`${message}: ${error instanceof Error ? error.message : String(error)}`),
+        onProgress: ({ phase, source, completedSources, totalSources }) => {
+          if (task.status !== "running") {
+            return;
           }
-        } catch (error) {
-          sourceErrors.push({
-            source_id: searchSource.id,
-            source_name: searchSource.name,
-            message: error instanceof Error ? error.message : String(error),
-          });
-        }
-      }
+          task.progress = {
+            total: totalSources,
+            done: completedSources,
+            failed: task.progress.failed || 0,
+            message:
+              phase === "source_started"
+                ? `searching ${source.name} (${completedSources}/${totalSources})`
+                : `searched ${completedSources}/${totalSources} source(s)`,
+          };
+          touch(task);
+          publish("task_progressed", task);
+        },
+      });
+      const {
+        results,
+        sourceErrors,
+        excludedTags,
+        excludedCount,
+      } = searchReport;
 
       if (!results.length && sourceErrors.length === searchSources.length) {
         throw new Error(`all source searches failed: ${sourceErrors.map((error) => `${error.source_name}: ${error.message}`).join("; ")}`);
@@ -876,7 +855,7 @@ async function runTask(task) {
         failed: sourceErrors.length,
         output: {
           type: "search_results",
-          source_ids: searchSources.map((item) => item.id),
+          source_ids: searchReport.sourceIds,
           source_errors: sourceErrors,
           excluded_tags: excludedTags,
           excluded_count: excludedCount,
@@ -919,7 +898,7 @@ async function runTask(task) {
       },
     });
   } catch (error) {
-    if (task.status === "canceled") {
+    if (error instanceof SearchPipelineCanceledError || task.status === "canceled") {
       return;
     }
 
@@ -928,8 +907,6 @@ async function runTask(task) {
       done: task.progress.done || 0,
       failed: task.progress.failed || 1,
     });
-  } finally {
-    runningChildren.delete(task.id);
   }
 }
 
@@ -1068,9 +1045,7 @@ function runSourceBridge(sourceId, args, options = {}) {
       env: bridgeEnvForSource(sourceAdapter),
       windowsHide: true,
     });
-    if (options.childKey) {
-      runningChildren.set(options.childKey, child);
-    }
+    registerRunningChild(options.childKey, child);
 
     let stdout = "";
     let stderr = "";
@@ -1084,6 +1059,7 @@ function runSourceBridge(sourceId, args, options = {}) {
               return;
             }
             settled = true;
+            unregisterRunningChild(options.childKey, child);
             withIgnoredProcessError(child, () => child.kill("SIGTERM"));
             rejectPromise(new Error(`source bridge timed out after ${Math.round(timeoutMs / 1000)}s: ${args.join(" ")}`));
           }, timeoutMs)
@@ -1097,6 +1073,7 @@ function runSourceBridge(sourceId, args, options = {}) {
       if (timeout) {
         clearTimeout(timeout);
       }
+      unregisterRunningChild(options.childKey, child);
       callback();
     };
 
@@ -1171,6 +1148,29 @@ function withIgnoredProcessError(child, callback) {
   }
 }
 
+function registerRunningChild(childKey, child) {
+  if (!childKey) {
+    return;
+  }
+  const children = runningChildren.get(childKey) || new Set();
+  children.add(child);
+  runningChildren.set(childKey, children);
+}
+
+function unregisterRunningChild(childKey, child) {
+  if (!childKey) {
+    return;
+  }
+  const children = runningChildren.get(childKey);
+  if (!children) {
+    return;
+  }
+  children.delete(child);
+  if (!children.size) {
+    runningChildren.delete(childKey);
+  }
+}
+
 function runJsonScript(scriptPath, args) {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(defaultPython, [scriptPath, ...args], {
@@ -1208,9 +1208,11 @@ function cancelTask(task) {
   if (task.status === "completed" || task.status === "failed" || task.status === "canceled") {
     return;
   }
-  const child = runningChildren.get(task.id);
-  if (child && !child.killed) {
-    child.kill();
+  const children = runningChildren.get(task.id);
+  for (const child of children || []) {
+    if (!child.killed) {
+      child.kill();
+    }
   }
   task.status = "canceled";
   task.progress.message = "canceled";
@@ -1367,7 +1369,7 @@ async function sendSearchThumbnail(response, searchParams) {
       return;
     }
 
-    const parsed = validateSearchThumbnailUrl(source, thumbnailUrl);
+    const parsed = validateThumbnailUrl(source, thumbnailUrl);
     const cacheFile = searchThumbnailCacheFile(source.id, parsed.href);
     await ensureSearchThumbnailCached(source, parsed.href, textOrNull(searchParams.get("referer")), cacheFile);
     const fileStat = await stat(cacheFile);
@@ -1377,60 +1379,6 @@ async function sendSearchThumbnail(response, searchParams) {
   } catch (error) {
     sendJson(response, 502, { error: error instanceof Error ? error.message : String(error) });
   }
-}
-
-function validateSearchThumbnailUrl(source, thumbnailUrl) {
-  const parsed = new URL(thumbnailUrl);
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    throw new Error("thumbnail url must use http or https");
-  }
-  if (isPrivateHostname(parsed.hostname)) {
-    throw new Error("thumbnail url points to a private or local host");
-  }
-  if (!isAllowedThumbnailHost(source, parsed.hostname)) {
-    throw new Error(`thumbnail host is not allowed for source ${source.id}: ${parsed.hostname}`);
-  }
-  return parsed;
-}
-
-function isAllowedThumbnailHost(source, hostname) {
-  const host = hostname.toLowerCase();
-  if (source.id === "e-hentai" && (host === "ehgt.org" || host.endsWith(".ehgt.org"))) {
-    return true;
-  }
-
-  const homepageHost = sourceHomepageHost(source);
-  if (homepageHost && (host === homepageHost || host.endsWith(`.${homepageHost}`))) {
-    return true;
-  }
-
-  return source.id !== "fangliding";
-}
-
-function isPrivateHostname(hostname) {
-  const host = hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".localhost") || host === "0.0.0.0" || host === "::1" || host === "[::1]") {
-    return true;
-  }
-
-  const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
-  if (!ipv4) {
-    return false;
-  }
-
-  const octets = ipv4.slice(1).map((part) => Number(part));
-  if (octets.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
-    return true;
-  }
-
-  const [first, second] = octets;
-  return (
-    first === 10 ||
-    first === 127 ||
-    (first === 169 && second === 254) ||
-    (first === 172 && second >= 16 && second <= 31) ||
-    (first === 192 && second === 168)
-  );
 }
 
 function searchThumbnailCacheFile(sourceId, thumbnailUrl) {
@@ -1464,6 +1412,12 @@ async function ensureSearchThumbnailCached(source, thumbnailUrl, referer, cacheF
     }
   }
 
+  return searchThumbnailFetches.run(cacheFile, () =>
+    fetchAndCacheSearchThumbnail(source, thumbnailUrl, referer, cacheFile),
+  );
+}
+
+async function fetchAndCacheSearchThumbnail(source, thumbnailUrl, referer, cacheFile) {
   await mkdir(dirname(cacheFile), { recursive: true });
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), searchThumbnailTimeoutMs);
@@ -1477,7 +1431,7 @@ async function ensureSearchThumbnailCached(source, thumbnailUrl, referer, cacheF
       headers.referer = safeReferer;
     }
 
-    const remote = await fetch(thumbnailUrl, { headers, redirect: "follow", signal: controller.signal });
+    const remote = await fetchThumbnailResponse(source, thumbnailUrl, headers, controller.signal);
     if (!remote.ok) {
       throw new Error(`thumbnail fetch failed with HTTP ${remote.status}`);
     }
@@ -1487,18 +1441,77 @@ async function ensureSearchThumbnailCached(source, thumbnailUrl, referer, cacheF
       throw new Error(`thumbnail fetch returned non-image content-type: ${contentType}`);
     }
 
-    const body = Buffer.from(await remote.arrayBuffer());
+    const body = await readResponseBodyLimited(remote, searchThumbnailMaxBytes);
     if (body.length < 64) {
       throw new Error("thumbnail response is too small to be a usable image");
     }
-    if (body.length > searchThumbnailMaxBytes) {
-      throw new Error(`thumbnail response is too large: ${body.length} bytes`);
-    }
 
-    await writeFile(cacheFile, body);
+    const temporary = `${cacheFile}.${process.pid}.part`;
+    try {
+      await writeFile(temporary, body);
+      await rename(temporary, cacheFile);
+    } catch (error) {
+      await unlink(temporary).catch(() => undefined);
+      throw error;
+    }
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function fetchThumbnailResponse(source, thumbnailUrl, headers, signal, redirectCount = 0) {
+  const parsed = validateThumbnailUrl(source, thumbnailUrl);
+  await assertPublicHostname(parsed.hostname);
+  const remote = await fetch(parsed, { headers, redirect: "manual", signal });
+  if (![301, 302, 303, 307, 308].includes(remote.status)) {
+    return remote;
+  }
+  if (redirectCount >= 3) {
+    throw new Error("thumbnail fetch exceeded the redirect limit");
+  }
+  const location = remote.headers.get("location");
+  if (!location) {
+    throw new Error("thumbnail redirect did not include a location");
+  }
+  return fetchThumbnailResponse(source, new URL(location, parsed).href, headers, signal, redirectCount + 1);
+}
+
+async function assertPublicHostname(hostname) {
+  const addresses = await lookup(hostname, { all: true, verbatim: true });
+  if (!addresses.length || addresses.some((entry) => isPrivateHostname(entry.address))) {
+    throw new Error("thumbnail host resolves to a private or local address");
+  }
+}
+
+async function readResponseBodyLimited(response, maxBytes) {
+  const declaredLength = Number(response.headers.get("content-length") || 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error(`thumbnail response is too large: ${declaredLength} bytes`);
+  }
+  if (!response.body) {
+    return Buffer.alloc(0);
+  }
+
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel();
+        throw new Error(`thumbnail response is too large: more than ${maxBytes} bytes`);
+      }
+      chunks.push(Buffer.from(value));
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  return Buffer.concat(chunks, total);
 }
 
 function safeThumbnailReferer(source, referer) {
@@ -1815,6 +1828,10 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
 
   const cacheRoot = resolve(readerPageCacheDir, session.source_id, session.id);
   if (options.forceRefresh) {
+    const currentFetch = readerPageFetches.get(readerPageFetchKey(sessionId, page.index));
+    if (currentFetch) {
+      await currentFetch.catch(() => undefined);
+    }
     await removeCachedReaderPages(cacheRoot, page.index);
   } else {
     const cached = await findCachedReaderPage(cacheRoot, page.index);
@@ -1823,6 +1840,13 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
     }
   }
 
+  const fetchKey = readerPageFetchKey(sessionId, page.index);
+  return readerPageFetches.run(fetchKey, () =>
+    scheduleReaderPageFetch(() => fetchReaderPageFile(session, page, cacheRoot)),
+  );
+}
+
+async function fetchReaderPageFile(session, page, cacheRoot) {
   await mkdir(cacheRoot, { recursive: true });
   const report = await runSourceBridge(session.source_id, [
     "download-page",
@@ -1853,6 +1877,10 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
   };
 }
 
+function readerPageFetchKey(sessionId, pageIndex) {
+  return `${sessionId}\0${pageIndex}`;
+}
+
 async function removeCachedReaderPages(cacheRoot, pageIndex) {
   const entries = await safeReadDir(cacheRoot);
   const prefix = String(pageIndex).padStart(4, "0");
@@ -1876,28 +1904,46 @@ async function removeCachedReaderPages(cacheRoot, pageIndex) {
 }
 
 async function findCachedReaderPage(cacheRoot, pageIndex) {
-  const entries = await safeReadDir(cacheRoot);
-  const prefix = String(pageIndex).padStart(4, "0");
-  const entry = entries.find((candidate) => candidate.isFile() && candidate.name.startsWith(prefix) && isImageFile(candidate.name));
-  if (!entry) {
-    return null;
-  }
-  const filePath = resolve(cacheRoot, entry.name);
-  if (!isPathInside(filePath, cacheRoot)) {
-    return null;
-  }
-  const fileStat = await stat(filePath);
-  if (!fileStat.isFile()) {
-    return null;
-  }
-  return {
-    filePath,
-    fileStat,
-    mimeType: mimeTypeForImage(entry.name),
-  };
+  const pages = await listCachedReaderPages(cacheRoot, [pageIndex]);
+  return pages.get(pageIndex) || null;
 }
 
-async function getReaderPageStatus(sessionId, pageIndex) {
+async function listCachedReaderPages(cacheRoot, pageIndexes = []) {
+  const entries = await safeReadDir(cacheRoot);
+  const requested = new Set(pageIndexes.map((value) => Number(value)).filter((value) => Number.isFinite(value) && value > 0));
+  const candidates = entries.filter((entry) => {
+    if (!entry.isFile() || !isImageFile(entry.name)) {
+      return false;
+    }
+    const match = entry.name.match(/^(\d+)/);
+    return Boolean(match && (!requested.size || requested.has(Number(match[1]))));
+  });
+  const pages = new Map();
+  await Promise.all(
+    candidates.map(async (entry) => {
+      const match = entry.name.match(/^(\d+)/);
+      const pageIndex = Number(match?.[1]);
+      if (!Number.isFinite(pageIndex) || pages.has(pageIndex)) {
+        return;
+      }
+      const filePath = resolve(cacheRoot, entry.name);
+      if (!isPathInside(filePath, cacheRoot)) {
+        return;
+      }
+      const fileStat = await stat(filePath);
+      if (fileStat.isFile()) {
+        pages.set(pageIndex, {
+          filePath,
+          fileStat,
+          mimeType: mimeTypeForImage(entry.name),
+        });
+      }
+    }),
+  );
+  return pages;
+}
+
+async function getReaderPageStatus(sessionId, pageIndex, cachedPages = null) {
   const session = readerSessions.get(sessionId);
   if (!session || !Number.isFinite(pageIndex) || pageIndex <= 0) {
     return null;
@@ -1908,7 +1954,7 @@ async function getReaderPageStatus(sessionId, pageIndex) {
   }
 
   const cacheRoot = resolve(readerPageCacheDir, session.source_id, session.id);
-  const cached = await findCachedReaderPage(cacheRoot, page.index);
+  const cached = cachedPages instanceof Map ? cachedPages.get(page.index) : await findCachedReaderPage(cacheRoot, page.index);
   if (cached) {
     clearReaderPageFailure(sessionId, pageIndex);
     return {
@@ -1920,6 +1966,18 @@ async function getReaderPageStatus(sessionId, pageIndex) {
       cached: true,
       size_bytes: cached.fileStat.size,
       content_type: cached.mimeType,
+      updated_at: session.updated_at,
+    };
+  }
+
+  if (readerPageFetches.has(readerPageFetchKey(sessionId, pageIndex))) {
+    return {
+      session_id: session.id,
+      source_id: session.source_id,
+      page_index: page.index,
+      page_url: page.page_url,
+      status: "loading",
+      cached: false,
       updated_at: session.updated_at,
     };
   }
@@ -1960,7 +2018,9 @@ async function getReaderPageStatusBatch(sessionId, searchParams) {
   const safeOffset = Math.min(offset, session.pages.length);
   const safeLimit = Math.min(limit, 100);
   const pages = session.pages.slice(safeOffset, safeOffset + safeLimit);
-  const items = await Promise.all(pages.map((page) => getReaderPageStatus(sessionId, page.index)));
+  const cacheRoot = resolve(readerPageCacheDir, session.source_id, session.id);
+  const cachedPages = await listCachedReaderPages(cacheRoot, pages.map((page) => page.index));
+  const items = await Promise.all(pages.map((page) => getReaderPageStatus(sessionId, page.index, cachedPages)));
   const selectedItems = items.filter(Boolean);
   const nextOffset = safeOffset + selectedItems.length;
 
@@ -2044,6 +2104,8 @@ async function clearReaderSessionCacheFiles(session, pageIndexes = []) {
     throw new Error("reader cache path is outside the configured cache root");
   }
 
+  await waitForReaderPageFetches(session.id, pageIndexes);
+
   if (pageIndexes.length) {
     for (const pageIndex of pageIndexes) {
       await removeCachedReaderPages(cacheRoot, pageIndex);
@@ -2065,6 +2127,24 @@ async function clearReaderSessionCacheFiles(session, pageIndexes = []) {
   return {
     mode: "session",
   };
+}
+
+async function waitForReaderPageFetches(sessionId, pageIndexes = []) {
+  const requested = new Set(pageIndexes.map(Number));
+  const prefix = `${sessionId}\0`;
+  const pending = [];
+  for (const [key, promise] of readerPageFetches.entries()) {
+    if (!key.startsWith(prefix)) {
+      continue;
+    }
+    const pageIndex = Number(key.slice(prefix.length));
+    if (!requested.size || requested.has(pageIndex)) {
+      pending.push(promise);
+    }
+  }
+  if (pending.length) {
+    await Promise.allSettled(pending);
+  }
 }
 
 function readerPageFailureKey(sessionId, pageIndex) {

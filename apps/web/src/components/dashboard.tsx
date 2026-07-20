@@ -138,6 +138,7 @@ import {
   tagTranslations,
   uniqueTags,
 } from "@/lib/tag-system";
+import { readerLoadPlan } from "@/lib/reader-model";
 
 const allSourcesValue = "__all_sources__";
 const sourceAuthSourceId = "18comic";
@@ -507,20 +508,18 @@ export function Dashboard() {
     let active = true;
     const currentPage = libraryReader.page.index;
     const totalPages = Math.max(libraryReader.total, currentPage, 1);
-    const leadingPages = readerMode === "scroll" ? 2 : 3;
-    const trailingPages = readerMode === "scroll" ? 8 : 3;
-    const startPage = Math.max(1, currentPage - leadingPages);
-    const endPage = Math.min(totalPages, currentPage + trailingPages);
+    const plan = readerLoadPlan(currentPage, totalPages, readerMode);
 
-    listLibraryPages(libraryReader.item.id, startPage - 1, endPage - startPage + 1)
+    listLibraryPages(libraryReader.item.id, plan.startPage - 1, plan.count)
       .then((batch) => {
         if (!active) {
           return;
         }
         mergeLibraryPages(libraryReader.item.id, batch.items, batch.total);
         if (typeof window !== "undefined") {
+          const eagerPages = new Set(plan.eagerPageIndexes);
           batch.items
-            .filter((page) => page.index !== currentPage)
+            .filter((page) => eagerPages.has(page.index))
             .forEach((page) => {
               const image = new window.Image();
               image.src = apiUrl(page.url);
@@ -613,11 +612,8 @@ export function Dashboard() {
     let active = true;
     const currentPage = remoteReader.page.index;
     const totalPages = Math.max(remoteReader.total, currentPage, 1);
-    const leadingPages = readerMode === "scroll" ? 2 : 3;
-    const trailingPages = readerMode === "scroll" ? 8 : 3;
-    const startPage = Math.max(1, currentPage - leadingPages);
-    const endPage = Math.min(totalPages, currentPage + trailingPages);
-    const expectedPreloadPages = Math.max(endPage - startPage, 0);
+    const plan = readerLoadPlan(currentPage, totalPages, readerMode);
+    const expectedPreloadPages = plan.eagerPageIndexes.length;
 
     setRemoteReaderPreload({
       sessionId: remoteReader.session.id,
@@ -628,14 +624,15 @@ export function Dashboard() {
       status: "loading",
     });
 
-    listRemoteReaderPages(remoteReader.session.id, startPage - 1, endPage - startPage + 1)
+    listRemoteReaderPages(remoteReader.session.id, plan.startPage - 1, plan.count)
       .then((batch) => {
         if (!active) {
           return;
         }
         mergeRemoteReaderPages(remoteReader.session.id, batch.items, batch.total);
-        void refreshRemoteReaderPageStatuses(remoteReader.session.id, startPage - 1, endPage - startPage + 1);
-        const pagesToPreload = batch.items.filter((page) => page.index !== currentPage);
+        void refreshRemoteReaderPageStatuses(remoteReader.session.id, plan.startPage - 1, plan.count);
+        const eagerPages = new Set(plan.eagerPageIndexes);
+        const pagesToPreload = batch.items.filter((page) => eagerPages.has(page.index));
         if (!pagesToPreload.length || typeof window === "undefined") {
           setRemoteReaderPreload({
             sessionId: remoteReader.session.id,
@@ -2383,9 +2380,7 @@ export function Dashboard() {
   }
 
   function readerScrollPageNumbers(currentPage: number, totalPages: number) {
-    const start = Math.max(1, currentPage - 2);
-    const end = Math.min(totalPages, currentPage + 8);
-    return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+    return readerLoadPlan(currentPage, totalPages, "scroll").pageNumbers;
   }
 
   function markReaderImageStatus(url: string, status: ReaderImageStatus) {
@@ -2487,7 +2482,7 @@ export function Dashboard() {
     if (pageStatus === "ready") {
       return "ready";
     }
-    if (pageStatus === "pending" || imageStatus === "loading") {
+    if (pageStatus === "pending" || pageStatus === "loading" || imageStatus === "loading") {
       return "loading";
     }
     return "unknown";

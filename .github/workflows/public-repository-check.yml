@@ -1,4 +1,4 @@
-name: Public repository privacy check
+name: 公开仓库隐私检查
 
 on:
   push:
@@ -9,6 +9,7 @@ permissions:
 
 jobs:
   privacy:
+    name: 扫描敏感信息
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

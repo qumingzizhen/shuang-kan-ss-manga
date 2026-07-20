@@ -1,15 +1,15 @@
-# Security and privacy
+# 安全与隐私
 
-Please report vulnerabilities through GitHub's private security-advisory feature.
-Do not open a public issue containing cookies, request headers, access tokens,
-downloaded content, private gallery URLs, or server credentials.
+如果发现安全漏洞，请使用 GitHub 的私密安全公告（Private Security Advisory）
+功能报告。请勿在公开 Issue 中提交 Cookie、请求头、访问令牌、已下载内容、
+私有漫画地址或服务器凭据。
 
-Before publishing or pushing a change, run:
+发布或推送代码前，请运行：
 
 ```text
 python scripts/check_public_repo.py
 ```
 
-Runtime credentials belong in ignored local `.env` files or a deployment secret
-manager. Files under `.data`, `.cache`, `.tools`, `.private`, source-auth folders,
-and document-render QA folders must remain local.
+运行凭据应保存在已被 Git 忽略的本地 `.env` 文件中，或交由部署环境的密钥管理器
+保存。`.data`、`.cache`、`.tools`、`.private`、源站认证目录以及文档渲染检查目录
+中的文件必须只保留在本地。

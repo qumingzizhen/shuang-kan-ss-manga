@@ -1,184 +1,167 @@
-# Manga Platform Newwork
+# 爽看 SS 漫画
 
-This folder is the new architecture workspace for the manga platform.
+[![公开仓库隐私检查](https://github.com/qumingzizhen/shuang-kan-ss-manga/actions/workflows/public-repository-check.yml/badge.svg)](https://github.com/qumingzizhen/shuang-kan-ss-manga/actions/workflows/public-repository-check.yml)
 
-## Architecture
+一个本地优先的多源漫画管理平台，提供漫画搜索、标签筛选、批量下载、在线阅读和本地文件库管理功能。
 
-```text
-apps/web           Next.js web console
-services/api       Rust Axum API service
-services/dev-api   Temporary Node.js API shim for local runnable development
-workers/download   Rust download worker
-packages/domain    Shared Rust domain models
-packages/source-adapter Shared source adapter SDK
-packages/task-queue Shared task queue contract
-packages/task-runtime Shared task dispatcher, worker runtime, and reporter contract
-docs/task-lifecycle Shared lifecycle event taxonomy
-docs/task-output Shared task result payload taxonomy
-docs/file-library Local downloaded-gallery inventory notes
-docs/代码结构与可复用性审查 Code structure and reusability review
-infra              Local infrastructure for development
-docs               Architecture, roadmap, and operating notes
-```
+> 本项目不会绕过登录、付费墙、验证码、封禁或其他访问控制。使用者应遵守源站规则和所在地法律法规，并仅访问自己有权使用的内容。
 
-The first target is a web platform, not a desktop app. Future app clients should reuse the same backend:
+## 主要功能
+
+- 支持 `18comic`、`E-Hentai` 和 Fangliding 等来源，源站能力通过统一适配器注册。
+- 支持多源合并搜索、部分源失败隔离、结果去重和封面缓存。
+- 支持中文标签映射：输入中文词条时可选择对应英文标签。
+- 支持全局禁用词条：搜索结果会自动排除标题或标签中包含禁用词的漫画。
+- 支持直接链接下载、批量下载、失败页记录、缺页修复和任务重试。
+- 支持在线阅读、单双页/连续滚动、邻页预加载、书签和阅读进度保存。
+- 支持本地漫画文件库、收藏、阅读状态、备注、健康检查以及 CBZ/PDF 导出。
+- 本地 Cookie、请求头、下载文件和运行数据均被排除在公开仓库之外。
+
+## 界面与服务结构
 
 ```text
-Browser UI / Future App -> Rust API -> PostgreSQL/Redis/NATS/Object Storage -> Workers
+浏览器
+  -> Next.js 管理界面（apps/web）
+  -> 本地开发 API（services/dev-api）
+  -> Python 源站适配桥接（scripts/*_bridge.py）
+  -> 本地下载、缓存与文件库（.data）
 ```
 
-## Local Development
+正式后端同时提供 Rust 分层实现：
 
-Install Node.js first. Rust and PostgreSQL are kept project-local under this workspace by using `scripts/dev-env.ps1` and `scripts/postgres.ps1`.
-
-```powershell
-cd <project-root>
-.\scripts\dev-env.ps1
-python -m pip install --target .\.cache\python -r .\requirements.txt
-npm --prefix .\apps\web install
-.\scripts\dev.ps1
+```text
+services/api             Rust Axum API
+workers/download         下载任务 Worker
+packages/domain          领域模型与任务契约
+packages/source-adapter  源站适配器边界
+packages/task-queue      任务队列抽象
+packages/task-runtime    任务调度与运行时
 ```
 
-Run `.\scripts\dev-env.ps1` before dependency installation so npm, Cargo, Rustup, and temporary files stay under `<project-root>\.cache` instead of the Windows user profile on C drive.
+开发 API 用于 Windows 本地直接运行；Rust 服务保留生产部署所需的领域、队列、仓储和 Worker 边界。两条链路使用一致的多源搜索与任务输出契约。
 
-On this Chinese-path Windows workspace, the dev scripts may use a temporary ASCII `subst` drive internally. The mapped path is only a compatibility view; files still live under `<project-root>`.
+## 快速启动
 
-This workspace uses the `stable-x86_64-pc-windows-gnu` Rust toolchain with `rust-lld`, so it does not require Visual Studio Build Tools just to compile the current Rust services.
-
-Run all current checks:
+在 Windows PowerShell 中进入项目目录，然后运行：
 
 ```powershell
-.\scripts\check.ps1
-```
-
-Before publishing or pushing the repository, the same check also scans tracked
-files, DOCX metadata, local paths, common secret formats, and commit identities.
-It can be run separately with `python .\scripts\check_public_repo.py`. See
-`docs/public-release.md` for the local-only data boundary.
-
-`check.ps1` only validates the project and exits. It does not start the web UI.
-
-Current Windows note: `cargo check` passes locally. Full `cargo build` still needs a reliable Windows linker environment; the GNU linker path hits a `dlltool` CreateProcess issue under this Chinese workspace path, while MSVC requires Visual Studio Build Tools. We are keeping validation on `cargo check` until the linker path is settled.
-
-When you want to run the web UI before the Rust linker is fixed, use the development API shim:
-
-```powershell
-.\scripts\dev.ps1
-```
-
-This starts the API shim at `http://127.0.0.1:8080` and the web console at `http://127.0.0.1:3000` in one terminal. If those ports are already used by this local project, the script reuses the running services and prints the URL instead of failing.
-
-To force-restart the local API and web console after code changes:
-
-```powershell
+cd "<项目目录>"
 .\scripts\dev.ps1 -Fresh
 ```
 
-To fail fast instead of picking fallback ports when something else occupies a port:
+启动完成后打开：
+
+- Web 界面：<http://127.0.0.1:3000>
+- 本地 API：<http://127.0.0.1:8080>
+
+启动终端需要保持打开。关闭项目时，在该终端按 `Ctrl+C`。
+
+日常启动时可以省略 `-Fresh`：
+
+```powershell
+.\scripts\dev.ps1
+```
+
+如果端口已被本项目占用，脚本会复用正在运行的服务；如果希望端口冲突时直接失败，可以运行：
 
 ```powershell
 .\scripts\dev.ps1 -NoAutoPort
 ```
 
-You can also run the two services manually:
+## 首次安装依赖
+
+需要预先安装 Node.js 和 Python。首次使用时运行：
 
 ```powershell
+cd "<项目目录>"
 .\scripts\dev-env.ps1
-npm run dev:api:shim
+python -m pip install --target .\.cache\python -r .\requirements.txt
+npm --prefix .\apps\web install
 ```
 
-Then in another terminal:
+项目会将 npm、Cargo、Rustup 和临时文件放在项目目录的 `.cache` 中，减少对系统盘的占用。中文路径环境下，启动脚本可能临时创建一个 ASCII 映射盘；它只是兼容视图，实际文件仍保存在原项目目录。
+
+## 项目检查
+
+提交代码或排查运行问题前，建议执行统一检查：
 
 ```powershell
-.\scripts\dev-env.ps1
-$env:NEXT_PUBLIC_API_BASE="http://127.0.0.1:8080"
-npm --prefix .\apps\web run dev -- --hostname 127.0.0.1 --port 3000
+.\scripts\check.ps1
 ```
 
-Open `http://127.0.0.1:3000`. See `docs/dev-api-shim.md` for the boundary and routes.
+检查范围包括：
 
-PostgreSQL can be started without Docker:
+- JSON 与源站配置校验
+- Node.js 语法和搜索/并发/标签规则回归测试
+- Python 桥接脚本编译、自测和下载调度测试
+- Rust workspace 格式与编译检查
+- Next.js 生产构建与 TypeScript 检查
+- 公开仓库敏感信息和隐私文件扫描
+
+该命令只执行检查，不会保持项目运行。
+
+只进行公开仓库隐私扫描：
 
 ```powershell
-.\scripts\postgres.ps1 start
-.\scripts\postgres.ps1 status
-.\scripts\postgres.ps1 stop
+python .\scripts\check_public_repo.py
 ```
 
-PostgreSQL support in the API is behind an optional Rust feature:
+## 来源与搜索
 
-```powershell
-$env:TASK_REPOSITORY="postgres"
-$env:API_AUTO_MIGRATE="true"
-$env:DATABASE_URL="postgres://manga:manga@localhost:5432/manga?sslmode=disable"
-.\.cache\cargo\bin\cargo.exe run -p comic-platform-api --features postgres
+源站统一配置位于 `config/source-adapters.json`。前端通过 `/v1/sources` 获取来源描述，不需要为每个网站硬编码一套界面。
+
+当前搜索链路会：
+
+1. 校验来源是否启用并支持搜索；
+2. 在限定并发下搜索多个来源；
+3. 按需补全缺失标签；
+4. 应用全局禁用词条；
+5. 按“来源 + 漫画链接”去重；
+6. 返回合并结果及单个来源的错误信息。
+
+18comic 默认优先使用 JM 移动 API，公开网页只作为保守兼容回退。用户可以在本地界面中配置自己有权使用的 Cookie 或请求头；认证信息保存在 `.data/source-auth`，不会提交到 GitHub。
+
+## 阅读与下载
+
+在线阅读器会合并相同页面的并发请求，并限制同时运行的页面桥接进程。连续滚动模式只主动预热当前页附近的少量页面，其余图片交给浏览器懒加载，以降低首次打开和快速翻页时的资源占用。
+
+整本下载使用共享的有界并发调度器，并具备：
+
+- 每个工作线程复用 HTTP 客户端；
+- 图片通过临时 `.part` 文件原子写入；
+- 下载失败、访问受限和异常小图片明确记录；
+- 进度更新节流，避免大画廊频繁写入任务状态；
+- 支持限制页数、失败阈值和来源级并发。
+
+常用并发参数可参考 `.env.example`。不建议盲目提高并发，否则可能触发源站限流或封禁。
+
+## 本地数据与隐私
+
+以下目录只用于本地运行，并已被 Git 忽略：
+
+```text
+.data      下载内容、阅读缓存、任务记录和来源认证信息
+.cache     项目依赖缓存和临时文件
+.tools     项目本地工具
+.private   私有配置或资料
 ```
 
-Default mode is `TASK_REPOSITORY=memory`, which keeps the API usable without Docker or PostgreSQL.
+不要把 Cookie、访问令牌、私有漫画链接、服务器密码或下载内容粘贴到公开 Issue。漏洞报告方式请参阅 [安全与隐私说明](SECURITY.md)。
 
-## Current Status
+## 相关文档
 
-- Web UI scaffolded as an operational dashboard.
-- Rust API scaffolded with in-memory task storage.
-- Download worker scaffolded as a queue-consumer placeholder.
-- Infrastructure compose file prepared for local services.
-- Frontend build and Rust workspace check have passed locally.
-- API route layer, task repository boundary, and task publisher boundary are split.
-- Web console subscribes to task events through SSE.
-- Task update and cancel endpoints are available for lifecycle control.
-- Task lifecycle event names and domain helpers are available for queued, started, progressed, completed, failed, and canceled transitions.
-- Source adapter descriptors and capability checks are available through `GET /v1/sources`.
-- Shared source adapter SDK and worker dispatcher boundary are available.
-- Shared task queue contract and in-memory queue implementation are available.
-- Shared task runtime, download worker runtime, and task reporter boundary are available.
-- API starts a local in-process worker by default for in-memory task execution; set `API_LOCAL_WORKER=false` to disable it.
-- Built-in Fangliding adapter can call the legacy Python bridge for search, gallery metadata, retry-plan operations, and direct gallery downloads.
-- Source adapters now use a generic Python bridge abstraction: built-in sources are declared in `config/source-adapters.json`, and website scripts share `scripts/source_bridge_core.py` for HTTP, retries, cookie/header loading, HTML extraction, image validation, filenames, and JSON writes.
-- Development API source registration is now isolated in `services/dev-api/source-registry.mjs`, so adapter config loading and bridge materialization are reusable outside the temporary HTTP shim.
-- Built-in `18comic` adapter is registered for `https://18comic.vip/` through `scripts/18comic_bridge.py`, with conservative public-page parsing, low-frequency downloads, failure logs, and explicit stops on login/captcha/rate-limit boundaries.
-- The `18comic` adapter now uses the official JM mobile API first for search, gallery metadata, online reading, and downloads, with the public website retained as a conservative fallback when explicitly selected or when the API is unavailable.
-- The local dev API can store user-provided `18comic` Cookie/Header files under `.data/source-auth` through `/v1/source-auth/18comic`, and the web console exposes this as an inline source settings panel. This only supports normal authorized sessions and does not bypass login, age gates, captchas, bans, or rate limits.
-- The `18comic` bridge now follows the current browser search entry (`/meiman?f_search=...`), preserves namespace-style tags for that entry, uses a browser-like navigation header with the local Edge user agent when available, and detects Cloudflare/browser verification pages such as `Just a moment...` as a distinct hard stop instead of misreporting them as a missing Cookie.
-- Built-in `e-hentai` adapter is registered for `https://e-hentai.org/` through `scripts/ehentai_bridge.py`, with public search parsing, gallery page-list extraction, page-image fetching, online reading support, and the same access-boundary stops.
-- Online reader direct URLs now auto-detect the source by gallery host when possible, and failed page images expose a reader page status/diagnostic API so the UI can show the real failure reason; retrying a page evicts that single cached image and re-fetches it.
-- Remote online reader windows now load page statuses in batches, mark thumbnails/page shortcuts as ready, loading, or failed, and offer failed-page retry plus skip-failed-page actions inside the reader.
-- Remote reader history can now be filtered and expanded, individual sessions can be deleted, and reader caches can be cleared per page or per session from the web UI.
-- Remote online reader sessions now support persistent page bookmarks, with add/remove controls in the reader, bookmark jumps, and bookmark counts in recent-reader history.
-- Gallery download tasks now receive bridge progress events, have a bridge timeout, mark orphaned or stopped downloads as failed, reject tiny placeholder/blocked image responses, keep one target per page instead of deduping repeated image URLs, and the web UI polls active tasks as a fallback when SSE updates are missed.
-- Gallery downloads for `18comic` and `e-hentai` now use bounded concurrency: selected page ranges are filtered before image-page resolution, page-image resolution and file saving run through a small worker window, and `DEV_API_GALLERY_DOWNLOAD_CONCURRENCY` can override the default concurrency for local development.
-- Library scanning now exposes a `health` diagnostic summary for each downloaded gallery, including missing pages, failed page records, stopped download state, and suspicious tiny image files; the web library list and detail drawer show this status directly, and the library view can filter by normal, warning, failed, or all attention-needed items.
-- Completed tasks can now store structured output for search results, gallery download reports, and retry plans.
-- Web search tasks show returned galleries inline and can create direct download tasks from individual results.
-- Search results now carry source thumbnail URLs when the adapter can extract them; parser/API/UI layers filter known source UI icons such as E-Hentai `t.png`/`td.png`, and the web task list and detail drawer render stable cover thumbnails through the local `/v1/search-thumbnails` proxy/cache with a placeholder fallback.
-- Web task output now supports search-result selection, batch download-task creation, and a task detail drawer with payload/output JSON and output-path copying.
-- Web task creation defaults to "all enabled sources"; choosing a single source is now an explicit opt-in.
-- Web detail drawers now have an explicit 收回 button, click-outside dismissal, and animated slide-out closing.
-- Web console visual style has been adjusted toward a softer manga/anime-inspired workspace while keeping dense operational controls.
-- Web task list now supports keyword, task type, and status filters for quickly locating historical and running tasks.
-- Web task metrics can be clicked as quick status filters for all, queued, running, and failed tasks.
-- Web tasks can be rerun from the list or detail drawer by recreating the task from its stored payload.
-- Web dashboard pure model helpers now live in `apps/web/src/lib/dashboard-model.ts`, including tag splitting, status labels, task rerun payload reconstruction, file-library sorting, and reader progress calculations.
-- `GET /v1/tasks` now accepts `q`, `kind`, and `status` query parameters in the Rust API and development API shim.
-- Web console now includes a read-only file library backed by `GET /v1/library` and `GET /v1/library/{id}`, scanning local downloaded-gallery folders for title, tags, image/page counts, failed-page logs, size, update time, metadata, page previews, and library search/filter controls.
-- File library now exposes `GET /v1/library/tags` in the development API shim and shows a clickable popular-tag panel in the web console.
-- File library previews load page metadata in batches through `GET /v1/library/{id}/pages?offset=0&limit=24`, so large galleries do not need to send every page entry when details open.
-- File library items now have local shelf metadata for favorites, reading status, and notes, persisted under `.data\dev-api\library-shelf.json`.
-- File library shelf metadata now tracks last read page and last read time, with continue-reading actions and page-level "read to here" markers in the preview grid.
-- File library continue-reading and preview-thumbnail actions now open an in-app manga reader with page navigation, page jump, nearby-page shortcuts, adjacent-page thumbnail strip/preloading, remembered fit-width/fit-height/original display modes, keyboard navigation, and automatic reading-progress updates.
-- File library metric cards now act as quick filters for all items, failed records, currently reading, favorites, and recently read items.
-- File library now shows a recent-reading shelf ordered by last read time, with one-click continue-reading and detail actions.
-- File library items now include safe cover-image URLs, and the web console supports both dense table view and cover-card view.
-- File library now supports multi-select batch shelf operations for filtered results, including favorite/unfavorite and reading-status updates.
-- File library multi-select now supports batch CBZ/PDF export by reusing the existing per-gallery export endpoints and export history cache.
-- File library details can create a missing-only retry task for the current local gallery folder and jump back to the task console.
-- File library details can export a local gallery to CBZ and PDF under `.data\exports` through the development API shim.
-- File library export history is persisted in `.data\dev-api\library-exports.jsonl` and shown again when gallery details are reopened.
-- Recorded CBZ/PDF exports can be downloaded through the web console without exposing arbitrary local file paths.
-- Project-local PostgreSQL 17.10 is installed under `.tools` and stores data under `.data`.
-- PostgreSQL connection and task-table migration have been verified with `psql`.
-- API PostgreSQL runtime verification is pending a more reliable Windows linker or Linux/Docker build host.
-- A temporary Node.js development API shim is available at `services/dev-api/server.mjs` so the web console can run against task creation, SSE, search, retry-plan, and direct-download routes while the Rust linker is unresolved. Dev shim task snapshots persist under `.data/dev-api/tasks.json`.
+- [系统架构](docs/architecture.md)
+- [源站适配器](docs/source-adapters.md)
+- [开发 API 说明](docs/dev-api-shim.md)
+- [文件库设计](docs/file-library.md)
+- [标签中文映射](docs/tag-translations.md)
+- [任务生命周期](docs/task-lifecycle.md)
+- [任务输出契约](docs/task-output.md)
+- [公开发布与隐私边界](docs/public-release.md)
+- [项目架构与数据库设计](docs/项目架构与数据库设计.md)
 
-## Safety Boundary
+## 参与开发
 
-The platform should not bypass authentication, paywalls, captchas, or access controls. Public-facing deployment must include user limits, audit logs, abuse controls, and content takedown flows.
+新增来源时，应优先复用 `scripts/source_bridge_core.py` 的 HTTP、重试、文件写入和下载调度能力，并在 `config/source-adapters.json` 中声明来源及能力。源站脚本只负责网站特有的 URL、解析和鉴权规则。
+
+提交前请确保 `scripts/check.ps1` 全部通过，并确认工作区中没有本地凭据或下载内容。

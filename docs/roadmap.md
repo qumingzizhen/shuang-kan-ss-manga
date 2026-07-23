@@ -31,6 +31,7 @@
 - [x] Add a temporary Node.js development API shim for local runnable web testing while Windows Rust linking is unresolved.
 - [x] Add one-command local dev startup and task persistence for the development API shim.
 - [x] Add web task detail drawer and batch download creation from selected search results.
+- [x] Add wide single-row search results with incremental rendering and source-backed infinite pagination.
 - [x] Add a second built-in source adapter for `18comic.vip` with a conservative Python bridge and source-aware development shim dispatch.
 - [x] Refactor built-in sources onto one generic Python bridge adapter and shared crawler core.
 - [x] Move built-in source descriptors and bridge settings into a shared source registry config.

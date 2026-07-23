@@ -44,8 +44,9 @@ Invoke-Checked { python .\scripts\audit_tag_alignment.py --minimum-coverage 0.90
 
 Write-Host "`n[check] Python bridges"
 Invoke-Checked { python -c "import jmcomic; print('ok jmcomic', jmcomic.__version__ if hasattr(jmcomic, '__version__') else 'installed')" }
-Invoke-Checked { python -m py_compile .\scripts\source_bridge_core.py .\scripts\source_tag_resolver.py .\scripts\jmcomic_api_adapter.py .\scripts\fangliding_bridge.py .\scripts\18comic_bridge.py .\scripts\ehentai_bridge.py }
+Invoke-Checked { python -m py_compile .\scripts\source_bridge_core.py .\scripts\source_tag_resolver.py .\scripts\jmcomic_api_adapter.py .\scripts\fangliding_bridge.py .\scripts\check_fangliding_pagination.py .\scripts\18comic_bridge.py .\scripts\ehentai_bridge.py }
 Invoke-Checked { python .\scripts\check_download_core.py }
+Invoke-Checked { python .\scripts\check_fangliding_pagination.py }
 Invoke-Checked { python .\scripts\18comic_bridge.py self-test }
 Invoke-Checked { python .\scripts\ehentai_bridge.py self-test }
 

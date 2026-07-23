@@ -116,14 +116,24 @@ async def run_search(module: ModuleType, parsed: argparse.Namespace) -> dict:
     if not final_query:
         raise RuntimeError("Search requires tags, name, or query")
 
+    start_page = max(int(parsed.search_start_page or 1), 1) - 1
+    page_count = max(int(parsed.max_search_pages or 1), 1)
+    results = []
+    seen_urls: set[str] = set()
     async with module.make_client(args) as client:
-        results = await module.search_galleries(
-            client,
-            parsed.base_url,
-            final_query,
-            parsed.limit,
-            parsed.delay,
-        )
+        for page in range(start_page, start_page + page_count):
+            url = module.search_url(parsed.base_url, final_query, page)
+            html = await module.fetch_text(client, url, parsed.delay)
+            page_results = module.parse_search_results(html, parsed.base_url)
+            for result in page_results:
+                if result.url in seen_urls:
+                    continue
+                seen_urls.add(result.url)
+                results.append(result)
+                if len(results) >= parsed.limit:
+                    break
+            if len(results) >= parsed.limit or not page_results:
+                break
 
     return {
         "query": final_query,
@@ -234,6 +244,8 @@ async def async_main() -> int:
     parser.add_argument("--start-page", type=int)
     parser.add_argument("--end-page", type=int)
     parser.add_argument("--limit", type=int, default=10)
+    parser.add_argument("--search-start-page", type=int, default=1)
+    parser.add_argument("--max-search-pages", type=int, default=1)
     parser.add_argument("--output", type=Path, default=PROJECT_ROOT / ".data" / "downloads")
     parser.add_argument("--cookies-file")
     parser.add_argument("--no-auto-cookies", action="store_true")

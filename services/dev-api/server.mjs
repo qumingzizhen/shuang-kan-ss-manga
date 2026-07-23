@@ -46,6 +46,10 @@ const searchThumbnailMaxBytes = Number(process.env.DEV_API_SEARCH_THUMBNAIL_MAX_
 const galleryDownloadConcurrency = Number(process.env.DEV_API_GALLERY_DOWNLOAD_CONCURRENCY || 0);
 const searchSourceConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_SOURCE_CONCURRENCY, 2, 8);
 const searchEnrichConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_ENRICH_CONCURRENCY, 4, 12);
+const configuredSearchMaximumPages = Number(process.env.DEV_API_SEARCH_MAX_PAGES || 25);
+const searchMaximumPages = Number.isFinite(configuredSearchMaximumPages)
+  ? Math.max(2, Math.min(100, Math.trunc(configuredSearchMaximumPages)))
+  : 25;
 const readerPageConcurrency = normalizeConcurrency(process.env.DEV_API_READER_PAGE_CONCURRENCY, 3, 8);
 
 const tasks = new Map();
@@ -57,6 +61,7 @@ const subscribers = new Set();
 const runningChildren = new Map();
 const readerPageFetches = createSingleFlight();
 const searchThumbnailFetches = createSingleFlight();
+const searchMoreTasks = new Set();
 const scheduleReaderPageFetch = createAsyncLimiter(readerPageConcurrency);
 let saveChain = Promise.resolve();
 let readerSessionSaveChain = Promise.resolve();
@@ -383,6 +388,22 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const searchMoreMatch = path.match(/^\/v1\/tasks\/([^/]+)\/search-more$/);
+    if (searchMoreMatch && request.method === "POST") {
+      const task = tasks.get(searchMoreMatch[1]);
+      if (!task) {
+        sendJson(response, 404, { error: "task not found" });
+        return;
+      }
+      try {
+        sendJson(response, 200, publicTask(await loadMoreSearchResults(task)));
+      } catch (error) {
+        const status = searchMoreTasks.has(task.id) ? 409 : 400;
+        sendJson(response, status, { error: error instanceof Error ? error.message : String(error) });
+      }
+      return;
+    }
+
     const taskMatch = path.match(/^\/v1\/tasks\/([^/]+)$/);
     if (taskMatch && request.method === "GET") {
       const task = tasks.get(taskMatch[1]);
@@ -641,6 +662,10 @@ function createTask(kind, title, payload) {
   if (kind === "search") {
     payload.tags = cleanTagList(payload.tags);
     payload.excluded_tags = cleanTagList(payload.excluded_tags);
+    const requestedLimit = Number(payload.limit || 40);
+    payload.limit = Number.isFinite(requestedLimit)
+      ? Math.max(1, Math.min(100, Math.trunc(requestedLimit)))
+      : 40;
     payload.source_ids = taskSources.map((source) => source.id);
     if (taskSources.length === 1) {
       payload.source_id = taskSources[0].id;
@@ -785,6 +810,121 @@ function hostsMatch(candidateHost, sourceHost) {
   return candidateHost === sourceHost || candidateHost.endsWith(`.${sourceHost}`);
 }
 
+async function executeTaskSearchPage(task, startPage, reportProgress = false) {
+  const searchSources = taskSearchSources(task);
+  const searchArgs = [
+    "search",
+    "--tags-json",
+    JSON.stringify(task.payload.tags || []),
+    "--limit",
+    String(task.payload.limit || 40),
+    "--search-start-page",
+    String(startPage),
+    "--max-search-pages",
+    "1",
+    ...optionalArg("--name", task.payload.name),
+    ...optionalArg("--query", task.payload.query),
+  ];
+  return executeSearchPipeline({
+    sources: searchSources,
+    request: task.payload,
+    sourceConcurrency: searchSourceConcurrency,
+    enrichConcurrency: searchEnrichConcurrency,
+    isCanceled: () => task.status === "canceled",
+    searchSource: (searchSource) => runBridge(task, searchArgs, searchSource.id),
+    enrichResult: (searchSource, item) =>
+      runBridge(task, ["gallery", "--gallery-url", item.gallery_url], searchSource.id),
+    onWarning: ({ message, error }) =>
+      console.warn(`${message}: ${error instanceof Error ? error.message : String(error)}`),
+    onProgress: ({ phase, source, completedSources, totalSources }) => {
+      if (!reportProgress || task.status !== "running") {
+        return;
+      }
+      task.progress = {
+        total: totalSources,
+        done: completedSources,
+        failed: task.progress.failed || 0,
+        message:
+          phase === "source_started"
+            ? `searching ${source.name} (${completedSources}/${totalSources})`
+            : `searched ${completedSources}/${totalSources} source(s)`,
+      };
+      touch(task);
+      publish("task_progressed", task);
+    },
+  });
+}
+
+async function loadMoreSearchResults(task) {
+  if (task.kind !== "search" || task.status !== "completed" || task.output?.type !== "search_results") {
+    throw new Error("only a completed search task can load more results");
+  }
+  if (searchMoreTasks.has(task.id)) {
+    throw new Error("search result loading is already in progress");
+  }
+
+  const requestedPage = Number(task.output.next_search_page || 2);
+  const page = Number.isFinite(requestedPage) ? Math.max(2, Math.trunc(requestedPage)) : 2;
+  if (page > searchMaximumPages && !task.output.load_more_error) {
+    task.output.has_more = false;
+    return task;
+  }
+
+  searchMoreTasks.add(task.id);
+  task.output.loading_more = true;
+  task.output.load_more_error = null;
+  touch(task);
+  publish("task_updated", task);
+
+  try {
+    const searchReport = await executeTaskSearchPage(task, page);
+    if (!searchReport.results.length && searchReport.sourceErrors.length === searchReport.sourceIds.length) {
+      throw new Error(
+        `all source searches failed: ${searchReport.sourceErrors
+          .map((error) => `${error.source_name}: ${error.message}`)
+          .join("; ")}`,
+      );
+    }
+    const existingKeys = new Set(
+      task.output.results.map((item) => `${item.source_id}|${item.gallery_url}`),
+    );
+    const addedResults = searchReport.results.filter((item) => {
+      const key = `${item.source_id}|${item.gallery_url}`;
+      if (existingKeys.has(key)) {
+        return false;
+      }
+      existingKeys.add(key);
+      return true;
+    });
+
+    task.output.results.push(...addedResults);
+    task.output.source_errors = searchReport.sourceErrors;
+    task.output.excluded_tags = searchReport.excludedTags;
+    task.output.excluded_count = Number(task.output.excluded_count || 0) + searchReport.excludedCount;
+    task.output.next_search_page = page + 1;
+    task.output.has_more = addedResults.length > 0 && page < searchMaximumPages;
+    task.output.load_more_error = null;
+    task.progress = {
+      total: task.output.results.length,
+      done: task.output.results.length,
+      failed: searchReport.sourceErrors.length,
+      message: addedResults.length
+        ? `loaded ${addedResults.length} more result(s), ${task.output.results.length} total`
+        : `no more search results after page ${page}`,
+    };
+  } catch (error) {
+    task.output.has_more = false;
+    task.output.load_more_error = error instanceof Error ? error.message : String(error);
+    task.progress.message = `loading more results failed: ${task.output.load_more_error}`;
+  } finally {
+    task.output.loading_more = false;
+    touch(task);
+    publish("task_updated", task);
+    searchMoreTasks.delete(task.id);
+  }
+  return task;
+}
+
 async function runTask(task) {
   if (task.status === "canceled") {
     return;
@@ -798,44 +938,7 @@ async function runTask(task) {
 
   try {
     if (task.kind === "search") {
-      const searchSources = taskSearchSources(task);
-      const searchArgs = [
-        "search",
-        "--tags-json",
-        JSON.stringify(task.payload.tags || []),
-        "--limit",
-        String(task.payload.limit || 10),
-        ...optionalArg("--name", task.payload.name),
-        ...optionalArg("--query", task.payload.query),
-      ];
-      const searchReport = await executeSearchPipeline({
-        sources: searchSources,
-        request: task.payload,
-        sourceConcurrency: searchSourceConcurrency,
-        enrichConcurrency: searchEnrichConcurrency,
-        isCanceled: () => task.status === "canceled",
-        searchSource: (searchSource) => runBridge(task, searchArgs, searchSource.id),
-        enrichResult: (searchSource, item) =>
-          runBridge(task, ["gallery", "--gallery-url", item.gallery_url], searchSource.id),
-        onWarning: ({ message, error }) =>
-          console.warn(`${message}: ${error instanceof Error ? error.message : String(error)}`),
-        onProgress: ({ phase, source, completedSources, totalSources }) => {
-          if (task.status !== "running") {
-            return;
-          }
-          task.progress = {
-            total: totalSources,
-            done: completedSources,
-            failed: task.progress.failed || 0,
-            message:
-              phase === "source_started"
-                ? `searching ${source.name} (${completedSources}/${totalSources})`
-                : `searched ${completedSources}/${totalSources} source(s)`,
-          };
-          touch(task);
-          publish("task_progressed", task);
-        },
-      });
+      const searchReport = await executeTaskSearchPage(task, 1, true);
       const {
         results,
         sourceErrors,
@@ -843,7 +946,7 @@ async function runTask(task) {
         excludedCount,
       } = searchReport;
 
-      if (!results.length && sourceErrors.length === searchSources.length) {
+      if (!results.length && sourceErrors.length === searchReport.sourceIds.length) {
         throw new Error(`all source searches failed: ${sourceErrors.map((error) => `${error.source_name}: ${error.message}`).join("; ")}`);
       }
 
@@ -859,6 +962,10 @@ async function runTask(task) {
           source_errors: sourceErrors,
           excluded_tags: excludedTags,
           excluded_count: excludedCount,
+          next_search_page: 2,
+          has_more: results.length > 0 && searchMaximumPages >= 2,
+          loading_more: false,
+          load_more_error: null,
           results,
         },
       });

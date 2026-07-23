@@ -22,6 +22,7 @@ It mirrors the Rust API surface used by the web console:
 | `GET /v1/tasks?q=&kind=&status=` | In-memory task list with optional filters |
 | `GET /v1/tasks/events` | SSE task events |
 | `POST /v1/tasks/search` | Search task |
+| `POST /v1/tasks/{id}/search-more` | Load and append the next page for a completed search task |
 | `POST /v1/tasks/gallery` | Direct gallery download task |
 | `POST /v1/tasks/retry-folder` | Existing-folder retry plan task |
 | `PATCH /v1/tasks/{id}` | Task metadata/progress update |

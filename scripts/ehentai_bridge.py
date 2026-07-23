@@ -523,7 +523,9 @@ def run_search(parsed: argparse.Namespace) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     blocked_errors: list[HttpStatusError] = []
-    for page in range(max(parsed.max_search_pages, 1)):
+    start_page = max(int(parsed.search_start_page or 1), 1)
+    for page_number in range(start_page, start_page + max(parsed.max_search_pages, 1)):
+        page = page_number - 1
         page_url = search_page_url(base_url, query, page)
         try:
             html = client.fetch_text(page_url)
@@ -755,6 +757,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=float(os.environ.get("EHENTAI_TIMEOUT", "45")))
     parser.add_argument("--retries", type=int, default=int(os.environ.get("EHENTAI_RETRIES", "2")))
     parser.add_argument("--retry-backoff", type=float, default=float(os.environ.get("EHENTAI_RETRY_BACKOFF", "1.5")))
+    parser.add_argument("--search-start-page", type=int, default=1)
     parser.add_argument("--max-search-pages", type=int, default=int(os.environ.get("EHENTAI_MAX_SEARCH_PAGES", "2")))
     parser.add_argument("--max-gallery-index-pages", type=int, default=int(os.environ.get("EHENTAI_MAX_GALLERY_INDEX_PAGES", "0")))
     parser.add_argument("--max-pages-per-run", type=int, default=int(os.environ.get("EHENTAI_MAX_PAGES_PER_RUN", "0")))

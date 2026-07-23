@@ -558,7 +558,8 @@ def run_web_search(parsed: argparse.Namespace) -> dict[str, Any]:
     client = HttpClient(parsed, source_label="18comic.vip")
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for page in range(1, parsed.max_search_pages + 1):
+    start_page = max(int(parsed.search_start_page or 1), 1)
+    for page in range(start_page, start_page + max(parsed.max_search_pages, 1)):
         page_results: list[dict[str, Any]] = []
         blocked_errors: list[HttpStatusError] = []
         fetched_any_candidate = False
@@ -903,6 +904,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout", type=float, default=float(os.environ.get("COMIC18_TIMEOUT", "45")))
     parser.add_argument("--retries", type=int, default=int(os.environ.get("COMIC18_RETRIES", "2")))
     parser.add_argument("--retry-backoff", type=float, default=float(os.environ.get("COMIC18_RETRY_BACKOFF", "1.5")))
+    parser.add_argument("--search-start-page", type=int, default=1)
     parser.add_argument("--max-search-pages", type=int, default=int(os.environ.get("COMIC18_MAX_SEARCH_PAGES", "2")))
     parser.add_argument("--max-pages-per-run", type=int, default=int(os.environ.get("COMIC18_MAX_PAGES_PER_RUN", "0")))
     parser.add_argument("--max-failures", type=int, default=int(os.environ.get("COMIC18_MAX_FAILURES", "10")))

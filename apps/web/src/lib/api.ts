@@ -60,6 +60,10 @@ export type TaskOutput =
       }>;
       excluded_tags?: string[];
       excluded_count?: number;
+      next_search_page?: number | null;
+      has_more?: boolean;
+      loading_more?: boolean;
+      load_more_error?: string | null;
       results: TaskSearchResult[];
     }
   | {
@@ -592,6 +596,12 @@ export function createSearchTask(payload: SearchTaskRequest): Promise<Task> {
   return request<Task>("/v1/tasks/search", {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function loadMoreSearchTaskResults(taskId: string): Promise<Task> {
+  return request<Task>(`/v1/tasks/${encodeURIComponent(taskId)}/search-more`, {
+    method: "POST",
   });
 }
 

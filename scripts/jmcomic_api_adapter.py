@@ -87,7 +87,9 @@ def search(parsed: argparse.Namespace, query: str, base_url: str) -> dict[str, A
     from jmcomic import JmcomicText
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
-    for page_number in range(1, max(int(parsed.max_search_pages or 1), 1) + 1):
+    start_page = max(int(getattr(parsed, "search_start_page", 1) or 1), 1)
+    end_page = start_page + max(int(parsed.max_search_pages or 1), 1)
+    for page_number in range(start_page, end_page):
         page = client.search_site(query, page=page_number)
         for album_id, info in page.content:
             album_id = str(album_id)

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -61,6 +61,7 @@ import {
   listLibrary,
   listLibraryPages,
   listLibraryTags,
+  loadMoreSearchTaskResults,
   listRemoteReaderPageStatuses,
   listRemoteReaderPages,
   listRemoteReaderSessions,
@@ -147,6 +148,8 @@ const readerScrollSyncDelayMs = 650;
 const readerScrollObserverMargin = "-18% 0px -48% 0px";
 const readerScrollObserverThresholds = [0, 0.1, 0.25, 0.45, 0.65];
 const readerControlsCollapsedStorageKey = "manga-platform.reader-controls-collapsed";
+const initialVisibleSearchResults = 10;
+const searchResultRenderBatch = 10;
 
 type RemoteReaderState = {
   session: RemoteReaderSession;
@@ -194,6 +197,118 @@ function visibleReaderPageFromEntries(entries: IntersectionObserverEntry[]) {
   }
 
   return best ? best.page : null;
+}
+
+type InfiniteSearchResultsProps = {
+  taskId: string;
+  results: TaskSearchResult[];
+  hasMore: boolean;
+  loading: boolean;
+  error?: string | null;
+  renderResult: (result: TaskSearchResult) => ReactNode;
+  onLoadMore: () => void;
+};
+
+function InfiniteSearchResults({
+  taskId,
+  results,
+  hasMore,
+  loading,
+  error,
+  renderResult,
+  onLoadMore,
+}: InfiniteSearchResultsProps) {
+  const [visibleCount, setVisibleCount] = useState(Math.min(initialVisibleSearchResults, results.length));
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  const onLoadMoreRef = useRef(onLoadMore);
+
+  useEffect(() => {
+    onLoadMoreRef.current = onLoadMore;
+  }, [onLoadMore]);
+
+  useEffect(() => {
+    setVisibleCount(Math.min(initialVisibleSearchResults, results.length));
+  }, [taskId]);
+
+  useEffect(() => {
+    setVisibleCount((current) =>
+      Math.min(results.length, Math.max(current, Math.min(initialVisibleSearchResults, results.length))),
+    );
+  }, [results.length]);
+
+  const hasLocalResults = visibleCount < results.length;
+  const canRequestMore = hasMore || Boolean(error);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || loading || (!hasLocalResults && !canRequestMore) || typeof window === "undefined") {
+      return;
+    }
+
+    const root = sentinel.closest<HTMLElement>(".detail-body");
+    const revealOrLoad = () => {
+      if (hasLocalResults) {
+        setVisibleCount((current) => Math.min(results.length, current + searchResultRenderBatch));
+      } else {
+        onLoadMoreRef.current();
+      }
+    };
+
+    if (!window.IntersectionObserver) {
+      const handleScroll = () => {
+        const bounds = sentinel.getBoundingClientRect();
+        const viewportBottom = root?.getBoundingClientRect().bottom ?? window.innerHeight;
+        if (bounds.top <= viewportBottom + 180) {
+          revealOrLoad();
+        }
+      };
+      root?.addEventListener("scroll", handleScroll, { passive: true });
+      handleScroll();
+      return () => root?.removeEventListener("scroll", handleScroll);
+    }
+
+    const observer = new window.IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          revealOrLoad();
+        }
+      },
+      {
+        root,
+        rootMargin: "0px 0px 180px 0px",
+        threshold: 0.01,
+      },
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [canRequestMore, hasLocalResults, loading, results.length]);
+
+  const displayedResults = results.slice(0, visibleCount);
+  return (
+    <>
+      <div className="detail-results">
+        {displayedResults.map(renderResult)}
+      </div>
+      <div className="search-results-sentinel" ref={sentinelRef} aria-live="polite">
+        {loading ? (
+          <span>正在加载下一页搜索结果…</span>
+        ) : error ? (
+          <>
+            <span>继续加载失败：{error}</span>
+            <button className="mini-button" type="button" onClick={onLoadMore}>
+              重试
+            </button>
+          </>
+        ) : hasLocalResults ? (
+          <span>继续下滑显示更多 · 已显示 {visibleCount}/{results.length}</span>
+        ) : hasMore ? (
+          <span>继续下滑搜索下一页 · 当前 {results.length} 条</span>
+        ) : (
+          <span>已加载全部 {results.length} 条结果</span>
+        )}
+      </div>
+    </>
+  );
 }
 
 export function Dashboard() {
@@ -255,13 +370,14 @@ export function Dashboard() {
   const [taskKindFilter, setTaskKindFilter] = useState<TaskKind | "all">("all");
   const [taskStatusFilter, setTaskStatusFilter] = useState<TaskStatus | "all">("all");
   const [rerunningTaskId, setRerunningTaskId] = useState<string | null>(null);
+  const [searchResultsLoadingTaskId, setSearchResultsLoadingTaskId] = useState<string | null>(null);
 
   const [tags, setTags] = useState("language:chinese female:big breasts");
   const [globalExcludedTags, setGlobalExcludedTags] = useState<string[]>([]);
   const [excludedTagDraft, setExcludedTagDraft] = useState("");
   const [name, setName] = useState("");
   const [query, setQuery] = useState("");
-  const [limit, setLimit] = useState(5);
+  const [limit, setLimit] = useState(40);
   const [galleryUrl, setGalleryUrl] = useState("");
   const [retryFolder, setRetryFolder] = useState("");
   const [missingOnly, setMissingOnly] = useState(true);
@@ -2117,6 +2233,23 @@ export function Dashboard() {
     }
   }
 
+  async function loadMoreTaskSearchResults(task: Task) {
+    if (searchResultsLoadingTaskId === task.id || task.output?.type !== "search_results") {
+      return;
+    }
+    setSearchResultsLoadingTaskId(task.id);
+    setError(null);
+    try {
+      const updatedTask = await loadMoreSearchTaskResults(task.id);
+      mergeTask(updatedTask);
+      pushLog(`loaded more search results for ${task.title}`);
+    } catch (caught) {
+      handleError(caught);
+    } finally {
+      setSearchResultsLoadingTaskId(null);
+    }
+  }
+
   function collapseLibraryPages(item: LibraryItem) {
     setLibraryPages((current) => ({ ...current, [item.id]: (current[item.id] ?? []).slice(0, 24) }));
   }
@@ -2163,6 +2296,9 @@ export function Dashboard() {
 
       createdTasks.forEach(mergeTask);
       const firstTask = createdTasks[0];
+      if (mode === "search") {
+        openTaskDetail(firstTask.id);
+      }
       pushLog(`created ${createdTasks.length} ${kindLabel[firstTask.kind]} task(s) via ${selectedSourceSummary}`);
     } catch (caught) {
       handleError(caught);
@@ -2927,7 +3063,14 @@ export function Dashboard() {
       output?.type === "search_results" ? (output.excluded_count ?? 0) + Math.max(output.results.length - detailSearchResults.length, 0) : 0;
 
     return (
-      <aside className={detailDrawerClosing ? "detail-drawer closing" : "detail-drawer"} aria-label="任务详情">
+      <aside
+        className={[
+          "detail-drawer",
+          output?.type === "search_results" ? "search-detail-drawer" : "",
+          detailDrawerClosing ? "closing" : "",
+        ].filter(Boolean).join(" ")}
+        aria-label="任务详情"
+      >
         <div className="detail-header">
           <div>
             <h2>{task.title}</h2>
@@ -2977,7 +3120,7 @@ export function Dashboard() {
           </section>
 
           {output?.type === "search_results" && (
-            <section className="detail-section">
+            <section className="detail-section search-results-section">
               <div className="detail-section-title">
                 <h3>搜索结果</h3>
                 <div className="detail-actions">
@@ -2999,53 +3142,61 @@ export function Dashboard() {
                 </div>
               ) : null}
               {detailExcludedCount ? <div className="excluded-result-notice">已自动排除 {detailExcludedCount} 条命中全局禁用词条的结果</div> : null}
-              <div className="detail-results">
-                {detailSearchResults.length ? detailSearchResults.map((result) => (
-                  <div className="search-result detail-result" key={`${result.source_id}-${result.gallery_url}`}>
-                    <input
-                      className="result-checkbox"
-                      type="checkbox"
-                      aria-label={`选择：${result.title}`}
-                      checked={isSearchResultSelected(task.id, result)}
-                      onChange={() => toggleSearchResult(task.id, result)}
-                    />
-                    {renderSearchResultThumbnail(result)}
-                    <div className="result-main">
-                      <a className="result-link" href={result.gallery_url} target="_blank" rel="noreferrer">
-                        <ExternalLink size={13} aria-hidden />
-                        {result.title}
-                      </a>
-                      <div className="result-tags">
-                        {result.tags.slice(0, 8).map((tag) => (
-                          <span key={tag}>{tag}</span>
-                        ))}
+              {detailSearchResults.length ? (
+                <InfiniteSearchResults
+                  taskId={task.id}
+                  results={detailSearchResults}
+                  hasMore={Boolean(output.has_more)}
+                  loading={Boolean(output.loading_more) || searchResultsLoadingTaskId === task.id}
+                  error={output.load_more_error}
+                  onLoadMore={() => void loadMoreTaskSearchResults(task)}
+                  renderResult={(result) => (
+                    <div className="search-result detail-result" key={`${result.source_id}-${result.gallery_url}`}>
+                      <input
+                        className="result-checkbox"
+                        type="checkbox"
+                        aria-label={`选择：${result.title}`}
+                        checked={isSearchResultSelected(task.id, result)}
+                        onChange={() => toggleSearchResult(task.id, result)}
+                      />
+                      {renderSearchResultThumbnail(result)}
+                      <div className="result-main">
+                        <a className="result-link" href={result.gallery_url} target="_blank" rel="noreferrer">
+                          <ExternalLink size={13} aria-hidden />
+                          {result.title}
+                        </a>
+                        <div className="result-tags">
+                          {result.tags.slice(0, 12).map((tag) => (
+                            <span key={tag}>{tag}</span>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="result-actions">
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title={sourceSupportsRemoteReading(result.source_id) ? "打开在线阅读器" : "该源站暂不支持在线阅读"}
+                          aria-label={`打开在线阅读器：${result.title}`}
+                          disabled={remoteReaderLoading || !sourceSupportsRemoteReading(result.source_id)}
+                          onClick={() => openRemoteReader(result)}
+                        >
+                          <BookOpen size={15} aria-hidden />
+                        </button>
+                        <button
+                          className="icon-button"
+                          type="button"
+                          title="创建下载任务"
+                          aria-label={`创建下载任务：${result.title}`}
+                          disabled={loading}
+                          onClick={() => downloadSearchResult(result)}
+                        >
+                          <Download size={15} aria-hidden />
+                        </button>
                       </div>
                     </div>
-                    <div className="result-actions">
-                      <button
-                        className="icon-button"
-                        type="button"
-                        title={sourceSupportsRemoteReading(result.source_id) ? "打开在线阅读器" : "该源站暂不支持在线阅读"}
-                        aria-label={`打开在线阅读器：${result.title}`}
-                        disabled={remoteReaderLoading || !sourceSupportsRemoteReading(result.source_id)}
-                        onClick={() => openRemoteReader(result)}
-                      >
-                        <BookOpen size={15} aria-hidden />
-                      </button>
-                      <button
-                        className="icon-button"
-                        type="button"
-                        title="创建下载任务"
-                        aria-label={`创建下载任务：${result.title}`}
-                        disabled={loading}
-                        onClick={() => downloadSearchResult(result)}
-                      >
-                        <Download size={15} aria-hidden />
-                      </button>
-                    </div>
-                  </div>
-                )) : <div className="empty compact">当前结果均已被全局禁用词条排除</div>}
-              </div>
+                  )}
+                />
+              ) : <div className="empty compact">当前结果均已被全局禁用词条排除</div>}
             </section>
           )}
 
@@ -4761,7 +4912,7 @@ export function Dashboard() {
                       <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} />
                     </label>
                     <label className="field">
-                      <span>结果上限</span>
+                      <span>每次加载数量</span>
                       <input
                         className="input"
                         type="number"

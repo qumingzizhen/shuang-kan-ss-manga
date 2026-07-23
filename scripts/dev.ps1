@@ -182,33 +182,9 @@ function Start-ApiProcess {
   $startInfo.UseShellExecute = $false
   $startInfo.CreateNoWindow = $false
 
-  # Windows can expose both PATH and Path in one process environment. Building a
-  # clean environment avoids Start-Process/.NET duplicate-key failures.
-  $startInfo.EnvironmentVariables.Clear()
-  $seen = @{}
-  $pathValue = $env:Path
-  if (-not $pathValue) {
-    $pathValue = [Environment]::GetEnvironmentVariable("PATH", "Process")
-  }
-  if ($pathValue) {
-    $startInfo.EnvironmentVariables["Path"] = $pathValue
-    $seen["PATH"] = $true
-  }
-
-  $processEnvironment = [Environment]::GetEnvironmentVariables("Process")
-  foreach ($key in $processEnvironment.Keys) {
-    $name = [string]$key
-    $canonicalName = $name.ToUpperInvariant()
-    if ($seen.ContainsKey($canonicalName)) {
-      continue
-    }
-
-    $seen[$canonicalName] = $true
-    $startInfo.EnvironmentVariables[$name] = [string]$processEnvironment[$key]
-  }
-
-  $startInfo.EnvironmentVariables["DEV_API_PORT"] = [string]$ApiPort
-  $startInfo.EnvironmentVariables["NEXT_PUBLIC_API_BASE"] = $ApiUrl
+  # DEV_API_PORT and NEXT_PUBLIC_API_BASE are set in the parent process before
+  # this function runs, so the child inherits them without touching the
+  # PowerShell-version-dependent EnvironmentVariables collection.
 
   $process = New-Object System.Diagnostics.Process
   $process.StartInfo = $startInfo

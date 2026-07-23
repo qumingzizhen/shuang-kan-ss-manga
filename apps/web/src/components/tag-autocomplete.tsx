@@ -114,7 +114,11 @@ export function TagAutocomplete({
             >
               <span>{suggestion.zh}</span>
               <strong>{suggestion.canonical}</strong>
-              {suggestion.aliases[0] ? <small>{suggestion.aliases[0]}</small> : null}
+              {suggestion.source_terms?.["18comic"]?.[0] ? (
+                <small>18comic：{suggestion.source_terms["18comic"][0]}</small>
+              ) : suggestion.aliases[0] ? (
+                <small>{suggestion.aliases[0]}</small>
+              ) : null}
             </button>
           ))}
         </div>

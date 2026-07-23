@@ -1,5 +1,3125 @@
 [
   {
+    "canonical": "18comic:(すごい火)]",
+    "zh": "(すごい火)]",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "(すごい火)]"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:275",
+    "zh": "275",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "275"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:90年代",
+    "zh": "90年代",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "90年代"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:AI上色",
+    "zh": "AI上色",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "AI上色"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:Berserk",
+    "zh": "Berserk",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "Berserk"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:B環",
+    "zh": "B环",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "B環"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C103",
+    "zh": "C103",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C103"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C105",
+    "zh": "C105",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C105"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C79",
+    "zh": "C79",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C79"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C80",
+    "zh": "C80",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C80"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C82",
+    "zh": "C82",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C82"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C83",
+    "zh": "C83",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C83"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C84",
+    "zh": "C84",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C84"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C86",
+    "zh": "C86",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C86"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C88",
+    "zh": "C88",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C88"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C89",
+    "zh": "C89",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C89"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C90",
+    "zh": "C90",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C90"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C91",
+    "zh": "C91",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C91"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C92",
+    "zh": "C92",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C92"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C93",
+    "zh": "C93",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C93"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:C95",
+    "zh": "C95",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "C95"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:CG",
+    "zh": "CG",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "CG"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:CG集",
+    "zh": "CG集",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "CG集"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:FF29",
+    "zh": "FF29",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "FF29"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:FGO",
+    "zh": "FGO",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "FGO"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:Fate",
+    "zh": "Fate",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "Fate"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:FullColor",
+    "zh": "FullColor",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "FullColor"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:NTL",
+    "zh": "NTL",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "NTL"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:OL",
+    "zh": "OL",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "OL"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:SM",
+    "zh": "SM",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "SM"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:[SUGOFIRE",
+    "zh": "[SUGOFIRE",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "[SUGOFIRE"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:bitch",
+    "zh": "bitch",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "bitch"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:jk",
+    "zh": "jk",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "jk"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:jm水軍",
+    "zh": "jm水军",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "jm水軍"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:さ巨乳",
+    "zh": "さ巨乳",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "さ巨乳"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:ミンガル",
+    "zh": "ミンガル",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "ミンガル"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:ユメミガオカ",
+    "zh": "ユメミガオカ",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "ユメミガオカ"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:レンタ家族",
+    "zh": "レンタ家族",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "レンタ家族"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:中國翻訳",
+    "zh": "中国翻訳",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "中國翻訳"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:丸吞",
+    "zh": "丸吞",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "丸吞"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:乳膠衣",
+    "zh": "乳胶衣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "乳膠衣"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:乳頭凹陷",
+    "zh": "乳头凹陷",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "乳頭凹陷"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:交換",
+    "zh": "交换",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "交換"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:交換伴侶",
+    "zh": "交换伴侣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "交換伴侶"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:人妖",
+    "zh": "人妖",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "人妖"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:人妻",
+    "zh": "人妻",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "人妻"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:人魚娘",
+    "zh": "人鱼娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "人魚娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:偶像",
+    "zh": "偶像",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "偶像"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:傲嬌",
+    "zh": "傲娇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "傲嬌"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:內衣",
+    "zh": "内衣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "內衣"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:全裸",
+    "zh": "全裸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "全裸"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:公寓",
+    "zh": "公寓",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "公寓"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:冇露",
+    "zh": "冇露",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "冇露"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:冒險",
+    "zh": "冒险",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "冒險"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:冴えない彼女の育てかた",
+    "zh": "冴えない彼女の育てかた",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "冴えない彼女の育てかた"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:出生",
+    "zh": "出生",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "出生"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:出產",
+    "zh": "出产",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "出產"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:初戀",
+    "zh": "初恋",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "初戀"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:制服",
+    "zh": "制服",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "制服"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:創傷女主",
+    "zh": "创伤女主",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "創傷女主"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:劇情",
+    "zh": "剧情",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "劇情"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:劇情向",
+    "zh": "剧情向",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "劇情向"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:劇情向中文",
+    "zh": "剧情向中文",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "劇情向中文"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:動作",
+    "zh": "动作",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "動作"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:動畫化",
+    "zh": "动画化",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "動畫化"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:升級",
+    "zh": "升级",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "升級"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:口交臉",
+    "zh": "口交脸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "口交臉"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:古裝",
+    "zh": "古装",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "古裝"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:古風",
+    "zh": "古风",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "古風"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:史萊姆娘",
+    "zh": "史莱姆娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "史萊姆娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:吊帶襪",
+    "zh": "吊带袜",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "吊帶襪"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:同居",
+    "zh": "同居",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "同居"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:吸蛋蛋",
+    "zh": "吸蛋蛋",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "吸蛋蛋"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:啦啦隊",
+    "zh": "啦啦队",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "啦啦隊"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:喜劇",
+    "zh": "喜剧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "喜劇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:喪屍",
+    "zh": "丧尸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "喪屍"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:單元劇",
+    "zh": "单元剧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "單元劇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:地下戀情",
+    "zh": "地下恋情",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "地下戀情"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:塞口器",
+    "zh": "塞口器",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "塞口器"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:墮胎",
+    "zh": "堕胎",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "墮胎"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:墮落",
+    "zh": "堕落",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "墮落"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:外遇",
+    "zh": "外遇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "外遇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:多摩豪",
+    "zh": "多摩豪",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "多摩豪"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:多重口交",
+    "zh": "多重口交",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "多重口交"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:大乳暈",
+    "zh": "大乳晕",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "大乳暈"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:大乳頭",
+    "zh": "大乳头",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "大乳頭"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:大學生",
+    "zh": "大学生",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "大學生"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:大尺度",
+    "zh": "大尺度",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "大尺度"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:太妹",
+    "zh": "太妹",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "太妹"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:夾腿",
+    "zh": "夹腿",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "夾腿"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:奇幻",
+    "zh": "奇幻",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "奇幻"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:女大生",
+    "zh": "女大生",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女大生"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:女性向",
+    "zh": "女性向",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女性向"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:女性支配",
+    "zh": "女性支配",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女性支配"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:女神",
+    "zh": "女神",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女神"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:女裝",
+    "zh": "女装",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女裝"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:奶牛娘",
+    "zh": "奶牛娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "奶牛娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:妖精",
+    "zh": "妖精",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "妖精"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:妹妹",
+    "zh": "妹妹",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "妹妹"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:妹魔",
+    "zh": "妹魔",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "妹魔"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:姊妹",
+    "zh": "姊妹",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "姊妹"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:姐姐",
+    "zh": "姐姐",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "姐姐"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:姐弟",
+    "zh": "姐弟",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "姐弟"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:姐弟戀",
+    "zh": "姐弟恋",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "姐弟戀"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:娼年",
+    "zh": "娼年",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "娼年"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:婊子",
+    "zh": "婊子",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "婊子"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:媚藥",
+    "zh": "媚药",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "媚藥"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:子宮脫",
+    "zh": "子宫脱",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "子宮脫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:孟德新書",
+    "zh": "孟德新书",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "孟德新書"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:學姊",
+    "zh": "学姊",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "學姊"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:完結",
+    "zh": "完结",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "完結"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:小學生",
+    "zh": "小学生",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "小學生"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:小說改編",
+    "zh": "小说改编",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "小說改編"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:小鳥醬",
+    "zh": "小鸟酱",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "小鳥醬"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:少女",
+    "zh": "少女",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "少女"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:少婦",
+    "zh": "少妇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "少婦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:山文京伝",
+    "zh": "山文京伝",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "山文京伝"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:巨鵰",
+    "zh": "巨雕",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "巨鵰"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:巫女",
+    "zh": "巫女",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "巫女"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:年上女主",
+    "zh": "年上女主",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "年上女主"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:年齡差距",
+    "zh": "年龄差距",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "年齡差距"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:幼馴染",
+    "zh": "幼驯染",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "幼馴染"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:幽靈",
+    "zh": "幽灵",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "幽靈"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:弱肉強食",
+    "zh": "弱肉强食",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "弱肉強食"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:張口",
+    "zh": "张口",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "張口"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:強姦",
+    "zh": "强奸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "強姦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:復仇",
+    "zh": "复仇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "復仇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:忠犬男",
+    "zh": "忠犬男",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "忠犬男"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:性伴侶",
+    "zh": "性伴侣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "性伴侶"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:性勒索",
+    "zh": "性勒索",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "性勒索"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:性奴",
+    "zh": "性奴",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "性奴"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:性彆地位逆轉",
+    "zh": "性别地位逆转",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "性彆地位逆轉"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:性轉",
+    "zh": "性转",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "性轉"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:怪物女孩",
+    "zh": "怪物女孩",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "怪物女孩"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:怪物少女",
+    "zh": "怪物少女",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "怪物少女"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:惡墮",
+    "zh": "恶堕",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "惡墮"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:愛人",
+    "zh": "爱人",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "愛人"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:愛情",
+    "zh": "爱情",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "愛情"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:慾望",
+    "zh": "欲望",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "慾望"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:懸疑",
+    "zh": "悬疑",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "懸疑"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:戀愛",
+    "zh": "恋爱",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "戀愛"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:戀愛喜劇",
+    "zh": "恋爱喜剧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "戀愛喜劇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:戰鬥",
+    "zh": "战斗",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "戰鬥"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:房東",
+    "zh": "房东",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "房東"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:打工仔",
+    "zh": "打工仔",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "打工仔"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:拍攝",
+    "zh": "拍摄",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "拍攝"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:按摩",
+    "zh": "按摩",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "按摩"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:按摩棒",
+    "zh": "按摩棒",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "按摩棒"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:搞笑",
+    "zh": "搞笑",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "搞笑"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:搶奪",
+    "zh": "抢夺",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "搶奪"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:摔跤",
+    "zh": "摔跤",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "摔跤"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:新作",
+    "zh": "新作",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "新作"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:新都市",
+    "zh": "新都市",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "新都市"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:日常",
+    "zh": "日常",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "日常"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:星奈奈cos系列5",
+    "zh": "星奈奈cos系列5",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "星奈奈cos系列5"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:時代劇",
+    "zh": "时代剧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "時代劇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:暴君",
+    "zh": "暴君",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "暴君"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:曹式宗親會",
+    "zh": "曹式宗亲会",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "曹式宗親會"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:有夫之婦",
+    "zh": "有夫之妇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "有夫之婦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:有婦之夫",
+    "zh": "有妇之夫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "有婦之夫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:未成年",
+    "zh": "未成年",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "未成年"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:東方Project",
+    "zh": "东方Project",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "東方Project"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:柯南",
+    "zh": "柯南",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "柯南"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:校園",
+    "zh": "校园",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "校園"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:校園戀愛",
+    "zh": "校园恋爱",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "校園戀愛"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:格鬥",
+    "zh": "格斗",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "格鬥"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:機器人",
+    "zh": "机器人",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "機器人"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:機械姦",
+    "zh": "机械奸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "機械姦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:機翻",
+    "zh": "机翻",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "機翻"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:欲求不滿",
+    "zh": "欲求不满",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "欲求不滿"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:武俠",
+    "zh": "武侠",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "武俠"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:武道服",
+    "zh": "武道服",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "武道服"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:殭屍",
+    "zh": "僵尸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "殭屍"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:母女",
+    "zh": "母女",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "母女"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:母子",
+    "zh": "母子",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "母子"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:毛絨絨 中文",
+    "zh": "毛绒绒 中文",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "毛絨絨 中文"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:氣味",
+    "zh": "气味",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "氣味"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:洗腦",
+    "zh": "洗脑",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "洗腦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:浪漫",
+    "zh": "浪漫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "浪漫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:浪漫愛情",
+    "zh": "浪漫爱情",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "浪漫愛情"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:淫紋",
+    "zh": "淫纹",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "淫紋"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:湊臊幣",
+    "zh": "凑臊币",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "湊臊幣"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:源賴光",
+    "zh": "源赖光",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "源賴光"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:溫柔男主",
+    "zh": "温柔男主",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "溫柔男主"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:漁網襪",
+    "zh": "渔网袜",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "漁網襪"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:演藝圈",
+    "zh": "演艺圈",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "演藝圈"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:漢化組](C92)",
+    "zh": "汉化组](C92)",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "漢化組](C92)"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:烙印勇士",
+    "zh": "烙印勇士",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "烙印勇士"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:無口",
+    "zh": "无口",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "無口"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:無毒漢化組",
+    "zh": "无毒汉化组",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "無毒漢化組"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:熟母",
+    "zh": "熟母",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "熟母"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:父娘",
+    "zh": "父娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "父娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:牧場",
+    "zh": "牧场",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "牧場"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:特殊性癖好",
+    "zh": "特殊性癖好",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "特殊性癖好"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:特殊能力",
+    "zh": "特殊能力",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "特殊能力"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:特種行業",
+    "zh": "特种行业",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "特種行業"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:犯罪",
+    "zh": "犯罪",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "犯罪"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:狐娘",
+    "zh": "狐娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "狐娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:狗血劇",
+    "zh": "狗血剧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "狗血劇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:獵奇",
+    "zh": "猎奇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "獵奇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:獸交",
+    "zh": "兽交",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "獸交"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:獸耳",
+    "zh": "兽耳",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "獸耳"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:獸耳娘",
+    "zh": "兽耳娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "獸耳娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:玉藻前",
+    "zh": "玉藻前",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "玉藻前"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:現代作品",
+    "zh": "现代作品",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "現代作品"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:現代奇幻",
+    "zh": "现代奇幻",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "現代奇幻"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:產卵",
+    "zh": "产卵",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "產卵"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:男主愛撒嬌",
+    "zh": "男主爱撒娇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "男主愛撒嬌"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:男公關",
+    "zh": "男公关",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "男公關"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:男娘",
+    "zh": "男娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "男娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:畫風很澀，女老師很燒",
+    "zh": "画风很涩,女老师很烧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "畫風很澀，女老師很燒"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:異世界",
+    "zh": "异世界",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "異世界"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:異種交配記録3",
+    "zh": "异种交配记录3",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "異種交配記録3"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:異種姦",
+    "zh": "异种奸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "異種姦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:病嬌",
+    "zh": "病娇",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "病嬌"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:瘙癢",
+    "zh": "瘙痒",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "瘙癢"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:癡女",
+    "zh": "痴女",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "癡女"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:癡漢",
+    "zh": "痴汉",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "癡漢"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:白絲",
+    "zh": "白丝",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "白絲"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:皮物",
+    "zh": "皮物",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "皮物"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:監禁",
+    "zh": "监禁",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "監禁"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:監視",
+    "zh": "监视",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "監視"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:直球男主",
+    "zh": "直球男主",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "直球男主"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:睡姦",
+    "zh": "睡奸",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "睡姦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:短褲",
+    "zh": "短裤",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "短褲"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:短髮",
+    "zh": "短发",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "短髮"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:砲友",
+    "zh": "砲友",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "砲友"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:神作",
+    "zh": "神作",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "神作"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:神作(預定)",
+    "zh": "神作(预定)",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "神作(預定)"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:禁漫書庫",
+    "zh": "禁漫书库",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "禁漫書庫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:禁漫漢化組",
+    "zh": "禁漫汉化组",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "禁漫漢化組"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:禦姐",
+    "zh": "御姐",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "禦姐"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:穿刺",
+    "zh": "穿刺",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "穿刺"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:穿越",
+    "zh": "穿越",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "穿越"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:站長推薦",
+    "zh": "站长推荐",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "站長推薦"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:精靈",
+    "zh": "精灵",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "精靈"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:糞便",
+    "zh": "粪便",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "糞便"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:系統",
+    "zh": "系统",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "系統"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:純愛",
+    "zh": "纯爱",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "純愛"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:純炮友",
+    "zh": "纯炮友",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "純炮友"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:純純醜逼",
+    "zh": "纯纯丑逼",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "純純醜逼"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:綁縛與調教",
+    "zh": "绑缚与调教",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "綁縛與調教"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:網友大推",
+    "zh": "网友大推",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "網友大推"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:緊身服",
+    "zh": "紧身服",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "緊身服"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:緊身胸衣",
+    "zh": "紧身胸衣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "緊身胸衣"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:緊身衣",
+    "zh": "紧身衣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "緊身衣"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:繼姊",
+    "zh": "继姊",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "繼姊"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:羅曼史",
+    "zh": "罗曼史",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "羅曼史"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:胃部突起",
+    "zh": "胃部突起",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "胃部突起"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:脅迫",
+    "zh": "胁迫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "脅迫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:自慰器",
+    "zh": "自慰器",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "自慰器"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:臭刷數據的",
+    "zh": "臭刷数据的",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "臭刷數據的"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:舔陰",
+    "zh": "舔阴",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "舔陰"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:苗床",
+    "zh": "苗床",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "苗床"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:虐待",
+    "zh": "虐待",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "虐待"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:虐殺",
+    "zh": "虐杀",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "虐殺"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:處女",
+    "zh": "处女",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "處女"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:蟲洞",
+    "zh": "虫洞",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "蟲洞"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:見本",
+    "zh": "见本",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "見本"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:觀淫",
+    "zh": "观淫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "觀淫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:誘惑",
+    "zh": "诱惑",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "誘惑"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:調教",
+    "zh": "调教",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "調教"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:警察",
+    "zh": "警察",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "警察"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:護士",
+    "zh": "护士",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "護士"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:護理師",
+    "zh": "护理师",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "護理師"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:豐滿",
+    "zh": "丰满",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "豐滿"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:豪門生死鬥",
+    "zh": "豪门生死斗",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "豪門生死鬥"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:豬娘",
+    "zh": "猪娘",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "豬娘"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:貓貓",
+    "zh": "猫猫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "貓貓"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:超能力",
+    "zh": "超能力",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "超能力"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:身體改造",
+    "zh": "身体改造",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "身體改造"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:軍隊",
+    "zh": "军队",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "軍隊"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:輕小說",
+    "zh": "轻小说",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "輕小說"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:轉化",
+    "zh": "转化",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "轉化"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:轉生",
+    "zh": "转生",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "轉生"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:辦公女郎",
+    "zh": "办公女郎",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "辦公女郎"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:辦公室女郎",
+    "zh": "办公室女郎",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "辦公室女郎"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:近親亂倫",
+    "zh": "近亲乱伦",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "近親亂倫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:連載",
+    "zh": "连载",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "連載"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:連載中",
+    "zh": "连载中",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "連載中"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:連體衣",
+    "zh": "连体衣",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "連體衣"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:運動",
+    "zh": "运动",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "運動"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:運動服",
+    "zh": "运动服",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "運動服"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:過膝襪",
+    "zh": "过膝袜",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "過膝襪"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:都市",
+    "zh": "都市",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "都市"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:鄉下",
+    "zh": "乡下",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "鄉下"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:鄰居",
+    "zh": "邻居",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "鄰居"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:重口",
+    "zh": "重口",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "重口"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:重生",
+    "zh": "重生",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "重生"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:野外露出",
+    "zh": "野外露出",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "野外露出"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:野砲",
+    "zh": "野砲",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "野砲"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:閣樓",
+    "zh": "阁楼",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "閣樓"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:閨蜜",
+    "zh": "闺蜜",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "閨蜜"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:隔壁女鄰居",
+    "zh": "隔壁女邻居",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "隔壁女鄰居"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:隱藏的慾望",
+    "zh": "隐藏的欲望",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "隱藏的慾望"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:雙性戀",
+    "zh": "双性恋",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "雙性戀"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:雙胞胎",
+    "zh": "双胞胎",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "雙胞胎"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:電視劇化",
+    "zh": "电视剧化",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "電視劇化"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:青年漫",
+    "zh": "青年漫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "青年漫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:青春戀愛",
+    "zh": "青春恋爱",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "青春戀愛"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:青梅竹馬",
+    "zh": "青梅竹马",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "青梅竹馬"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:非H",
+    "zh": "非H",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "非H"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:韓劇",
+    "zh": "韩剧",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "韓劇"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:韓漫",
+    "zh": "韩漫",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "韓漫"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:顏射",
+    "zh": "颜射",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "顏射"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:風的工房",
+    "zh": "风的工房",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "風的工房"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:騎大車",
+    "zh": "骑大车",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "騎大車"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:鬼族",
+    "zh": "鬼族",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "鬼族"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:魅魔",
+    "zh": "魅魔",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "魅魔"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:魔法少女強制絶頂&ツイッター総集",
+    "zh": "魔法少女强制绝顶&ツイッター総集",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "魔法少女強制絶頂&ツイッター総集"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:黑絲",
+    "zh": "黑丝",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "黑絲"
+      ]
+    }
+  },
+  {
+    "canonical": "18comic:龍傲天",
+    "zh": "龙傲天",
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "龍傲天"
+      ]
+    }
+  },
+  {
     "canonical": "female:abortion",
     "zh": "堕胎",
     "aliases": []
@@ -50,7 +3170,12 @@
     "aliases": [
       "高潮脸",
       "ahegao"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "阿黑顏"
+      ]
+    }
   },
   {
     "canonical": "female:albino",
@@ -88,7 +3213,12 @@
   {
     "canonical": "female:anal intercourse",
     "zh": "肛交",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "肛交"
+      ]
+    }
   },
   {
     "canonical": "female:anal prolapse",
@@ -148,7 +3278,12 @@
   {
     "canonical": "female:asphyxiation",
     "zh": "窒息",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "窒息"
+      ]
+    }
   },
   {
     "canonical": "female:ass expansion",
@@ -163,7 +3298,12 @@
   {
     "canonical": "female:aunt",
     "zh": "阿姨",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "阿姨"
+      ]
+    }
   },
   {
     "canonical": "female:autofellatio",
@@ -269,7 +3409,12 @@
   {
     "canonical": "female:big ass",
     "zh": "大屁股",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "巨尻"
+      ]
+    }
   },
   {
     "canonical": "female:big balls",
@@ -283,7 +3428,12 @@
       "大胸",
       "丰满胸部",
       "big breasts"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "巨乳"
+      ]
+    }
   },
   {
     "canonical": "female:big clit",
@@ -358,7 +3508,12 @@
     "aliases": [
       "蒙眼",
       "blindfold"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "遮眼"
+      ]
+    }
   },
   {
     "canonical": "female:blood",
@@ -376,7 +3531,12 @@
     "aliases": [
       "吹箫",
       "blowjob"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "口交"
+      ]
+    }
   },
   {
     "canonical": "female:blowjob face",
@@ -409,7 +3569,12 @@
   {
     "canonical": "female:bodystocking",
     "zh": "连身袜",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "連身襪"
+      ]
+    }
   },
   {
     "canonical": "female:bodysuit",
@@ -422,7 +3587,12 @@
     "aliases": [
       "束缚",
       "bondage"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "束縛"
+      ]
+    }
   },
   {
     "canonical": "female:braces",
@@ -462,7 +3632,12 @@
   {
     "canonical": "female:bunny girl",
     "zh": "兔女郎",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "兔女郎"
+      ]
+    }
   },
   {
     "canonical": "female:burping",
@@ -510,7 +3685,12 @@
     "aliases": [
       "猫耳娘",
       "catgirl"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "貓女"
+      ]
+    }
   },
   {
     "canonical": "female:cbt",
@@ -540,7 +3720,12 @@
   {
     "canonical": "female:cheating",
     "zh": "出轨",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "出軌"
+      ]
+    }
   },
   {
     "canonical": "female:cheerleader",
@@ -555,7 +3740,12 @@
   {
     "canonical": "female:chinese dress",
     "zh": "旗袍",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "旗袍"
+      ]
+    }
   },
   {
     "canonical": "female:chloroform",
@@ -635,7 +3825,12 @@
   {
     "canonical": "female:collar",
     "zh": "项圈",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "項圈"
+      ]
+    }
   },
   {
     "canonical": "female:condom",
@@ -679,7 +3874,12 @@
       "COS",
       "cosplay",
       "cosplaying"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "cosplay"
+      ]
+    }
   },
   {
     "canonical": "female:cousin",
@@ -775,12 +3975,22 @@
       "黑皮",
       "深色皮肤",
       "dark skin"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "黑肉"
+      ]
+    }
   },
   {
     "canonical": "female:daughter",
     "zh": "女儿",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女兒"
+      ]
+    }
   },
   {
     "canonical": "female:deepthroat",
@@ -936,12 +4146,22 @@
   {
     "canonical": "female:drugs",
     "zh": "药物",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "藥物"
+      ]
+    }
   },
   {
     "canonical": "female:drunk",
     "zh": "醉酒",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "醉酒"
+      ]
+    }
   },
   {
     "canonical": "female:ear fuck",
@@ -997,7 +4217,12 @@
     "aliases": [
       "露出",
       "exhibitionism"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "露出"
+      ]
+    }
   },
   {
     "canonical": "female:exposed clothing",
@@ -1047,7 +4272,12 @@
   {
     "canonical": "female:farting",
     "zh": "放屁",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "放屁"
+      ]
+    }
   },
   {
     "canonical": "female:females only",
@@ -1057,7 +4287,12 @@
   {
     "canonical": "female:femdom",
     "zh": "女性主导",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "女性主導"
+      ]
+    }
   },
   {
     "canonical": "female:fff threesome",
@@ -1137,12 +4372,22 @@
   {
     "canonical": "female:foot licking",
     "zh": "舔足",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "舔足"
+      ]
+    }
   },
   {
     "canonical": "female:footjob",
     "zh": "足交",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "足交"
+      ]
+    }
   },
   {
     "canonical": "female:forced exposure",
@@ -1170,7 +4415,12 @@
   {
     "canonical": "female:freckles",
     "zh": "雀斑",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "雀斑"
+      ]
+    }
   },
   {
     "canonical": "female:frog",
@@ -1205,7 +4455,12 @@
   {
     "canonical": "female:furry",
     "zh": "毛茸茸",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "毛絨絨"
+      ]
+    }
   },
   {
     "canonical": "female:futanari",
@@ -1213,7 +4468,12 @@
     "aliases": [
       "双性女",
       "futanari"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "扶她"
+      ]
+    }
   },
   {
     "canonical": "female:futanarization",
@@ -1298,7 +4558,12 @@
     "aliases": [
       "眼镜",
       "glasses"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "眼鏡"
+      ]
+    }
   },
   {
     "canonical": "female:glory hole",
@@ -1308,7 +4573,12 @@
   {
     "canonical": "female:gloves",
     "zh": "手套",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "手套"
+      ]
+    }
   },
   {
     "canonical": "female:goat",
@@ -1358,7 +4628,12 @@
   {
     "canonical": "female:gyaru",
     "zh": "辣妹",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "辣妹"
+      ]
+    }
   },
   {
     "canonical": "female:gymshorts",
@@ -1389,7 +4664,12 @@
     "aliases": [
       "多毛",
       "hairy"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "多毛"
+      ]
+    }
   },
   {
     "canonical": "female:hairy armpits",
@@ -1422,7 +4702,12 @@
   {
     "canonical": "female:harem",
     "zh": "后宫",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "後宮"
+      ]
+    }
   },
   {
     "canonical": "female:harness",
@@ -1467,7 +4752,12 @@
   {
     "canonical": "female:high heels",
     "zh": "高跟鞋",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "高跟鞋"
+      ]
+    }
   },
   {
     "canonical": "female:hijab",
@@ -1507,7 +4797,12 @@
   {
     "canonical": "female:huge breasts",
     "zh": "超乳",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "超乳"
+      ]
+    }
   },
   {
     "canonical": "female:huge penis",
@@ -1527,7 +4822,13 @@
   {
     "canonical": "female:humiliation",
     "zh": "屈辱",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "凌辱",
+        "淩辱"
+      ]
+    }
   },
   {
     "canonical": "female:hyena girl",
@@ -1618,7 +4919,12 @@
   {
     "canonical": "female:kimono",
     "zh": "和服👘",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "和服"
+      ]
+    }
   },
   {
     "canonical": "female:kindergarten uniform",
@@ -1628,7 +4934,12 @@
   {
     "canonical": "female:kissing",
     "zh": "接吻💏",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "接吻"
+      ]
+    }
   },
   {
     "canonical": "female:kneepit sex",
@@ -1661,7 +4972,12 @@
     "aliases": [
       "母乳",
       "lactation"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "乳汁"
+      ]
+    }
   },
   {
     "canonical": "female:large insertions",
@@ -1731,7 +5047,12 @@
   {
     "canonical": "female:lolicon",
     "zh": "萝莉",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "蘿莉"
+      ]
+    }
   },
   {
     "canonical": "female:long tongue",
@@ -1781,7 +5102,12 @@
   {
     "canonical": "female:magical girl",
     "zh": "魔法少女",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "魔法少女"
+      ]
+    }
   },
   {
     "canonical": "female:maid",
@@ -1789,7 +5115,13 @@
     "aliases": [
       "女佣",
       "maid"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "女仆",
+        "女僕"
+      ]
+    }
   },
   {
     "canonical": "female:makeup",
@@ -1809,7 +5141,13 @@
   {
     "canonical": "female:masturbation",
     "zh": "自慰",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "手淫",
+        "自慰"
+      ]
+    }
   },
   {
     "canonical": "female:mecha girl",
@@ -1857,7 +5195,12 @@
     "aliases": [
       "成熟女性",
       "MILF"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "熟女"
+      ]
+    }
   },
   {
     "canonical": "female:military",
@@ -1883,7 +5226,12 @@
     "aliases": [
       "催眠控制",
       "mind control"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "催眠"
+      ]
+    }
   },
   {
     "canonical": "female:minigirl",
@@ -2027,7 +5375,12 @@
     "aliases": [
       "女性肌肉",
       "muscle"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "肌肉"
+      ]
+    }
   },
   {
     "canonical": "female:muscle growth",
@@ -2050,7 +5403,12 @@
     "aliases": [
       "内射",
       "nakadashi"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "中出"
+      ]
+    }
   },
   {
     "canonical": "female:navel birth",
@@ -2079,7 +5437,12 @@
       "NTR",
       "绿帽",
       "netorare"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "NTR"
+      ]
+    }
   },
   {
     "canonical": "female:netorase",
@@ -2117,7 +5480,12 @@
   {
     "canonical": "female:nipple piercing",
     "zh": "乳头穿孔",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "乳環"
+      ]
+    }
   },
   {
     "canonical": "female:nipple stimulation",
@@ -2142,7 +5510,12 @@
   {
     "canonical": "female:nun",
     "zh": "修女服",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "修女"
+      ]
+    }
   },
   {
     "canonical": "female:nurse",
@@ -2213,7 +5586,12 @@
   {
     "canonical": "female:oyakodon",
     "zh": "母女丼",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "母女丼"
+      ]
+    }
   },
   {
     "canonical": "female:painted nails",
@@ -2226,7 +5604,12 @@
     "aliases": [
       "胸交",
       "paizuri"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "乳交"
+      ]
+    }
   },
   {
     "canonical": "female:panda girl",
@@ -2239,7 +5622,12 @@
     "aliases": [
       "裤袜",
       "pantyhose"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "連褲襪"
+      ]
+    }
   },
   {
     "canonical": "female:pantyjob",
@@ -2364,12 +5752,22 @@
   {
     "canonical": "female:ponytail",
     "zh": "马尾辫",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "馬尾"
+      ]
+    }
   },
   {
     "canonical": "female:possession",
     "zh": "附身",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "附身"
+      ]
+    }
   },
   {
     "canonical": "female:pregnant",
@@ -2377,7 +5775,13 @@
     "aliases": [
       "孕妇",
       "pregnant"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "孕婦",
+        "懷孕"
+      ]
+    }
   },
   {
     "canonical": "female:prehensile hair",
@@ -2443,7 +5847,13 @@
     "aliases": [
       "强迫",
       "rape"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "強暴",
+        "強迫"
+      ]
+    }
   },
   {
     "canonical": "female:real doll",
@@ -2473,7 +5883,12 @@
   {
     "canonical": "female:rimjob",
     "zh": "舔肛",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "舔肛"
+      ]
+    }
   },
   {
     "canonical": "female:robot",
@@ -2540,7 +5955,12 @@
       "校服",
       "学生制服",
       "schoolgirl uniform"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "校服"
+      ]
+    }
   },
   {
     "canonical": "female:scrotal lingerie",
@@ -2555,7 +5975,12 @@
   {
     "canonical": "female:sex toys",
     "zh": "性玩具",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "性玩具"
+      ]
+    }
   },
   {
     "canonical": "female:shapening",
@@ -2640,7 +6065,12 @@
   {
     "canonical": "female:slave",
     "zh": "奴隶",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "奴隸"
+      ]
+    }
   },
   {
     "canonical": "female:sleeping",
@@ -2669,7 +6099,12 @@
       "小胸",
       "平胸",
       "small breasts"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "貧乳"
+      ]
+    }
   },
   {
     "canonical": "female:small penis",
@@ -2742,7 +6177,12 @@
   {
     "canonical": "female:spanking",
     "zh": "打屁股",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "打屁股"
+      ]
+    }
   },
   {
     "canonical": "female:speculum",
@@ -2777,7 +6217,12 @@
   {
     "canonical": "female:squirting",
     "zh": "潮吹",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "潮吹"
+      ]
+    }
   },
   {
     "canonical": "female:ssbbw",
@@ -2800,7 +6245,12 @@
     "aliases": [
       "丝袜",
       "stockings"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "絲襪"
+      ]
+    }
   },
   {
     "canonical": "female:stomach deformation",
@@ -2850,7 +6300,12 @@
   {
     "canonical": "female:sweating",
     "zh": "出汗",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "出汗"
+      ]
+    }
   },
   {
     "canonical": "female:swimsuit",
@@ -2858,7 +6313,12 @@
     "aliases": [
       "泳衣",
       "swimsuit"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "泳裝"
+      ]
+    }
   },
   {
     "canonical": "female:swinging",
@@ -2906,7 +6366,12 @@
   {
     "canonical": "female:tall girl",
     "zh": "高个女",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "高個女"
+      ]
+    }
   },
   {
     "canonical": "female:tanlines",
@@ -2927,14 +6392,25 @@
     "aliases": [
       "老师",
       "teacher"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "教師",
+        "老師"
+      ]
+    }
   },
   {
     "canonical": "female:tentacles",
     "zh": "触手",
     "aliases": [
       "tentacles"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "觸手"
+      ]
+    }
   },
   {
     "canonical": "female:thick eyebrows",
@@ -2974,7 +6450,12 @@
   {
     "canonical": "female:tomboy",
     "zh": "假小子",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "假小子"
+      ]
+    }
   },
   {
     "canonical": "female:tooth brushing",
@@ -3059,7 +6540,12 @@
   {
     "canonical": "female:twintails",
     "zh": "双马尾",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "雙馬尾"
+      ]
+    }
   },
   {
     "canonical": "female:unbirth",
@@ -3197,7 +6683,12 @@
     "aliases": [
       "女巫",
       "witch"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "女巫"
+      ]
+    }
   },
   {
     "canonical": "female:wolf",
@@ -3232,7 +6723,12 @@
   {
     "canonical": "female:x-ray",
     "zh": "透视",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "透視"
+      ]
+    }
   },
   {
     "canonical": "female:yandere",
@@ -3245,7 +6741,12 @@
     "aliases": [
       "女性同性",
       "yuri"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "百合"
+      ]
+    }
   },
   {
     "canonical": "female:zebra",
@@ -3319,7 +6820,12 @@
       "汉化",
       "中文翻译",
       "Chinese"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "中文"
+      ]
+    }
   },
   {
     "canonical": "language:cree",
@@ -3445,7 +6951,12 @@
     "aliases": [
       "日语",
       "Japanese"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "日文"
+      ]
+    }
   },
   {
     "canonical": "language:javanese",
@@ -4406,7 +7917,12 @@
   {
     "canonical": "male:demon",
     "zh": "恶魔",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "惡魔"
+      ]
+    }
   },
   {
     "canonical": "male:denki anma",
@@ -4846,7 +8362,12 @@
   {
     "canonical": "male:goblin",
     "zh": "哥布林",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "哥布林"
+      ]
+    }
   },
   {
     "canonical": "male:gokkun",
@@ -5626,7 +9147,12 @@
   {
     "canonical": "male:otokofutanari",
     "zh": "扶他",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "扶他"
+      ]
+    }
   },
   {
     "canonical": "male:otter boy",
@@ -6001,7 +9527,12 @@
   {
     "canonical": "male:shotacon",
     "zh": "正太",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "正太"
+      ]
+    }
   },
   {
     "canonical": "male:shrinking",
@@ -6324,7 +9855,12 @@
   {
     "canonical": "male:tomgirl",
     "zh": "伪娘",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "偽娘"
+      ]
+    }
   },
   {
     "canonical": "male:tooth brushing",
@@ -6572,7 +10108,12 @@
     "aliases": [
       "男性同性",
       "yaoi"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "yaoi"
+      ]
+    }
   },
   {
     "canonical": "male:zebra",
@@ -6612,12 +10153,22 @@
   {
     "canonical": "mixed:group",
     "zh": "乱交",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "群交"
+      ]
+    }
   },
   {
     "canonical": "mixed:incest",
     "zh": "乱伦",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "亂倫"
+      ]
+    }
   },
   {
     "canonical": "mixed:inseki",
@@ -6702,7 +10253,12 @@
   {
     "canonical": "other:3d",
     "zh": "3D",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "3D"
+      ]
+    }
   },
   {
     "canonical": "other:3d imageset",
@@ -6712,7 +10268,13 @@
   {
     "canonical": "other:ai generated",
     "zh": "AI生成",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "AI繪圖",
+        "ai繪圖"
+      ]
+    }
   },
   {
     "canonical": "other:already uploaded",
@@ -6793,7 +10355,12 @@
     "aliases": [
       "彩色",
       "full color"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "全彩"
+      ]
+    }
   },
   {
     "canonical": "other:goudoushi",
@@ -6967,7 +10534,12 @@
   {
     "canonical": "other:tankoubon",
     "zh": "单行本",
-    "aliases": []
+    "aliases": [],
+    "source_terms": {
+      "18comic": [
+        "單行本"
+      ]
+    }
   },
   {
     "canonical": "other:themeless",
@@ -6985,7 +10557,12 @@
     "aliases": [
       "无修正",
       "uncensored"
-    ]
+    ],
+    "source_terms": {
+      "18comic": [
+        "無修正"
+      ]
+    }
   },
   {
     "canonical": "other:variant set",

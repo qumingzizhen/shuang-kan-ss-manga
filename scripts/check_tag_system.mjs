@@ -18,12 +18,19 @@ for (const item of dictionary) {
   assert.ok(item.canonical.includes(":"), `missing namespace: ${item.canonical}`);
   assert.ok(item.zh.trim(), `missing Chinese display name: ${item.canonical}`);
   assert.ok(!canonical.has(item.canonical.toLowerCase()), `duplicate canonical tag: ${item.canonical}`);
+  if (item.source_terms !== undefined) {
+    assert.equal(typeof item.source_terms, "object");
+    for (const terms of Object.values(item.source_terms)) {
+      assert.ok(Array.isArray(terms) && terms.every((term) => typeof term === "string" && term.trim()));
+    }
+  }
   canonical.add(item.canonical.toLowerCase());
 }
 
 const bigBreasts = dictionary.find((item) => item.canonical === "female:big breasts");
 assert.ok(bigBreasts, "female:big breasts mapping is required");
 assert.ok([bigBreasts.zh, ...(bigBreasts.aliases || [])].some((value) => /巨乳|大胸/.test(value)), "Chinese big-breasts mapping is required");
+assert.ok(bigBreasts.source_terms?.["18comic"]?.includes("巨乳"), "18comic big-breasts mapping is required");
 
 assert.deepEqual(cleanTagList([" female:big breasts ", "Female:Big   Breasts", "", null]), ["female:big breasts"]);
 assert.equal(
@@ -39,6 +46,7 @@ assert.equal(
     bigBreasts.canonical,
     bigBreasts.zh,
     ...(bigBreasts.aliases || []),
+    ...Object.values(bigBreasts.source_terms || {}).flat(),
   ]),
   true,
 );

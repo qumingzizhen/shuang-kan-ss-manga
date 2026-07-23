@@ -5,6 +5,7 @@ export type TagTranslation = {
   canonical: string;
   zh: string;
   aliases: string[];
+  source_terms?: Record<string, string[]>;
 };
 
 export const globalExcludedTagsStorageKey = "manga-platform.global-excluded-tags";
@@ -14,7 +15,8 @@ export const tagTranslations = tagTranslationsData as TagTranslation[];
 const tagTranslationLookup = new Map<string, TagTranslation[]>();
 
 for (const translation of tagTranslations) {
-  for (const term of [translation.canonical, translation.zh, ...translation.aliases]) {
+  const sourceTerms = Object.values(translation.source_terms ?? {}).flat();
+  for (const term of [translation.canonical, translation.zh, ...translation.aliases, ...sourceTerms]) {
     const normalized = normalizeTag(term);
     const matches = tagTranslationLookup.get(normalized) ?? [];
     if (!matches.some((item) => item.canonical === translation.canonical)) {
@@ -65,7 +67,12 @@ export function expandExcludedTags(values: string[]) {
       continue;
     }
     for (const translation of translations) {
-      expanded.push(translation.canonical, translation.zh, ...translation.aliases);
+      expanded.push(
+        translation.canonical,
+        translation.zh,
+        ...translation.aliases,
+        ...Object.values(translation.source_terms ?? {}).flat(),
+      );
     }
   }
   return uniqueTags(expanded);
@@ -101,7 +108,12 @@ export function filterSearchResults(results: TaskSearchResult[], excludedTags: s
 }
 
 function normalizedSuggestionTerms(item: TagTranslation) {
-  return [item.zh, item.canonical, ...item.aliases].map(normalizeTag);
+  return [
+    item.zh,
+    item.canonical,
+    ...item.aliases,
+    ...Object.values(item.source_terms ?? {}).flat(),
+  ].map(normalizeTag);
 }
 
 function suggestionScore(item: TagTranslation, query: string) {
@@ -128,7 +140,7 @@ export function suggestTags(query: string, excludedCanonical: string[] = [], lim
 }
 
 export function activeTagFragment(value: string) {
-  const match = value.match(/([^\s,，;；\n]+)$/u);
+  const match = value.match(/([^\s,\uFF0C\u3001\n]+)$/u);
   return match ? { text: match[1], start: value.length - match[1].length } : { text: "", start: value.length };
 }
 

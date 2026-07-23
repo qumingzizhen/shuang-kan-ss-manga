@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 import jmcomic_api_adapter
+from source_tag_resolver import resolve_source_tag
 
 from source_bridge_core import (
     BLOCKED_STATUSES,
@@ -146,7 +147,7 @@ def normalize_search_part(value: str) -> str:
 def build_query(tags: list[str], name: str | None, query: str | None) -> str:
     parts: list[str] = []
     for item in tags:
-        normalized = normalize_search_part(item)
+        normalized = normalize_search_part(resolve_source_tag(item, SOURCE_ID))
         if normalized:
             parts.append(normalized)
     if name and name.strip():
@@ -163,7 +164,7 @@ def build_query(tags: list[str], name: str | None, query: str | None) -> str:
 def build_site_query(tags: list[str], name: str | None, query: str | None) -> str:
     parts: list[str] = []
     for item in tags:
-        text = clean_text(item)
+        text = clean_text(resolve_source_tag(item, SOURCE_ID))
         if text:
             parts.append(text)
     for item in (name, query):
@@ -832,7 +833,12 @@ def run_self_test() -> dict[str, Any]:
     <script>var next = "https:\\/\\/cdn.example.test\\/00002.webp";</script>
     """
     search_results = parse_search_results(search_html, DEFAULT_BASE_URL)
-    search_urls = search_page_urls(DEFAULT_BASE_URL, "female:futanari", "futanari", 1)
+    search_urls = search_page_urls(
+        DEFAULT_BASE_URL,
+        build_site_query(["female:futanari"], None, None),
+        build_query(["female:futanari"], None, None),
+        1,
+    )
     challenge_body = b"<html><head><title>Just a moment...</title></head><body>Cloudflare</body></html>"
     challenge_message = status_message(403, DEFAULT_BASE_URL, "18comic.vip", {"content-type": "text/html"}, challenge_body)
     gallery = parse_gallery_meta(gallery_html, f"{DEFAULT_BASE_URL}album/12345/sample", DEFAULT_BASE_URL)
@@ -848,9 +854,9 @@ def run_self_test() -> dict[str, Any]:
     assert len(search_results) == 2, search_results
     assert search_results[0].get("thumbnail_url") == f"{DEFAULT_BASE_URL}media/albums/12345-cover.webp", search_results
     assert search_results[1]["url"] == f"{DEFAULT_BASE_URL}photo/54321", search_results
-    assert build_query(["female:big breasts", "language:chinese"], None, None) == "big breasts chinese"
-    assert build_site_query(["female:big breasts", "language:chinese"], None, None) == "female:big breasts language:chinese"
-    assert search_urls[0] == f"{DEFAULT_BASE_URL}meiman?f_search=female%3Afutanari", search_urls
+    assert build_query(["female:big breasts", "language:chinese"], None, None) == "巨乳 中文"
+    assert build_site_query(["female:big breasts", "language:chinese"], None, None) == "巨乳 中文"
+    assert search_urls[0] == f"{DEFAULT_BASE_URL}meiman?f_search=%E6%89%B6%E5%A5%B9", search_urls
     assert looks_like_access_challenge(challenge_body, "text/html")
     assert "browser verification/challenge page" in challenge_message
     assert build_query(["artist：sample name"], None, None) == "sample name"

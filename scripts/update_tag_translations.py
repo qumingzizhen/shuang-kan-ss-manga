@@ -42,6 +42,14 @@ def prefer_chinese_name(upstream_name: str, existing_name: str) -> str:
     return upstream_name or existing_name
 
 
+def source_terms(item: dict[str, Any]) -> dict[str, list[str]]:
+    return {
+        str(source_id): [str(term).strip() for term in terms if str(term).strip()]
+        for source_id, terms in (item.get("source_terms") or {}).items()
+        if isinstance(terms, list)
+    }
+
+
 def convert_database(database: dict[str, Any]) -> list[dict[str, Any]]:
     existing = existing_entries()
     converted: dict[str, dict[str, Any]] = {}
@@ -64,19 +72,24 @@ def convert_database(database: dict[str, Any]) -> list[dict[str, Any]]:
             if not zh:
                 continue
             aliases = [str(alias).strip() for alias in previous.get("aliases", []) if str(alias).strip()]
-            converted[key] = {"canonical": canonical, "zh": zh, "aliases": aliases}
+            converted[key] = {
+                "canonical": canonical,
+                "zh": zh,
+                "aliases": aliases,
+                **({"source_terms": source_terms(previous)} if source_terms(previous) else {}),
+            }
 
     # Keep small project-specific aliases and mappings outside the selected
     # upstream namespaces, such as parody:original.
     for key, item in existing.items():
-        converted.setdefault(
-            key,
-            {
-                "canonical": str(item["canonical"]).strip(),
-                "zh": str(item.get("zh") or "").strip(),
-                "aliases": [str(alias).strip() for alias in item.get("aliases", []) if str(alias).strip()],
-            },
-        )
+        preserved = {
+            "canonical": str(item["canonical"]).strip(),
+            "zh": str(item.get("zh") or "").strip(),
+            "aliases": [str(alias).strip() for alias in item.get("aliases", []) if str(alias).strip()],
+        }
+        if source_terms(item):
+            preserved["source_terms"] = source_terms(item)
+        converted.setdefault(key, preserved)
 
     return sorted(converted.values(), key=lambda item: (item["canonical"].split(":", 1)[0], item["canonical"]))
 

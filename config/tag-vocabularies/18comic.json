@@ -1,0 +1,1669 @@
+{
+  "source_id": "18comic",
+  "source": "JM API album.tags",
+  "sampled_at": "2026-07-23T07:03:14.850548+00:00",
+  "requested_albums": 600,
+  "successful_albums": 600,
+  "failed_albums": 0,
+  "sample_plans": [
+    {
+      "order_by": "mr",
+      "time": "a",
+      "label": "最新",
+      "albums": 200
+    },
+    {
+      "order_by": "mv",
+      "time": "m",
+      "label": "月浏览量",
+      "albums": 200
+    },
+    {
+      "order_by": "tr",
+      "time": "a",
+      "label": "总评分",
+      "albums": 200
+    }
+  ],
+  "tag_occurrences": 3096,
+  "unique_tags": 409,
+  "tags": [
+    {
+      "name": "中文",
+      "count": 548
+    },
+    {
+      "name": "巨乳",
+      "count": 241
+    },
+    {
+      "name": "韓漫",
+      "count": 117
+    },
+    {
+      "name": "連載中",
+      "count": 87
+    },
+    {
+      "name": "劇情向",
+      "count": 69
+    },
+    {
+      "name": "全彩",
+      "count": 68
+    },
+    {
+      "name": "禁漫書庫",
+      "count": 68
+    },
+    {
+      "name": "青年漫",
+      "count": 61
+    },
+    {
+      "name": "口交",
+      "count": 57
+    },
+    {
+      "name": "中出",
+      "count": 53
+    },
+    {
+      "name": "校服",
+      "count": 52
+    },
+    {
+      "name": "熟女",
+      "count": 51
+    },
+    {
+      "name": "群交",
+      "count": 51
+    },
+    {
+      "name": "NTR",
+      "count": 44
+    },
+    {
+      "name": "AI繪圖",
+      "count": 40
+    },
+    {
+      "name": "後宮",
+      "count": 40
+    },
+    {
+      "name": "蘿莉",
+      "count": 35
+    },
+    {
+      "name": "C93",
+      "count": 34
+    },
+    {
+      "name": "3D",
+      "count": 30
+    },
+    {
+      "name": "人妻",
+      "count": 30
+    },
+    {
+      "name": "強暴",
+      "count": 30
+    },
+    {
+      "name": "束縛",
+      "count": 28
+    },
+    {
+      "name": "過膝襪",
+      "count": 28
+    },
+    {
+      "name": "無修正",
+      "count": 27
+    },
+    {
+      "name": "阿黑顏",
+      "count": 24
+    },
+    {
+      "name": "肛交",
+      "count": 23
+    },
+    {
+      "name": "催眠",
+      "count": 22
+    },
+    {
+      "name": "yaoi",
+      "count": 21
+    },
+    {
+      "name": "調教",
+      "count": 20
+    },
+    {
+      "name": "連褲襪",
+      "count": 19
+    },
+    {
+      "name": "馬尾",
+      "count": 19
+    },
+    {
+      "name": "眼鏡",
+      "count": 17
+    },
+    {
+      "name": "觸手",
+      "count": 16
+    },
+    {
+      "name": "露出",
+      "count": 16
+    },
+    {
+      "name": "亂倫",
+      "count": 15
+    },
+    {
+      "name": "出軌",
+      "count": 15
+    },
+    {
+      "name": "女性支配",
+      "count": 15
+    },
+    {
+      "name": "巨尻",
+      "count": 15
+    },
+    {
+      "name": "日文",
+      "count": 14
+    },
+    {
+      "name": "異世界",
+      "count": 14
+    },
+    {
+      "name": "純愛",
+      "count": 14
+    },
+    {
+      "name": "奇幻",
+      "count": 13
+    },
+    {
+      "name": "雙馬尾",
+      "count": 13
+    },
+    {
+      "name": "乳交",
+      "count": 12
+    },
+    {
+      "name": "校園",
+      "count": 12
+    },
+    {
+      "name": "獸耳",
+      "count": 12
+    },
+    {
+      "name": "貧乳",
+      "count": 12
+    },
+    {
+      "name": "透視",
+      "count": 12
+    },
+    {
+      "name": "C92",
+      "count": 11
+    },
+    {
+      "name": "CG集",
+      "count": 11
+    },
+    {
+      "name": "單行本",
+      "count": 11
+    },
+    {
+      "name": "C88",
+      "count": 10
+    },
+    {
+      "name": "完結",
+      "count": 10
+    },
+    {
+      "name": "懷孕",
+      "count": 10
+    },
+    {
+      "name": "泳裝",
+      "count": 10
+    },
+    {
+      "name": "遮眼",
+      "count": 10
+    },
+    {
+      "name": "黑肉",
+      "count": 10
+    },
+    {
+      "name": "劇情",
+      "count": 9
+    },
+    {
+      "name": "多毛",
+      "count": 9
+    },
+    {
+      "name": "妖精",
+      "count": 9
+    },
+    {
+      "name": "手淫",
+      "count": 9
+    },
+    {
+      "name": "足交",
+      "count": 9
+    },
+    {
+      "name": "冒險",
+      "count": 8
+    },
+    {
+      "name": "女僕",
+      "count": 8
+    },
+    {
+      "name": "怪物女孩",
+      "count": 8
+    },
+    {
+      "name": "藥物",
+      "count": 8
+    },
+    {
+      "name": "項圈",
+      "count": 8
+    },
+    {
+      "name": "兔女郎",
+      "count": 7
+    },
+    {
+      "name": "凌辱",
+      "count": 7
+    },
+    {
+      "name": "劇情向中文",
+      "count": 7
+    },
+    {
+      "name": "和服",
+      "count": 7
+    },
+    {
+      "name": "性玩具",
+      "count": 7
+    },
+    {
+      "name": "異種姦",
+      "count": 7
+    },
+    {
+      "name": "百合",
+      "count": 7
+    },
+    {
+      "name": "處女",
+      "count": 7
+    },
+    {
+      "name": "豐滿",
+      "count": 7
+    },
+    {
+      "name": "連載",
+      "count": 7
+    },
+    {
+      "name": "高跟鞋",
+      "count": 7
+    },
+    {
+      "name": "魔法少女",
+      "count": 7
+    },
+    {
+      "name": "乳汁",
+      "count": 6
+    },
+    {
+      "name": "愛情",
+      "count": 6
+    },
+    {
+      "name": "接吻",
+      "count": 6
+    },
+    {
+      "name": "搞笑",
+      "count": 6
+    },
+    {
+      "name": "綁縛與調教",
+      "count": 6
+    },
+    {
+      "name": "肌肉",
+      "count": 6
+    },
+    {
+      "name": "舔陰",
+      "count": 6
+    },
+    {
+      "name": "辣妹",
+      "count": 6
+    },
+    {
+      "name": "辦公女郎",
+      "count": 6
+    },
+    {
+      "name": "偽娘",
+      "count": 5
+    },
+    {
+      "name": "女性向",
+      "count": 5
+    },
+    {
+      "name": "機翻",
+      "count": 5
+    },
+    {
+      "name": "潮吹",
+      "count": 5
+    },
+    {
+      "name": "皮物",
+      "count": 5
+    },
+    {
+      "name": "虐待",
+      "count": 5
+    },
+    {
+      "name": "連身襪",
+      "count": 5
+    },
+    {
+      "name": "非H",
+      "count": 5
+    },
+    {
+      "name": "乳環",
+      "count": 4
+    },
+    {
+      "name": "交換伴侶",
+      "count": 4
+    },
+    {
+      "name": "內衣",
+      "count": 4
+    },
+    {
+      "name": "墮落",
+      "count": 4
+    },
+    {
+      "name": "扶他",
+      "count": 4
+    },
+    {
+      "name": "拍攝",
+      "count": 4
+    },
+    {
+      "name": "教師",
+      "count": 4
+    },
+    {
+      "name": "正太",
+      "count": 4
+    },
+    {
+      "name": "毛絨絨",
+      "count": 4
+    },
+    {
+      "name": "禦姐",
+      "count": 4
+    },
+    {
+      "name": "穿刺",
+      "count": 4
+    },
+    {
+      "name": "舔肛",
+      "count": 4
+    },
+    {
+      "name": "超乳",
+      "count": 4
+    },
+    {
+      "name": "輕小說",
+      "count": 4
+    },
+    {
+      "name": "附身",
+      "count": 4
+    },
+    {
+      "name": "C80",
+      "count": 3
+    },
+    {
+      "name": "C91",
+      "count": 3
+    },
+    {
+      "name": "CG",
+      "count": 3
+    },
+    {
+      "name": "NTL",
+      "count": 3
+    },
+    {
+      "name": "乳頭凹陷",
+      "count": 3
+    },
+    {
+      "name": "口交臉",
+      "count": 3
+    },
+    {
+      "name": "塞口器",
+      "count": 3
+    },
+    {
+      "name": "多重口交",
+      "count": 3
+    },
+    {
+      "name": "大乳暈",
+      "count": 3
+    },
+    {
+      "name": "小鳥醬",
+      "count": 3
+    },
+    {
+      "name": "巫女",
+      "count": 3
+    },
+    {
+      "name": "復仇",
+      "count": 3
+    },
+    {
+      "name": "性轉",
+      "count": 3
+    },
+    {
+      "name": "戀愛",
+      "count": 3
+    },
+    {
+      "name": "戰鬥",
+      "count": 3
+    },
+    {
+      "name": "手套",
+      "count": 3
+    },
+    {
+      "name": "有婦之夫",
+      "count": 3
+    },
+    {
+      "name": "浪漫",
+      "count": 3
+    },
+    {
+      "name": "狐娘",
+      "count": 3
+    },
+    {
+      "name": "獵奇",
+      "count": 3
+    },
+    {
+      "name": "睡姦",
+      "count": 3
+    },
+    {
+      "name": "神作",
+      "count": 3
+    },
+    {
+      "name": "穿越",
+      "count": 3
+    },
+    {
+      "name": "窒息",
+      "count": 3
+    },
+    {
+      "name": "糞便",
+      "count": 3
+    },
+    {
+      "name": "貓女",
+      "count": 3
+    },
+    {
+      "name": "轉化",
+      "count": 3
+    },
+    {
+      "name": "連體衣",
+      "count": 3
+    },
+    {
+      "name": "高個女",
+      "count": 3
+    },
+    {
+      "name": "魅魔",
+      "count": 3
+    },
+    {
+      "name": "AI上色",
+      "count": 2
+    },
+    {
+      "name": "C103",
+      "count": 2
+    },
+    {
+      "name": "C89",
+      "count": 2
+    },
+    {
+      "name": "C90",
+      "count": 2
+    },
+    {
+      "name": "交換",
+      "count": 2
+    },
+    {
+      "name": "修女",
+      "count": 2
+    },
+    {
+      "name": "出汗",
+      "count": 2
+    },
+    {
+      "name": "吸蛋蛋",
+      "count": 2
+    },
+    {
+      "name": "喜劇",
+      "count": 2
+    },
+    {
+      "name": "喪屍",
+      "count": 2
+    },
+    {
+      "name": "外遇",
+      "count": 2
+    },
+    {
+      "name": "多摩豪",
+      "count": 2
+    },
+    {
+      "name": "女兒",
+      "count": 2
+    },
+    {
+      "name": "女大生",
+      "count": 2
+    },
+    {
+      "name": "女巫",
+      "count": 2
+    },
+    {
+      "name": "女性主導",
+      "count": 2
+    },
+    {
+      "name": "女裝",
+      "count": 2
+    },
+    {
+      "name": "奴隸",
+      "count": 2
+    },
+    {
+      "name": "奶牛娘",
+      "count": 2
+    },
+    {
+      "name": "姊妹",
+      "count": 2
+    },
+    {
+      "name": "小學生",
+      "count": 2
+    },
+    {
+      "name": "小說改編",
+      "count": 2
+    },
+    {
+      "name": "少婦",
+      "count": 2
+    },
+    {
+      "name": "山文京伝",
+      "count": 2
+    },
+    {
+      "name": "幽靈",
+      "count": 2
+    },
+    {
+      "name": "強姦",
+      "count": 2
+    },
+    {
+      "name": "強迫",
+      "count": 2
+    },
+    {
+      "name": "性勒索",
+      "count": 2
+    },
+    {
+      "name": "惡墮",
+      "count": 2
+    },
+    {
+      "name": "慾望",
+      "count": 2
+    },
+    {
+      "name": "放屁",
+      "count": 2
+    },
+    {
+      "name": "有夫之婦",
+      "count": 2
+    },
+    {
+      "name": "浪漫愛情",
+      "count": 2
+    },
+    {
+      "name": "犯罪",
+      "count": 2
+    },
+    {
+      "name": "男娘",
+      "count": 2
+    },
+    {
+      "name": "白絲",
+      "count": 2
+    },
+    {
+      "name": "短髮",
+      "count": 2
+    },
+    {
+      "name": "禁漫漢化組",
+      "count": 2
+    },
+    {
+      "name": "精靈",
+      "count": 2
+    },
+    {
+      "name": "緊身衣",
+      "count": 2
+    },
+    {
+      "name": "自慰",
+      "count": 2
+    },
+    {
+      "name": "虐殺",
+      "count": 2
+    },
+    {
+      "name": "見本",
+      "count": 2
+    },
+    {
+      "name": "運動",
+      "count": 2
+    },
+    {
+      "name": "雙性戀",
+      "count": 2
+    },
+    {
+      "name": "青梅竹馬",
+      "count": 2
+    },
+    {
+      "name": "鬼族",
+      "count": 2
+    },
+    {
+      "name": "黑絲",
+      "count": 2
+    },
+    {
+      "name": "(すごい火)]",
+      "count": 1
+    },
+    {
+      "name": "275",
+      "count": 1
+    },
+    {
+      "name": "90年代",
+      "count": 1
+    },
+    {
+      "name": "[SUGOFIRE",
+      "count": 1
+    },
+    {
+      "name": "ai繪圖",
+      "count": 1
+    },
+    {
+      "name": "Berserk",
+      "count": 1
+    },
+    {
+      "name": "bitch",
+      "count": 1
+    },
+    {
+      "name": "B環",
+      "count": 1
+    },
+    {
+      "name": "C105",
+      "count": 1
+    },
+    {
+      "name": "C79",
+      "count": 1
+    },
+    {
+      "name": "C82",
+      "count": 1
+    },
+    {
+      "name": "C83",
+      "count": 1
+    },
+    {
+      "name": "C84",
+      "count": 1
+    },
+    {
+      "name": "C86",
+      "count": 1
+    },
+    {
+      "name": "C95",
+      "count": 1
+    },
+    {
+      "name": "cosplay",
+      "count": 1
+    },
+    {
+      "name": "Fate",
+      "count": 1
+    },
+    {
+      "name": "FF29",
+      "count": 1
+    },
+    {
+      "name": "FGO",
+      "count": 1
+    },
+    {
+      "name": "FullColor",
+      "count": 1
+    },
+    {
+      "name": "jk",
+      "count": 1
+    },
+    {
+      "name": "jm水軍",
+      "count": 1
+    },
+    {
+      "name": "OL",
+      "count": 1
+    },
+    {
+      "name": "SM",
+      "count": 1
+    },
+    {
+      "name": "さ巨乳",
+      "count": 1
+    },
+    {
+      "name": "ミンガル",
+      "count": 1
+    },
+    {
+      "name": "ユメミガオカ",
+      "count": 1
+    },
+    {
+      "name": "レンタ家族",
+      "count": 1
+    },
+    {
+      "name": "中國翻訳",
+      "count": 1
+    },
+    {
+      "name": "丸吞",
+      "count": 1
+    },
+    {
+      "name": "乳膠衣",
+      "count": 1
+    },
+    {
+      "name": "人妖",
+      "count": 1
+    },
+    {
+      "name": "人魚娘",
+      "count": 1
+    },
+    {
+      "name": "假小子",
+      "count": 1
+    },
+    {
+      "name": "偶像",
+      "count": 1
+    },
+    {
+      "name": "傲嬌",
+      "count": 1
+    },
+    {
+      "name": "全裸",
+      "count": 1
+    },
+    {
+      "name": "公寓",
+      "count": 1
+    },
+    {
+      "name": "冇露",
+      "count": 1
+    },
+    {
+      "name": "冴えない彼女の育てかた",
+      "count": 1
+    },
+    {
+      "name": "出生",
+      "count": 1
+    },
+    {
+      "name": "出產",
+      "count": 1
+    },
+    {
+      "name": "初戀",
+      "count": 1
+    },
+    {
+      "name": "制服",
+      "count": 1
+    },
+    {
+      "name": "創傷女主",
+      "count": 1
+    },
+    {
+      "name": "動作",
+      "count": 1
+    },
+    {
+      "name": "動畫化",
+      "count": 1
+    },
+    {
+      "name": "升級",
+      "count": 1
+    },
+    {
+      "name": "古裝",
+      "count": 1
+    },
+    {
+      "name": "古風",
+      "count": 1
+    },
+    {
+      "name": "史萊姆娘",
+      "count": 1
+    },
+    {
+      "name": "吊帶襪",
+      "count": 1
+    },
+    {
+      "name": "同居",
+      "count": 1
+    },
+    {
+      "name": "哥布林",
+      "count": 1
+    },
+    {
+      "name": "啦啦隊",
+      "count": 1
+    },
+    {
+      "name": "單元劇",
+      "count": 1
+    },
+    {
+      "name": "地下戀情",
+      "count": 1
+    },
+    {
+      "name": "墮胎",
+      "count": 1
+    },
+    {
+      "name": "大乳頭",
+      "count": 1
+    },
+    {
+      "name": "大學生",
+      "count": 1
+    },
+    {
+      "name": "大尺度",
+      "count": 1
+    },
+    {
+      "name": "太妹",
+      "count": 1
+    },
+    {
+      "name": "夾腿",
+      "count": 1
+    },
+    {
+      "name": "女仆",
+      "count": 1
+    },
+    {
+      "name": "女神",
+      "count": 1
+    },
+    {
+      "name": "妹妹",
+      "count": 1
+    },
+    {
+      "name": "妹魔",
+      "count": 1
+    },
+    {
+      "name": "姐姐",
+      "count": 1
+    },
+    {
+      "name": "姐弟",
+      "count": 1
+    },
+    {
+      "name": "姐弟戀",
+      "count": 1
+    },
+    {
+      "name": "娼年",
+      "count": 1
+    },
+    {
+      "name": "婊子",
+      "count": 1
+    },
+    {
+      "name": "媚藥",
+      "count": 1
+    },
+    {
+      "name": "子宮脫",
+      "count": 1
+    },
+    {
+      "name": "孕婦",
+      "count": 1
+    },
+    {
+      "name": "孟德新書",
+      "count": 1
+    },
+    {
+      "name": "學姊",
+      "count": 1
+    },
+    {
+      "name": "少女",
+      "count": 1
+    },
+    {
+      "name": "巨鵰",
+      "count": 1
+    },
+    {
+      "name": "年上女主",
+      "count": 1
+    },
+    {
+      "name": "年齡差距",
+      "count": 1
+    },
+    {
+      "name": "幼馴染",
+      "count": 1
+    },
+    {
+      "name": "弱肉強食",
+      "count": 1
+    },
+    {
+      "name": "張口",
+      "count": 1
+    },
+    {
+      "name": "忠犬男",
+      "count": 1
+    },
+    {
+      "name": "性伴侶",
+      "count": 1
+    },
+    {
+      "name": "性奴",
+      "count": 1
+    },
+    {
+      "name": "性彆地位逆轉",
+      "count": 1
+    },
+    {
+      "name": "怪物少女",
+      "count": 1
+    },
+    {
+      "name": "惡魔",
+      "count": 1
+    },
+    {
+      "name": "愛人",
+      "count": 1
+    },
+    {
+      "name": "懸疑",
+      "count": 1
+    },
+    {
+      "name": "戀愛喜劇",
+      "count": 1
+    },
+    {
+      "name": "房東",
+      "count": 1
+    },
+    {
+      "name": "打屁股",
+      "count": 1
+    },
+    {
+      "name": "打工仔",
+      "count": 1
+    },
+    {
+      "name": "扶她",
+      "count": 1
+    },
+    {
+      "name": "按摩",
+      "count": 1
+    },
+    {
+      "name": "按摩棒",
+      "count": 1
+    },
+    {
+      "name": "搶奪",
+      "count": 1
+    },
+    {
+      "name": "摔跤",
+      "count": 1
+    },
+    {
+      "name": "新作",
+      "count": 1
+    },
+    {
+      "name": "新都市",
+      "count": 1
+    },
+    {
+      "name": "旗袍",
+      "count": 1
+    },
+    {
+      "name": "日常",
+      "count": 1
+    },
+    {
+      "name": "星奈奈cos系列5",
+      "count": 1
+    },
+    {
+      "name": "時代劇",
+      "count": 1
+    },
+    {
+      "name": "暴君",
+      "count": 1
+    },
+    {
+      "name": "曹式宗親會",
+      "count": 1
+    },
+    {
+      "name": "未成年",
+      "count": 1
+    },
+    {
+      "name": "東方Project",
+      "count": 1
+    },
+    {
+      "name": "柯南",
+      "count": 1
+    },
+    {
+      "name": "校園戀愛",
+      "count": 1
+    },
+    {
+      "name": "格鬥",
+      "count": 1
+    },
+    {
+      "name": "機器人",
+      "count": 1
+    },
+    {
+      "name": "機械姦",
+      "count": 1
+    },
+    {
+      "name": "欲求不滿",
+      "count": 1
+    },
+    {
+      "name": "武俠",
+      "count": 1
+    },
+    {
+      "name": "武道服",
+      "count": 1
+    },
+    {
+      "name": "殭屍",
+      "count": 1
+    },
+    {
+      "name": "母女",
+      "count": 1
+    },
+    {
+      "name": "母女丼",
+      "count": 1
+    },
+    {
+      "name": "母子",
+      "count": 1
+    },
+    {
+      "name": "毛絨絨 中文",
+      "count": 1
+    },
+    {
+      "name": "氣味",
+      "count": 1
+    },
+    {
+      "name": "洗腦",
+      "count": 1
+    },
+    {
+      "name": "淩辱",
+      "count": 1
+    },
+    {
+      "name": "淫紋",
+      "count": 1
+    },
+    {
+      "name": "湊臊幣",
+      "count": 1
+    },
+    {
+      "name": "源賴光",
+      "count": 1
+    },
+    {
+      "name": "溫柔男主",
+      "count": 1
+    },
+    {
+      "name": "漁網襪",
+      "count": 1
+    },
+    {
+      "name": "演藝圈",
+      "count": 1
+    },
+    {
+      "name": "漢化組](C92)",
+      "count": 1
+    },
+    {
+      "name": "烙印勇士",
+      "count": 1
+    },
+    {
+      "name": "無口",
+      "count": 1
+    },
+    {
+      "name": "無毒漢化組",
+      "count": 1
+    },
+    {
+      "name": "熟母",
+      "count": 1
+    },
+    {
+      "name": "父娘",
+      "count": 1
+    },
+    {
+      "name": "牧場",
+      "count": 1
+    },
+    {
+      "name": "特殊性癖好",
+      "count": 1
+    },
+    {
+      "name": "特殊能力",
+      "count": 1
+    },
+    {
+      "name": "特種行業",
+      "count": 1
+    },
+    {
+      "name": "狗血劇",
+      "count": 1
+    },
+    {
+      "name": "獸交",
+      "count": 1
+    },
+    {
+      "name": "獸耳娘",
+      "count": 1
+    },
+    {
+      "name": "玉藻前",
+      "count": 1
+    },
+    {
+      "name": "現代作品",
+      "count": 1
+    },
+    {
+      "name": "現代奇幻",
+      "count": 1
+    },
+    {
+      "name": "產卵",
+      "count": 1
+    },
+    {
+      "name": "男主愛撒嬌",
+      "count": 1
+    },
+    {
+      "name": "男公關",
+      "count": 1
+    },
+    {
+      "name": "畫風很澀，女老師很燒",
+      "count": 1
+    },
+    {
+      "name": "異種交配記録3",
+      "count": 1
+    },
+    {
+      "name": "病嬌",
+      "count": 1
+    },
+    {
+      "name": "瘙癢",
+      "count": 1
+    },
+    {
+      "name": "癡女",
+      "count": 1
+    },
+    {
+      "name": "癡漢",
+      "count": 1
+    },
+    {
+      "name": "監禁",
+      "count": 1
+    },
+    {
+      "name": "監視",
+      "count": 1
+    },
+    {
+      "name": "直球男主",
+      "count": 1
+    },
+    {
+      "name": "短褲",
+      "count": 1
+    },
+    {
+      "name": "砲友",
+      "count": 1
+    },
+    {
+      "name": "神作(預定)",
+      "count": 1
+    },
+    {
+      "name": "站長推薦",
+      "count": 1
+    },
+    {
+      "name": "系統",
+      "count": 1
+    },
+    {
+      "name": "純炮友",
+      "count": 1
+    },
+    {
+      "name": "純純醜逼",
+      "count": 1
+    },
+    {
+      "name": "絲襪",
+      "count": 1
+    },
+    {
+      "name": "網友大推",
+      "count": 1
+    },
+    {
+      "name": "緊身服",
+      "count": 1
+    },
+    {
+      "name": "緊身胸衣",
+      "count": 1
+    },
+    {
+      "name": "繼姊",
+      "count": 1
+    },
+    {
+      "name": "羅曼史",
+      "count": 1
+    },
+    {
+      "name": "老師",
+      "count": 1
+    },
+    {
+      "name": "胃部突起",
+      "count": 1
+    },
+    {
+      "name": "脅迫",
+      "count": 1
+    },
+    {
+      "name": "自慰器",
+      "count": 1
+    },
+    {
+      "name": "臭刷數據的",
+      "count": 1
+    },
+    {
+      "name": "舔足",
+      "count": 1
+    },
+    {
+      "name": "苗床",
+      "count": 1
+    },
+    {
+      "name": "蟲洞",
+      "count": 1
+    },
+    {
+      "name": "觀淫",
+      "count": 1
+    },
+    {
+      "name": "誘惑",
+      "count": 1
+    },
+    {
+      "name": "警察",
+      "count": 1
+    },
+    {
+      "name": "護士",
+      "count": 1
+    },
+    {
+      "name": "護理師",
+      "count": 1
+    },
+    {
+      "name": "豪門生死鬥",
+      "count": 1
+    },
+    {
+      "name": "豬娘",
+      "count": 1
+    },
+    {
+      "name": "貓貓",
+      "count": 1
+    },
+    {
+      "name": "超能力",
+      "count": 1
+    },
+    {
+      "name": "身體改造",
+      "count": 1
+    },
+    {
+      "name": "軍隊",
+      "count": 1
+    },
+    {
+      "name": "轉生",
+      "count": 1
+    },
+    {
+      "name": "辦公室女郎",
+      "count": 1
+    },
+    {
+      "name": "近親亂倫",
+      "count": 1
+    },
+    {
+      "name": "運動服",
+      "count": 1
+    },
+    {
+      "name": "都市",
+      "count": 1
+    },
+    {
+      "name": "鄉下",
+      "count": 1
+    },
+    {
+      "name": "鄰居",
+      "count": 1
+    },
+    {
+      "name": "醉酒",
+      "count": 1
+    },
+    {
+      "name": "重口",
+      "count": 1
+    },
+    {
+      "name": "重生",
+      "count": 1
+    },
+    {
+      "name": "野外露出",
+      "count": 1
+    },
+    {
+      "name": "野砲",
+      "count": 1
+    },
+    {
+      "name": "閣樓",
+      "count": 1
+    },
+    {
+      "name": "閨蜜",
+      "count": 1
+    },
+    {
+      "name": "阿姨",
+      "count": 1
+    },
+    {
+      "name": "隔壁女鄰居",
+      "count": 1
+    },
+    {
+      "name": "隱藏的慾望",
+      "count": 1
+    },
+    {
+      "name": "雀斑",
+      "count": 1
+    },
+    {
+      "name": "雙胞胎",
+      "count": 1
+    },
+    {
+      "name": "電視劇化",
+      "count": 1
+    },
+    {
+      "name": "青春戀愛",
+      "count": 1
+    },
+    {
+      "name": "韓劇",
+      "count": 1
+    },
+    {
+      "name": "顏射",
+      "count": 1
+    },
+    {
+      "name": "風的工房",
+      "count": 1
+    },
+    {
+      "name": "騎大車",
+      "count": 1
+    },
+    {
+      "name": "魔法少女強制絶頂&ツイッター総集",
+      "count": 1
+    },
+    {
+      "name": "龍傲天",
+      "count": 1
+    }
+  ],
+  "failures": []
+}

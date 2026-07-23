@@ -1,9 +1,9 @@
 {
   "source": "https://github.com/EhTagTranslation/Database",
   "release_url": "https://raw.githubusercontent.com/EhTagTranslation/DatabaseReleases/master/db.text.json",
-  "upstream_sha": "4c439df75ecdc8ad5f71f95734d2c95014013194",
+  "upstream_sha": "705531a8d78e72f7e378f94e6d875a71077ac2f2",
   "upstream_version": 7,
-  "generated_at": "2026-07-13T01:15:15.168096+00:00",
+  "generated_at": "2026-07-23T06:53:23.891428+00:00",
   "namespaces": [
     "female",
     "male",
@@ -11,6 +11,12 @@
     "language",
     "other"
   ],
-  "entry_count": 1363,
-  "license": "CC BY-NC-SA 3.0 by default; namespace-specific additional terms may apply"
+  "entry_count": 1675,
+  "license": "CC BY-NC-SA 3.0 by default; namespace-specific additional terms may apply",
+  "source_alignment": {
+    "report": "config/tag-vocabularies/alignment-report.json",
+    "18comic_sampled_albums": 600,
+    "18comic_unique_resolution_rate": 1.0,
+    "18comic_occurrence_resolution_rate": 1.0
+  }
 }

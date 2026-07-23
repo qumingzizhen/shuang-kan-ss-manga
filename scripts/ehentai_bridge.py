@@ -36,6 +36,7 @@ from source_bridge_core import (
     strip_fragment,
     write_json_atomic,
 )
+from source_tag_resolver import resolve_source_tag
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -105,7 +106,7 @@ def normalize_search_part(value: str) -> str:
 def build_query(tags: list[str], name: str | None, query: str | None) -> str:
     parts: list[str] = []
     for item in tags:
-        normalized = normalize_search_part(item)
+        normalized = normalize_search_part(resolve_source_tag(item, SOURCE_ID))
         if normalized:
             parts.append(normalized)
     for item in (name, query):

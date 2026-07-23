@@ -1,0 +1,266 @@
+{
+  "generated_at": "2026-07-23T08:28:04.125209+00:00",
+  "source_id": "18comic",
+  "sampled_albums": 600,
+  "total_unique_tags": 409,
+  "total_tag_occurrences": 3096,
+  "cross_source_mapped_unique": 97,
+  "cross_source_mapped_occurrences": 1950,
+  "source_specific_unique": 312,
+  "source_specific_occurrences": 1146,
+  "resolved_unique": 409,
+  "resolved_occurrences": 3096,
+  "unique_resolution_rate": 1.0,
+  "occurrence_resolution_rate": 1.0,
+  "cross_source_unique_rate": 0.2371638141809291,
+  "cross_source_occurrence_rate": 0.6298449612403101,
+  "mapping_methods": {
+    "override": 70,
+    "exact": 27,
+    "source_only": 312
+  },
+  "ambiguous_terms_kept_source_specific": [
+    {
+      "source_term": "調教",
+      "count": 20,
+      "candidates": [
+        "female:bdsm",
+        "male:bdsm"
+      ]
+    },
+    {
+      "source_term": "獸耳",
+      "count": 12,
+      "candidates": [
+        "female:kemonomimi",
+        "male:kemonomimi"
+      ]
+    },
+    {
+      "source_term": "舔陰",
+      "count": 6,
+      "candidates": [
+        "female:cunnilingus",
+        "male:cunnilingus"
+      ]
+    },
+    {
+      "source_term": "墮落",
+      "count": 4,
+      "candidates": [
+        "female:corruption",
+        "male:corruption"
+      ]
+    },
+    {
+      "source_term": "大乳暈",
+      "count": 3,
+      "candidates": [
+        "female:big areolae",
+        "male:big areolae"
+      ]
+    },
+    {
+      "source_term": "獵奇",
+      "count": 3,
+      "candidates": [
+        "female:guro",
+        "male:guro"
+      ]
+    },
+    {
+      "source_term": "糞便",
+      "count": 3,
+      "candidates": [
+        "female:scat",
+        "male:scat"
+      ]
+    },
+    {
+      "source_term": "幽靈",
+      "count": 2,
+      "candidates": [
+        "female:ghost",
+        "male:ghost"
+      ]
+    },
+    {
+      "source_term": "強姦",
+      "count": 2,
+      "candidates": [
+        "female:rape",
+        "male:rape"
+      ]
+    },
+    {
+      "source_term": "緊身衣",
+      "count": 2,
+      "candidates": [
+        "female:leotard",
+        "male:leotard"
+      ]
+    },
+    {
+      "source_term": "雙性戀",
+      "count": 2,
+      "candidates": [
+        "female:bisexual",
+        "male:bisexual"
+      ]
+    },
+    {
+      "source_term": "人妖",
+      "count": 1,
+      "candidates": [
+        "female:shemale",
+        "male:cuntboy"
+      ]
+    },
+    {
+      "source_term": "墮胎",
+      "count": 1,
+      "candidates": [
+        "female:abortion",
+        "male:abortion"
+      ]
+    },
+    {
+      "source_term": "大乳頭",
+      "count": 1,
+      "candidates": [
+        "female:big nipples",
+        "male:big nipples"
+      ]
+    },
+    {
+      "source_term": "機器人",
+      "count": 1,
+      "candidates": [
+        "female:robot",
+        "male:robot"
+      ]
+    },
+    {
+      "source_term": "機械姦",
+      "count": 1,
+      "candidates": [
+        "female:machine",
+        "male:machine"
+      ]
+    },
+    {
+      "source_term": "氣味",
+      "count": 1,
+      "candidates": [
+        "female:smell",
+        "male:smell"
+      ]
+    },
+    {
+      "source_term": "洗腦",
+      "count": 1,
+      "candidates": [
+        "female:mind break",
+        "male:mind break"
+      ]
+    },
+    {
+      "source_term": "淫紋",
+      "count": 1,
+      "candidates": [
+        "female:crotch tattoo",
+        "male:crotch tattoo"
+      ]
+    },
+    {
+      "source_term": "獸交",
+      "count": 1,
+      "candidates": [
+        "female:bestiality",
+        "male:bestiality"
+      ]
+    },
+    {
+      "source_term": "產卵",
+      "count": 1,
+      "candidates": [
+        "female:eggs",
+        "male:eggs"
+      ]
+    },
+    {
+      "source_term": "病嬌",
+      "count": 1,
+      "candidates": [
+        "female:yandere",
+        "male:yandere"
+      ]
+    },
+    {
+      "source_term": "癡漢",
+      "count": 1,
+      "candidates": [
+        "female:chikan",
+        "male:chikan"
+      ]
+    },
+    {
+      "source_term": "監禁",
+      "count": 1,
+      "candidates": [
+        "female:confinement",
+        "male:confinement"
+      ]
+    },
+    {
+      "source_term": "緊身胸衣",
+      "count": 1,
+      "candidates": [
+        "female:corset",
+        "male:corset"
+      ]
+    },
+    {
+      "source_term": "蟲洞",
+      "count": 1,
+      "candidates": [
+        "female:wormhole",
+        "male:wormhole"
+      ]
+    },
+    {
+      "source_term": "身體改造",
+      "count": 1,
+      "candidates": [
+        "female:body modification",
+        "male:body modification"
+      ]
+    },
+    {
+      "source_term": "運動服",
+      "count": 1,
+      "candidates": [
+        "female:tracksuit",
+        "male:tracksuit"
+      ]
+    },
+    {
+      "source_term": "雙胞胎",
+      "count": 1,
+      "candidates": [
+        "female:twins",
+        "male:twins",
+        "mixed:twins"
+      ]
+    },
+    {
+      "source_term": "顏射",
+      "count": 1,
+      "candidates": [
+        "female:bukkake",
+        "male:bukkake"
+      ]
+    }
+  ],
+  "policy": "仅精确简繁匹配或人工覆盖可作为跨站同义词；其余词条保留为 18comic 专用词，禁止模糊猜配。"
+}

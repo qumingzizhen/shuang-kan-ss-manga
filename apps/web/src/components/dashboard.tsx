@@ -1941,6 +1941,10 @@ export function Dashboard() {
     const src = searchResultThumbnailSrc(result);
     return (
       <a className={src ? "result-thumbnail" : "result-thumbnail empty"} href={result.gallery_url} target="_blank" rel="noreferrer" aria-label={`打开来源：${result.title}`}>
+        <span className="result-thumbnail-fallback">
+          <Image size={22} aria-hidden />
+          <span>暂无封面</span>
+        </span>
         {src ? (
           <img
             src={src}
@@ -1952,9 +1956,7 @@ export function Dashboard() {
               event.currentTarget.parentElement?.classList.add("empty");
             }}
           />
-        ) : (
-          <Image size={18} aria-hidden />
-        )}
+        ) : null}
       </a>
     );
   }
@@ -2959,71 +2961,31 @@ export function Dashboard() {
       const selectedCount = selectedResults[task.id]?.length ?? 0;
       const sourceErrors = visibleSearchSourceErrors(task.output);
       return (
-        <div className="task-output search-output">
-          <div className="output-actions">
-            <button className="mini-button" type="button" onClick={() => selectAllSearchResults(task)}>
-              全选
-            </button>
-            <button className="mini-button" type="button" onClick={() => clearSearchSelection(task.id)} disabled={!selectedCount}>
-              清空
-            </button>
-            <button className="mini-button primary" type="button" onClick={() => downloadSelectedSearchResults(task)} disabled={loading || !selectedCount}>
-              <Download size={13} aria-hidden />
-              {selectedCount ? `下载 ${selectedCount}` : "批量下载"}
+        <div className="task-output search-output search-output-summary">
+          <div className="search-summary-header">
+            <span>
+              找到 <strong>{visibleResults.length}</strong> 条结果
+              {selectedCount ? ` · 已选 ${selectedCount}` : ""}
+            </span>
+            <button className="mini-button primary" type="button" onClick={() => openTaskDetail(task.id)}>
+              <Eye size={13} aria-hidden />
+              画廊查看
             </button>
           </div>
           {sourceErrors.length ? (
-            <div className="source-warning">
+            <div className="source-warning compact-warning">
               {sourceErrors.length} 个源站暂时不可用，已合并显示其余结果。
             </div>
           ) : null}
           {excludedCount ? <div className="excluded-result-notice">已自动排除 {excludedCount} 条命中全局禁用词条的结果</div> : null}
-          {visibleResults.slice(0, 5).map((result) => (
-            <div className="search-result" key={`${result.source_id}-${result.gallery_url}`}>
-              <input
-                className="result-checkbox"
-                type="checkbox"
-                aria-label={`选择：${result.title}`}
-                checked={isSearchResultSelected(task.id, result)}
-                onChange={() => toggleSearchResult(task.id, result)}
-              />
-              {renderSearchResultThumbnail(result)}
-              <div className="result-main">
-                <a className="result-link" href={result.gallery_url} target="_blank" rel="noreferrer">
-                  <ExternalLink size={13} aria-hidden />
-                  {result.title}
-                </a>
-                <div className="result-tags">
-                  {result.tags.slice(0, 4).map((tag) => (
-                    <span key={tag}>{tag}</span>
-                  ))}
-                </div>
+          <div className="search-summary-covers" aria-label="搜索结果封面预览">
+            {visibleResults.slice(0, 6).map((result) => (
+              <div className="search-summary-cover" key={`${result.source_id}-${result.gallery_url}`} title={result.title}>
+                {renderSearchResultThumbnail(result)}
               </div>
-              <div className="result-actions">
-                <button
-                  className="icon-button"
-                  type="button"
-                  title={sourceSupportsRemoteReading(result.source_id) ? "打开在线阅读器" : "该源站暂不支持在线阅读"}
-                  aria-label={`打开在线阅读器：${result.title}`}
-                  disabled={remoteReaderLoading || !sourceSupportsRemoteReading(result.source_id)}
-                  onClick={() => openRemoteReader(result)}
-                >
-                  <BookOpen size={15} aria-hidden />
-                </button>
-                <button
-                  className="icon-button"
-                  type="button"
-                  title="创建下载任务"
-                  aria-label={`创建下载任务：${result.title}`}
-                  disabled={loading}
-                  onClick={() => downloadSearchResult(result)}
-                >
-                  <Download size={15} aria-hidden />
-                </button>
-              </div>
-            </div>
-          ))}
-          {task.output.results.length > 5 && <div className="output-more">+{task.output.results.length - 5} 个结果</div>}
+            ))}
+            {visibleResults.length > 6 ? <span className="search-summary-more">+{visibleResults.length - 6}</span> : null}
+          </div>
         </div>
       );
     }
@@ -3089,7 +3051,6 @@ export function Dashboard() {
             </button>
             <button className="drawer-close-button" type="button" title="收回侧边栏" aria-label="收回任务详情侧边栏" onClick={closeDetailDrawer}>
               <PanelRightClose size={16} aria-hidden />
-              收回
             </button>
           </div>
         </div>
@@ -3161,12 +3122,13 @@ export function Dashboard() {
                       />
                       {renderSearchResultThumbnail(result)}
                       <div className="result-main">
+                        <span className="result-source">{result.source_id}</span>
                         <a className="result-link" href={result.gallery_url} target="_blank" rel="noreferrer">
                           <ExternalLink size={13} aria-hidden />
                           {result.title}
                         </a>
                         <div className="result-tags">
-                          {result.tags.slice(0, 12).map((tag) => (
+                          {result.tags.slice(0, 6).map((tag) => (
                             <span key={tag}>{tag}</span>
                           ))}
                         </div>
@@ -4369,7 +4331,6 @@ export function Dashboard() {
           </div>
           <button className="drawer-close-button" type="button" title="收回侧边栏" aria-label="收回文件库详情侧边栏" onClick={closeDetailDrawer}>
             <PanelRightClose size={16} aria-hidden />
-            收回
           </button>
         </div>
 

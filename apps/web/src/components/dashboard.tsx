@@ -2942,78 +2942,38 @@ export function Dashboard() {
     );
   }
 
-  function renderTaskOutput(task: Task) {
-    if (!task.output) {
-      return null;
+  function summarizeTaskResult(task: Task): { primary: string; detail?: string } {
+    const output = task.output;
+    if (!output) {
+      return { primary: task.status === "failed" ? "无结果" : "等待中" };
     }
 
-    if (task.output.type === "search_results") {
-      const visibleResults = searchResultsForTask(task);
-      const excludedCount = (task.output.excluded_count ?? 0) + Math.max(task.output.results.length - visibleResults.length, 0);
-      if (!visibleResults.length) {
-        return (
-          <div className="task-output muted-output">
-            {excludedCount ? `结果均被全局禁用词条排除（${excludedCount} 条）` : "未找到结果"}
-          </div>
-        );
-      }
-
-      const selectedCount = selectedResults[task.id]?.length ?? 0;
-      const sourceErrors = visibleSearchSourceErrors(task.output);
-      return (
-        <div className="task-output search-output search-output-summary">
-          <div className="search-summary-header">
-            <span>
-              找到 <strong>{visibleResults.length}</strong> 条结果
-              {selectedCount ? ` · 已选 ${selectedCount}` : ""}
-            </span>
-            <button className="mini-button primary" type="button" onClick={() => openTaskDetail(task.id)}>
-              <Eye size={13} aria-hidden />
-              画廊查看
-            </button>
-          </div>
-          {sourceErrors.length ? (
-            <div className="source-warning compact-warning">
-              {sourceErrors.length} 个源站暂时不可用，已合并显示其余结果。
-            </div>
-          ) : null}
-          {excludedCount ? <div className="excluded-result-notice">已自动排除 {excludedCount} 条命中全局禁用词条的结果</div> : null}
-          <div className="search-summary-covers" aria-label="搜索结果封面预览">
-            {visibleResults.slice(0, 6).map((result) => (
-              <div className="search-summary-cover" key={`${result.source_id}-${result.gallery_url}`} title={result.title}>
-                {renderSearchResultThumbnail(result)}
-              </div>
-            ))}
-            {visibleResults.length > 6 ? <span className="search-summary-more">+{visibleResults.length - 6}</span> : null}
-          </div>
-        </div>
-      );
+    if (output.type === "search_results") {
+      const visibleCount = searchResultsForTask(task).length;
+      const sourceErrorCount = visibleSearchSourceErrors(output).length;
+      const excludedCount = (output.excluded_count ?? 0) + Math.max(output.results.length - visibleCount, 0);
+      const details = [
+        sourceErrorCount ? `${sourceErrorCount} 个源失败` : "",
+        excludedCount ? `排除 ${excludedCount}` : "",
+      ].filter(Boolean);
+      return {
+        primary: `${visibleCount} 条漫画`,
+        detail: details.join(" · ") || undefined,
+      };
     }
 
-    if (task.output.type === "gallery_download") {
-      const total = task.output.page_count ?? task.output.done + task.output.skipped + task.output.failed;
-      return (
-        <div className="task-output">
-          <div className="output-line">保存到 {task.output.output_folder}</div>
-          <div className="output-meta">
-            页面 {task.output.done + task.output.skipped}/{Math.max(total, 1)} · 失败 {task.output.failed}
-            {task.output.stopped ? " · 已停止" : ""}
-          </div>
-        </div>
-      );
+    if (output.type === "gallery_download") {
+      const total = Math.max(output.page_count ?? output.done + output.skipped + output.failed, 1);
+      return {
+        primary: `${output.done + output.skipped}/${total} 页`,
+        detail: output.failed ? `失败 ${output.failed}` : output.stopped ? "已停止" : undefined,
+      };
     }
 
-    return (
-      <div className="task-output">
-        <div className="output-line">补缺目录 {task.output.folder}</div>
-        <div className="output-meta">待处理 {task.output.page_indexes.length} 页</div>
-        <div className="result-tags">
-          {task.output.page_indexes.slice(0, 8).map((page) => (
-            <span key={page}>p{page}</span>
-          ))}
-        </div>
-      </div>
-    );
+    return {
+      primary: `${output.page_indexes.length} 页待补`,
+      detail: output.page_indexes.length ? undefined : "无需补缺",
+    };
   }
 
   function renderTaskDetail(task: Task) {
@@ -4699,10 +4659,14 @@ export function Dashboard() {
 
         {view === "tasks" ? (
           <section className="content-grid">
-          <div className="panel">
-            <div className="panel-header">
-              <h2 className="panel-title">任务输入</h2>
-            </div>
+          <details className="panel task-composer" open>
+            <summary className="panel-header task-composer-summary">
+              <div>
+                <h2 className="panel-title">新建任务</h2>
+                <span className="section-note">搜索、直链下载或补缺</span>
+              </div>
+              <span className="task-composer-toggle">展开 / 收起</span>
+            </summary>
             <div className="panel-body">
               <form id="task-form" className="form" onSubmit={submitTask}>
                 <div className="tabs" role="tablist" aria-label="任务模式">
@@ -4936,7 +4900,7 @@ export function Dashboard() {
                 {error && <div className="error">{error}</div>}
               </form>
             </div>
-          </div>
+          </details>
 
           <div className="right-stack">
             <section className="metrics" aria-label="任务统计">
@@ -4980,71 +4944,81 @@ export function Dashboard() {
 
             {renderRemoteReaderHistory()}
 
-            <section className="panel task-filter-panel">
-              <div className="panel-header">
-                <h2 className="panel-title">任务筛选</h2>
-                <span className="section-note">
-                  {filteredTasks.length}/{tasks.length}
-                </span>
-                <Search size={18} aria-hidden />
-              </div>
-              <div className="panel-body">
-                <div className="task-filter-grid">
-                  <label className="field">
-                    <span>关键词</span>
+            <section className="panel task-list-panel">
+              <div className="panel-header task-list-header">
+                <div className="task-list-heading">
+                  <h2 className="panel-title">任务</h2>
+                  <span className="section-note">
+                    显示 {filteredTasks.length} / 共 {tasks.length}
+                  </span>
+                </div>
+                <div className="task-toolbar" aria-label="任务筛选">
+                  <label className="task-toolbar-search">
+                    <Search size={15} aria-hidden />
                     <input
                       className="input"
                       value={taskQuery}
-                      placeholder="标题、ID、进度、结果"
+                      aria-label="按关键词筛选任务"
+                      placeholder="筛选标题、ID 或结果"
                       onChange={(event) => setTaskQuery(event.target.value)}
                     />
                   </label>
-                  <label className="field">
-                    <span>类型</span>
-                    <select className="select" value={taskKindFilter} onChange={(event) => setTaskKindFilter(event.target.value as TaskKind | "all")}>
-                      <option value="all">全部</option>
+                  <select
+                    className="select task-toolbar-select"
+                    aria-label="按任务类型筛选"
+                    value={taskKindFilter}
+                    onChange={(event) => setTaskKindFilter(event.target.value as TaskKind | "all")}
+                  >
+                      <option value="all">全部类型</option>
                       <option value="search">搜索</option>
                       <option value="gallery">直链</option>
                       <option value="retry_folder">补缺</option>
-                    </select>
-                  </label>
-                  <label className="field">
-                    <span>状态</span>
-                    <select className="select" value={taskStatusFilter} onChange={(event) => setTaskStatusFilter(event.target.value as TaskStatus | "all")}>
-                      <option value="all">全部</option>
+                  </select>
+                  <select
+                    className="select task-toolbar-select"
+                    aria-label="按任务状态筛选"
+                    value={taskStatusFilter}
+                    onChange={(event) => setTaskStatusFilter(event.target.value as TaskStatus | "all")}
+                  >
+                      <option value="all">全部状态</option>
                       <option value="queued">排队</option>
                       <option value="running">运行</option>
                       <option value="paused">暂停</option>
                       <option value="completed">完成</option>
                       <option value="failed">失败</option>
                       <option value="canceled">取消</option>
-                    </select>
-                  </label>
-                  <button className="button ghost" type="button" onClick={clearTaskFilters} disabled={!taskFiltersActive}>
-                    <Search size={16} aria-hidden />
-                    清空
+                  </select>
+                  <button
+                    className="icon-button"
+                    type="button"
+                    title="清空筛选"
+                    aria-label="清空任务筛选"
+                    onClick={clearTaskFilters}
+                    disabled={!taskFiltersActive}
+                  >
+                    <XCircle size={15} aria-hidden />
                   </button>
                 </div>
-              </div>
-            </section>
-
-            <section className="panel">
-              <div className="panel-header">
-                <h2 className="panel-title">任务列表</h2>
-                <span className="section-note">
-                  {filteredTasks.length}/{tasks.length}
-                </span>
-                <ListRestart size={18} aria-hidden />
               </div>
               <div className="table-wrap">
                 {filteredTasks.length ? (
                   <table className="task-table">
+                    <colgroup>
+                      <col className="task-column-title" />
+                      <col className="task-column-kind" />
+                      <col className="task-column-status" />
+                      <col className="task-column-progress" />
+                      <col className="task-column-result" />
+                      <col className="task-column-updated" />
+                      <col className="task-column-actions" />
+                    </colgroup>
                     <thead>
                       <tr>
                         <th>任务</th>
                         <th>类型</th>
                         <th>状态</th>
                         <th>进度</th>
+                        <th>结果</th>
                         <th>更新时间</th>
                         <th>操作</th>
                       </tr>
@@ -5053,29 +5027,44 @@ export function Dashboard() {
                       {filteredTasks.map((task) => {
                         const total = Math.max(task.progress.total, task.progress.done + task.progress.failed, 1);
                         const percent = Math.min(100, Math.round((task.progress.done / total) * 100));
+                        const resultSummary = summarizeTaskResult(task);
                         return (
                           <tr key={task.id}>
-                            <td>
-                              <div className="task-title">
+                            <td className="task-cell-title">
+                              <button className="task-title" type="button" onClick={() => openTaskDetail(task.id)}>
                                 <strong>{task.title}</strong>
                                 <span>{task.id}</span>
-                              </div>
+                              </button>
                             </td>
-                            <td>{kindLabel[task.kind]}</td>
-                            <td>
+                            <td className="task-cell-kind">
+                              <span className={`task-kind ${task.kind}`}>{kindLabel[task.kind]}</span>
+                            </td>
+                            <td className="task-cell-status">
                               <span className={`badge ${task.status}`}>{statusLabel[task.status]}</span>
                             </td>
-                            <td>
-                              <div className="progress">
+                            <td className="task-cell-progress">
+                              <div className="task-progress">
                                 <div className="progress-track">
                                   <div className="progress-fill" style={{ width: `${percent}%` }} />
                                 </div>
-                                <span>{task.progress.message}</span>
-                                {renderTaskOutput(task)}
+                                <span title={task.progress.message}>{task.progress.message}</span>
                               </div>
                             </td>
-                            <td>{new Date(task.updated_at).toLocaleString()}</td>
-                            <td>
+                            <td className="task-cell-result">
+                              <button
+                                className="task-result-link"
+                                type="button"
+                                disabled={!task.output}
+                                onClick={() => openTaskDetail(task.id)}
+                              >
+                                <strong>{resultSummary.primary}</strong>
+                                {resultSummary.detail ? <span>{resultSummary.detail}</span> : null}
+                              </button>
+                            </td>
+                            <td className="task-cell-updated">
+                              <time dateTime={task.updated_at}>{new Date(task.updated_at).toLocaleString()}</time>
+                            </td>
+                            <td className="task-cell-actions">
                               <div className="task-actions">
                                 <button
                                   className="icon-button"

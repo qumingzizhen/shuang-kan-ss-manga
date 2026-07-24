@@ -32,6 +32,7 @@
 - [x] Add one-command local dev startup and task persistence for the development API shim.
 - [x] Add web task detail drawer and batch download creation from selected search results.
 - [x] Add a responsive cover gallery with compact task previews, incremental rendering, and source-backed infinite pagination.
+- [x] 将任务工作区重构为可折叠的新建任务区、全宽紧凑列表和独立结果详情。
 - [x] Add a second built-in source adapter for `18comic.vip` with a conservative Python bridge and source-aware development shim dispatch.
 - [x] Refactor built-in sources onto one generic Python bridge adapter and shared crawler core.
 - [x] Move built-in source descriptors and bridge settings into a shared source registry config.

@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -130,6 +130,8 @@ import {
   type View,
 } from "@/lib/dashboard-model";
 import { TagAutocomplete } from "@/components/tag-autocomplete";
+import { InfiniteSearchResults, SearchResultThumbnail } from "@/components/search-results";
+import { TaskTechnicalDetails } from "@/components/task-technical-details";
 import {
   canonicalTag,
   expandExcludedTags,
@@ -140,6 +142,7 @@ import {
   uniqueTags,
 } from "@/lib/tag-system";
 import { readerLoadPlan } from "@/lib/reader-model";
+import { prettyJson } from "@/lib/json";
 
 const allSourcesValue = "__all_sources__";
 const sourceAuthSourceId = "18comic";
@@ -148,8 +151,6 @@ const readerScrollSyncDelayMs = 650;
 const readerScrollObserverMargin = "-18% 0px -48% 0px";
 const readerScrollObserverThresholds = [0, 0.1, 0.25, 0.45, 0.65];
 const readerControlsCollapsedStorageKey = "manga-platform.reader-controls-collapsed";
-const initialVisibleSearchResults = 10;
-const searchResultRenderBatch = 10;
 
 type RemoteReaderState = {
   session: RemoteReaderSession;
@@ -197,118 +198,6 @@ function visibleReaderPageFromEntries(entries: IntersectionObserverEntry[]) {
   }
 
   return best ? best.page : null;
-}
-
-type InfiniteSearchResultsProps = {
-  taskId: string;
-  results: TaskSearchResult[];
-  hasMore: boolean;
-  loading: boolean;
-  error?: string | null;
-  renderResult: (result: TaskSearchResult) => ReactNode;
-  onLoadMore: () => void;
-};
-
-function InfiniteSearchResults({
-  taskId,
-  results,
-  hasMore,
-  loading,
-  error,
-  renderResult,
-  onLoadMore,
-}: InfiniteSearchResultsProps) {
-  const [visibleCount, setVisibleCount] = useState(Math.min(initialVisibleSearchResults, results.length));
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
-  const onLoadMoreRef = useRef(onLoadMore);
-
-  useEffect(() => {
-    onLoadMoreRef.current = onLoadMore;
-  }, [onLoadMore]);
-
-  useEffect(() => {
-    setVisibleCount(Math.min(initialVisibleSearchResults, results.length));
-  }, [taskId]);
-
-  useEffect(() => {
-    setVisibleCount((current) =>
-      Math.min(results.length, Math.max(current, Math.min(initialVisibleSearchResults, results.length))),
-    );
-  }, [results.length]);
-
-  const hasLocalResults = visibleCount < results.length;
-  const canRequestMore = hasMore || Boolean(error);
-
-  useEffect(() => {
-    const sentinel = sentinelRef.current;
-    if (!sentinel || loading || (!hasLocalResults && !canRequestMore) || typeof window === "undefined") {
-      return;
-    }
-
-    const root = sentinel.closest<HTMLElement>(".detail-body");
-    const revealOrLoad = () => {
-      if (hasLocalResults) {
-        setVisibleCount((current) => Math.min(results.length, current + searchResultRenderBatch));
-      } else {
-        onLoadMoreRef.current();
-      }
-    };
-
-    if (!window.IntersectionObserver) {
-      const handleScroll = () => {
-        const bounds = sentinel.getBoundingClientRect();
-        const viewportBottom = root?.getBoundingClientRect().bottom ?? window.innerHeight;
-        if (bounds.top <= viewportBottom + 180) {
-          revealOrLoad();
-        }
-      };
-      root?.addEventListener("scroll", handleScroll, { passive: true });
-      handleScroll();
-      return () => root?.removeEventListener("scroll", handleScroll);
-    }
-
-    const observer = new window.IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          revealOrLoad();
-        }
-      },
-      {
-        root,
-        rootMargin: "0px 0px 180px 0px",
-        threshold: 0.01,
-      },
-    );
-    observer.observe(sentinel);
-    return () => observer.disconnect();
-  }, [canRequestMore, hasLocalResults, loading, results.length]);
-
-  const displayedResults = results.slice(0, visibleCount);
-  return (
-    <>
-      <div className="detail-results">
-        {displayedResults.map(renderResult)}
-      </div>
-      <div className="search-results-sentinel" ref={sentinelRef} aria-live="polite">
-        {loading ? (
-          <span>正在加载下一页搜索结果…</span>
-        ) : error ? (
-          <>
-            <span>继续加载失败：{error}</span>
-            <button className="mini-button" type="button" onClick={onLoadMore}>
-              重试
-            </button>
-          </>
-        ) : hasLocalResults ? (
-          <span>继续下滑显示更多 · 已显示 {visibleCount}/{results.length}</span>
-        ) : hasMore ? (
-          <span>继续下滑搜索下一页 · 当前 {results.length} 条</span>
-        ) : (
-          <span>已加载全部 {results.length} 条结果</span>
-        )}
-      </div>
-    </>
-  );
 }
 
 export function Dashboard() {
@@ -1879,88 +1768,6 @@ export function Dashboard() {
     });
   }
 
-  function searchResultThumbnailSrc(result: TaskSearchResult) {
-    const value = result.thumbnail_url?.trim();
-    if (!value || isBadSearchThumbnailUrl(value)) {
-      return null;
-    }
-    const params = new URLSearchParams({
-      source_id: result.source_id,
-      url: value,
-      referer: result.gallery_url,
-    });
-    return apiUrl(`/v1/search-thumbnails?${params.toString()}`);
-  }
-
-  function isBadSearchThumbnailUrl(value: string) {
-    try {
-      const parsed = new URL(value, "http://local.invalid");
-      const host = parsed.hostname.toLowerCase();
-      const path = safeDecodeURIComponent(parsed.pathname).toLowerCase();
-      const filename = path.split("/").pop() ?? "";
-      const stem = filename.split(".")[0] ?? "";
-      const badFileNames = new Set([
-        "blank.gif",
-        "blank.png",
-        "favicon.ico",
-        "loading.gif",
-        "loading.png",
-        "noimage.gif",
-        "noimage.png",
-        "pixel.gif",
-        "spacer.gif",
-        "t.png",
-        "td.png",
-        "transparent.gif",
-      ]);
-      const badNameParts = ["arrow", "blank", "button", "download", "favicon", "icon", "loader", "loading", "placeholder", "pixel", "sprite"];
-      if (!filename || badFileNames.has(filename)) {
-        return true;
-      }
-      if (host.endsWith("ehgt.org") && (path === "/g/t.png" || path === "/g/td.png")) {
-        return true;
-      }
-      if (host.endsWith("ehgt.org") && path.startsWith("/g/") && stem.length <= 2) {
-        return true;
-      }
-      return badNameParts.some((part) => filename.includes(part));
-    } catch {
-      return true;
-    }
-  }
-
-  function safeDecodeURIComponent(value: string) {
-    try {
-      return decodeURIComponent(value);
-    } catch {
-      return value;
-    }
-  }
-
-  function renderSearchResultThumbnail(result: TaskSearchResult) {
-    const src = searchResultThumbnailSrc(result);
-    return (
-      <a className={src ? "result-thumbnail" : "result-thumbnail empty"} href={result.gallery_url} target="_blank" rel="noreferrer" aria-label={`打开来源：${result.title}`}>
-        <span className="result-thumbnail-fallback">
-          <Image size={22} aria-hidden />
-          <span>暂无封面</span>
-        </span>
-        {src ? (
-          <img
-            src={src}
-            alt=""
-            loading="lazy"
-            referrerPolicy="no-referrer"
-            onError={(event) => {
-              event.currentTarget.hidden = true;
-              event.currentTarget.parentElement?.classList.add("empty");
-            }}
-          />
-        ) : null}
-      </a>
-    );
-  }
-
   async function openRemoteReader(result: TaskSearchResult) {
     await openRemoteReaderSession(result.source_id, result.gallery_url, result.title);
   }
@@ -2483,10 +2290,6 @@ export function Dashboard() {
       delete next[taskId];
       return next;
     });
-  }
-
-  function jsonText(value: unknown) {
-    return JSON.stringify(value ?? null, null, 2);
   }
 
   function formatBytes(value: number) {
@@ -3080,7 +2883,7 @@ export function Dashboard() {
                         checked={isSearchResultSelected(task.id, result)}
                         onChange={() => toggleSearchResult(task.id, result)}
                       />
-                      {renderSearchResultThumbnail(result)}
+                      <SearchResultThumbnail result={result} />
                       <div className="result-main">
                         <span className="result-source">{result.source_id}</span>
                         <a className="result-link" href={result.gallery_url} target="_blank" rel="noreferrer">
@@ -3153,27 +2956,7 @@ export function Dashboard() {
             </section>
           )}
 
-          <section className="detail-section">
-            <div className="detail-section-title">
-              <h3>Payload</h3>
-              <button className="mini-button" type="button" onClick={() => copyText("payload JSON", jsonText(task.payload))}>
-                <Copy size={13} aria-hidden />
-                复制
-              </button>
-            </div>
-            <pre className="json-view">{jsonText(task.payload)}</pre>
-          </section>
-
-          <section className="detail-section">
-            <div className="detail-section-title">
-              <h3>Output</h3>
-              <button className="mini-button" type="button" onClick={() => copyText("output JSON", jsonText(output))} disabled={!output}>
-                <Copy size={13} aria-hidden />
-                复制
-              </button>
-            </div>
-            <pre className="json-view">{jsonText(output)}</pre>
-          </section>
+          <TaskTechnicalDetails payload={task.payload} output={output} onCopy={copyText} />
         </div>
       </aside>
     );
@@ -4577,7 +4360,7 @@ export function Dashboard() {
                 <h3>失败记录</h3>
                 <span className="section-note">{failedEntries.length} 条</span>
               </div>
-              <pre className="json-view">{jsonText(failedEntries)}</pre>
+              <pre className="json-view">{prettyJson(failedEntries)}</pre>
             </section>
           )}
 
@@ -4585,12 +4368,12 @@ export function Dashboard() {
             <section className="detail-section">
               <div className="detail-section-title">
                 <h3>Metadata</h3>
-                <button className="mini-button" type="button" onClick={() => copyText("metadata JSON", jsonText(metadata))}>
+                <button className="mini-button" type="button" onClick={() => copyText("metadata JSON", prettyJson(metadata))}>
                   <Copy size={13} aria-hidden />
                   复制
                 </button>
               </div>
-              <pre className="json-view">{jsonText(metadata)}</pre>
+              <pre className="json-view">{prettyJson(metadata)}</pre>
             </section>
           )}
         </div>
@@ -4617,13 +4400,15 @@ export function Dashboard() {
             <Cloud size={17} aria-hidden />
             文件库
           </button>
-          <button className="nav-item" type="button">
+          <button className="nav-item planned" type="button" disabled title="审核中心已列入实施规划">
             <ShieldCheck size={17} aria-hidden />
-            审核
+            <span>审核</span>
+            <small className="nav-badge">规划中</small>
           </button>
-          <button className="nav-item" type="button">
+          <button className="nav-item planned" type="button" disabled title="基础设施中心已列入实施规划">
             <Server size={17} aria-hidden />
-            基础设施
+            <span>基础设施</span>
+            <small className="nav-badge">规划中</small>
           </button>
         </nav>
 

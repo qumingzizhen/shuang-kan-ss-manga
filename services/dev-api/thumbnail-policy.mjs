@@ -1,3 +1,59 @@
+const badThumbnailFileNames = new Set([
+  "blank.gif",
+  "blank.png",
+  "favicon.ico",
+  "loading.gif",
+  "loading.png",
+  "noimage.gif",
+  "noimage.png",
+  "pixel.gif",
+  "spacer.gif",
+  "t.png",
+  "td.png",
+  "transparent.gif",
+]);
+const badThumbnailNameParts = [
+  "arrow",
+  "blank",
+  "button",
+  "download",
+  "favicon",
+  "icon",
+  "loader",
+  "loading",
+  "placeholder",
+  "pixel",
+  "sprite",
+];
+
+export function cleanSearchThumbnailUrl(value) {
+  const thumbnailUrl = typeof value === "string" ? value.trim() : value == null ? "" : String(value).trim();
+  return thumbnailUrl && !isBadSearchThumbnailUrl(thumbnailUrl) ? thumbnailUrl : null;
+}
+
+export function isBadSearchThumbnailUrl(value) {
+  let parsed;
+  try {
+    parsed = new URL(value, "http://local.invalid");
+  } catch {
+    return true;
+  }
+
+  const host = parsed.hostname.toLowerCase();
+  const path = safeDecodeURIComponent(parsed.pathname).toLowerCase();
+  const filename = path.split("/").pop() || "";
+  const stem = filename.split(".")[0] || "";
+  if (!filename || badThumbnailFileNames.has(filename)) {
+    return true;
+  }
+  if (host.endsWith("ehgt.org") && (path === "/g/t.png" || path === "/g/td.png")) {
+    return true;
+  }
+  if (host.endsWith("ehgt.org") && path.startsWith("/g/") && stem.length <= 2) {
+    return true;
+  }
+  return badThumbnailNameParts.some((part) => filename.includes(part));
+}
 export function validateThumbnailUrl(source, thumbnailUrl) {
   const parsed = new URL(thumbnailUrl);
   if (!["http:", "https:"].includes(parsed.protocol)) {
@@ -56,6 +112,14 @@ export function isPrivateHostname(hostname) {
   }
   const firstGroup = host.split(":", 1)[0];
   return host.startsWith("fc") || host.startsWith("fd") || /^fe[89ab]/.test(firstGroup);
+}
+
+function safeDecodeURIComponent(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 function hostForUrl(value) {

@@ -22,7 +22,7 @@
       "id": "18comic",
       "name": "18comic.vip",
       "homepage": "https://18comic.vip/",
-      "thumbnail_hosts": ["18comic.vip", "jmapiproxy2.cc"],
+      "thumbnail_hosts": ["18comic.vip", "jmapiproxy1.cc", "jmapiproxy2.cc", "jmapinodeudzn.net"],
       "version": "0.2.0",
       "capabilities": ["search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"],
       "enabled": true,

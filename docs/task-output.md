@@ -31,14 +31,15 @@ contract.
 
 ## Web Console Usage
 
-The current web console renders `TaskOutput` directly in the task list and a
-detail drawer:
+The current web console renders a compact `TaskOutput` summary in the task list
+and the complete result in a detail drawer:
 
 - `search_results` can be selected individually or in batches to create direct
   gallery download tasks.
 - `gallery_download` exposes the output folder and page counters.
 - `retry_plan` exposes the folder and selected page indexes.
-- Payload and output JSON can be copied from the detail drawer for debugging.
+- Payload and output JSON are serialized only after the collapsed technical
+  details section is opened, and can still be copied for debugging.
 - The task list can be filtered by keyword, task type, and lifecycle status.
 - Task metric cards act as shortcuts for common status filters.
 - Existing tasks can be rerun from the list or detail drawer by recreating the

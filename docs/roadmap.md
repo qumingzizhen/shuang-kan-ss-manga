@@ -93,6 +93,8 @@
 - [ ] Add global and per-source rate limits.
 - [ ] Add audit logs and admin review screens.
 - [ ] Add content complaint and takedown workflow.
+- [ ] 按 console-feature-plan.md 实现审核中心的只读事项箱与决策审计。
+- [ ] 按 console-feature-plan.md 实现基础设施中心的只读健康快照与单路 SSE。
 
 ## Phase 4 - Plugin System
 

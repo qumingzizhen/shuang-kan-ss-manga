@@ -142,6 +142,19 @@ list. Each returned item includes folder path, title, gallery URL, image count,
 page count, failed-page count, file size, metadata path, failure-log path, tags,
 last updated time, and local shelf metadata.
 
+## 搜索封面缓存
+
+`GET /v1/search-thumbnails` 的入口、参数和图片响应保持不变。内部使用有界重试、single-flight 并发合并和原子缓存写入。以下参数均为可选环境变量：
+
+| 环境变量 | 默认值 | 说明 |
+| --- | ---: | --- |
+| `DEV_API_SEARCH_THUMBNAIL_TIMEOUT_MS` | `10000` | 单次上游请求超时，限制为 1–60 秒 |
+| `DEV_API_SEARCH_THUMBNAIL_MAX_ATTEMPTS` | `3` | 单次代理调用的最大尝试次数，限制为 1–5 |
+| `DEV_API_SEARCH_THUMBNAIL_RETRY_BASE_DELAY_MS` | `350` | 指数退避基础间隔，最高单次等待 5 秒 |
+| `DEV_API_SEARCH_THUMBNAIL_MAX_BYTES` | `5242880` | 允许缓存的最大图片响应体 |
+| `DEV_API_SEARCH_THUMBNAIL_CACHE_DIR` | `.data/thumbnail-cache` | 本地封面缓存目录 |
+
+只有超时、临时 DNS 错误、`408/425/429/5xx` 和异常小图片会重试。协议、私网地址、非白名单域名、非图片响应和超限响应会直接拒绝，避免重试放大无效或危险请求。
 ## Run
 
 Recommended one-terminal startup:

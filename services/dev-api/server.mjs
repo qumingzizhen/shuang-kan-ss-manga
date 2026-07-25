@@ -1,8 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { lookup } from "node:dns/promises";
 import { createReadStream } from "node:fs";
-import { appendFile, mkdir, readdir, readFile, rename, rm, stat, unlink, writeFile } from "node:fs/promises";
+import { appendFile, mkdir, readdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,7 +14,8 @@ import {
 import { createAsyncLimiter, createSingleFlight, normalizeConcurrency } from "./async-pool.mjs";
 import { cleanTagList } from "./search-filter.mjs";
 import { executeSearchPipeline, SearchPipelineCanceledError } from "./search-pipeline.mjs";
-import { isPrivateHostname, validateThumbnailUrl } from "./thumbnail-policy.mjs";
+import { cleanSearchThumbnailUrl } from "./thumbnail-policy.mjs";
+import { createSearchThumbnailCache } from "./thumbnail-cache.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
@@ -43,6 +43,8 @@ const orphanedRunningTaskMs = Number(process.env.DEV_API_ORPHANED_RUNNING_TASK_M
 const librarySuspiciousImageBytes = Number(process.env.DEV_API_LIBRARY_SUSPICIOUS_IMAGE_BYTES || 2048);
 const searchThumbnailTimeoutMs = Number(process.env.DEV_API_SEARCH_THUMBNAIL_TIMEOUT_MS || 10000);
 const searchThumbnailMaxBytes = Number(process.env.DEV_API_SEARCH_THUMBNAIL_MAX_BYTES || 5 * 1024 * 1024);
+const searchThumbnailMaxAttempts = Number(process.env.DEV_API_SEARCH_THUMBNAIL_MAX_ATTEMPTS || 3);
+const searchThumbnailRetryBaseDelayMs = Number(process.env.DEV_API_SEARCH_THUMBNAIL_RETRY_BASE_DELAY_MS || 350);
 const galleryDownloadConcurrency = Number(process.env.DEV_API_GALLERY_DOWNLOAD_CONCURRENCY || 0);
 const searchSourceConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_SOURCE_CONCURRENCY, 2, 8);
 const searchEnrichConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_ENRICH_CONCURRENCY, 4, 12);
@@ -62,6 +64,14 @@ const runningChildren = new Map();
 const readerPageFetches = createSingleFlight();
 const searchThumbnailFetches = createSingleFlight();
 const searchMoreTasks = new Set();
+const searchThumbnailCache = createSearchThumbnailCache({
+  cacheDir: searchThumbnailCacheDir,
+  singleFlight: searchThumbnailFetches,
+  timeoutMs: searchThumbnailTimeoutMs,
+  maxBytes: searchThumbnailMaxBytes,
+  maxAttempts: searchThumbnailMaxAttempts,
+  retryBaseDelayMs: searchThumbnailRetryBaseDelayMs,
+});
 const scheduleReaderPageFetch = createAsyncLimiter(readerPageConcurrency);
 let saveChain = Promise.resolve();
 let readerSessionSaveChain = Promise.resolve();
@@ -1413,54 +1423,6 @@ function publicTaskOutput(output) {
   };
 }
 
-function cleanSearchThumbnailUrl(value) {
-  const thumbnailUrl = textOrNull(value);
-  if (!thumbnailUrl || isBadSearchThumbnailUrl(thumbnailUrl)) {
-    return null;
-  }
-  return thumbnailUrl;
-}
-
-function isBadSearchThumbnailUrl(value) {
-  let parsed;
-  try {
-    parsed = new URL(value, "http://local.invalid");
-  } catch {
-    return true;
-  }
-
-  const host = parsed.hostname.toLowerCase();
-  const path = safeDecodeURIComponent(parsed.pathname).toLowerCase();
-  const filename = path.split("/").pop() || "";
-  const stem = filename.split(".")[0] || "";
-  const badFileNames = new Set([
-    "blank.gif",
-    "blank.png",
-    "favicon.ico",
-    "loading.gif",
-    "loading.png",
-    "noimage.gif",
-    "noimage.png",
-    "pixel.gif",
-    "spacer.gif",
-    "t.png",
-    "td.png",
-    "transparent.gif",
-  ]);
-  const badNameParts = ["arrow", "blank", "button", "download", "favicon", "icon", "loader", "loading", "placeholder", "pixel", "sprite"];
-
-  if (!filename || badFileNames.has(filename)) {
-    return true;
-  }
-  if (host.endsWith("ehgt.org") && (path === "/g/t.png" || path === "/g/td.png")) {
-    return true;
-  }
-  if (host.endsWith("ehgt.org") && path.startsWith("/g/") && stem.length <= 2) {
-    return true;
-  }
-  return badNameParts.some((part) => filename.includes(part));
-}
-
 async function sendSearchThumbnail(response, searchParams) {
   try {
     const sourceId = textOrNull(searchParams.get("source_id")) || defaultSourceId;
@@ -1476,172 +1438,13 @@ async function sendSearchThumbnail(response, searchParams) {
       return;
     }
 
-    const parsed = validateThumbnailUrl(source, thumbnailUrl);
-    const cacheFile = searchThumbnailCacheFile(source.id, parsed.href);
-    await ensureSearchThumbnailCached(source, parsed.href, textOrNull(searchParams.get("referer")), cacheFile);
+    const cacheFile = await searchThumbnailCache.get(source, thumbnailUrl, textOrNull(searchParams.get("referer")));
     const fileStat = await stat(cacheFile);
     sendFile(response, cacheFile, mimeTypeForImage(cacheFile), fileStat, {
       "cache-control": "private, max-age=86400",
     });
   } catch (error) {
     sendJson(response, 502, { error: error instanceof Error ? error.message : String(error) });
-  }
-}
-
-function searchThumbnailCacheFile(sourceId, thumbnailUrl) {
-  const hash = createHash("sha256").update(`${sourceId}|${thumbnailUrl}`).digest("hex");
-  const extension = searchThumbnailExtension(thumbnailUrl);
-  return resolve(searchThumbnailCacheDir, sourceId, `${hash}${extension}`);
-}
-
-function searchThumbnailExtension(thumbnailUrl) {
-  const pathname = new URL(thumbnailUrl).pathname.toLowerCase();
-  const match = pathname.match(/\.(avif|gif|jpe?g|png|webp)$/i);
-  if (!match) {
-    return ".img";
-  }
-  return match[0].replace(".jpeg", ".jpg");
-}
-
-async function ensureSearchThumbnailCached(source, thumbnailUrl, referer, cacheFile) {
-  if (!isPathInside(cacheFile, searchThumbnailCacheDir)) {
-    throw new Error("thumbnail cache path is outside the configured cache root");
-  }
-
-  try {
-    const cached = await stat(cacheFile);
-    if (cached.isFile() && cached.size > 0) {
-      return;
-    }
-  } catch (error) {
-    if (!error || error.code !== "ENOENT") {
-      throw error;
-    }
-  }
-
-  return searchThumbnailFetches.run(cacheFile, () =>
-    fetchAndCacheSearchThumbnail(source, thumbnailUrl, referer, cacheFile),
-  );
-}
-
-async function fetchAndCacheSearchThumbnail(source, thumbnailUrl, referer, cacheFile) {
-  await mkdir(dirname(cacheFile), { recursive: true });
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), searchThumbnailTimeoutMs);
-  try {
-    const headers = {
-      accept: "image/avif,image/webp,image/png,image/jpeg,image/gif,*/*;q=0.8",
-      "user-agent": "comic-platform-dev-api/0.1 (+local thumbnail cache)",
-    };
-    const safeReferer = safeThumbnailReferer(source, referer);
-    if (safeReferer) {
-      headers.referer = safeReferer;
-    }
-
-    const remote = await fetchThumbnailResponse(source, thumbnailUrl, headers, controller.signal);
-    if (!remote.ok) {
-      throw new Error(`thumbnail fetch failed with HTTP ${remote.status}`);
-    }
-
-    const contentType = String(remote.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
-    if (contentType && !contentType.startsWith("image/") && contentType !== "application/octet-stream") {
-      throw new Error(`thumbnail fetch returned non-image content-type: ${contentType}`);
-    }
-
-    const body = await readResponseBodyLimited(remote, searchThumbnailMaxBytes);
-    if (body.length < 64) {
-      throw new Error("thumbnail response is too small to be a usable image");
-    }
-
-    const temporary = `${cacheFile}.${process.pid}.part`;
-    try {
-      await writeFile(temporary, body);
-      await rename(temporary, cacheFile);
-    } catch (error) {
-      await unlink(temporary).catch(() => undefined);
-      throw error;
-    }
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
-async function fetchThumbnailResponse(source, thumbnailUrl, headers, signal, redirectCount = 0) {
-  const parsed = validateThumbnailUrl(source, thumbnailUrl);
-  await assertPublicHostname(parsed.hostname);
-  const remote = await fetch(parsed, { headers, redirect: "manual", signal });
-  if (![301, 302, 303, 307, 308].includes(remote.status)) {
-    return remote;
-  }
-  if (redirectCount >= 3) {
-    throw new Error("thumbnail fetch exceeded the redirect limit");
-  }
-  const location = remote.headers.get("location");
-  if (!location) {
-    throw new Error("thumbnail redirect did not include a location");
-  }
-  return fetchThumbnailResponse(source, new URL(location, parsed).href, headers, signal, redirectCount + 1);
-}
-
-async function assertPublicHostname(hostname) {
-  const addresses = await lookup(hostname, { all: true, verbatim: true });
-  if (!addresses.length || addresses.some((entry) => isPrivateHostname(entry.address))) {
-    throw new Error("thumbnail host resolves to a private or local address");
-  }
-}
-
-async function readResponseBodyLimited(response, maxBytes) {
-  const declaredLength = Number(response.headers.get("content-length") || 0);
-  if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
-    throw new Error(`thumbnail response is too large: ${declaredLength} bytes`);
-  }
-  if (!response.body) {
-    return Buffer.alloc(0);
-  }
-
-  const reader = response.body.getReader();
-  const chunks = [];
-  let total = 0;
-  try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) {
-        break;
-      }
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel();
-        throw new Error(`thumbnail response is too large: more than ${maxBytes} bytes`);
-      }
-      chunks.push(Buffer.from(value));
-    }
-  } finally {
-    reader.releaseLock();
-  }
-  return Buffer.concat(chunks, total);
-}
-
-function safeThumbnailReferer(source, referer) {
-  const value = textOrNull(referer);
-  if (!value) {
-    return source.homepage || null;
-  }
-  try {
-    const parsed = new URL(value);
-    if (isPrivateHostname(parsed.hostname)) {
-      return source.homepage || null;
-    }
-    return parsed.href;
-  } catch {
-    return source.homepage || null;
-  }
-}
-
-function safeDecodeURIComponent(value) {
-  try {
-    return decodeURIComponent(value);
-  } catch {
-    return value;
   }
 }
 

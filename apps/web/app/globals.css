@@ -866,6 +866,16 @@ h2 {
   font-weight: 600;
 }
 
+.async-state.error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.async-state > span {
+  min-width: 0;
+}
+
 /* ============================ 来源授权 ============================ */
 
 .source-auth-box {

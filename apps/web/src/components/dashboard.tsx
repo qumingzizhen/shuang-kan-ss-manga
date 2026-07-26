@@ -132,6 +132,7 @@ import {
   type ReaderMode,
   type View,
 } from "@/lib/dashboard-model";
+import { AsyncState } from "@/components/async-state";
 import { TagAutocomplete } from "@/components/tag-autocomplete";
 import { InfiniteSearchResults, SearchResultThumbnail } from "@/components/search-results";
 import { TaskTechnicalDetails } from "@/components/task-technical-details";
@@ -2754,7 +2755,11 @@ export function Dashboard() {
               );
             })
           ) : (
-            <div className="empty compact">{remoteReaderSessionsLoading ? "正在加载" : "暂无匹配的在线阅读记录"}</div>
+            <AsyncState
+              compact
+              kind={remoteReaderSessionsLoading ? "loading" : "empty"}
+              message={remoteReaderSessionsLoading ? "正在加载" : "暂无匹配的在线阅读记录"}
+            />
           )}
         </div>
       </section>
@@ -2937,7 +2942,7 @@ export function Dashboard() {
                     </div>
                   )}
                 />
-              ) : <div className="empty compact">当前结果均已被全局禁用词条排除</div>}
+              ) : <AsyncState compact kind="empty" message="当前结果均已被全局禁用词条排除" />}
             </section>
           )}
 
@@ -3344,18 +3349,16 @@ export function Dashboard() {
               <div className="library-card-grid">{filteredLibraryItems.map(renderLibraryCard)}</div>
             )
           ) : (
-              <div className="empty">
-                {libraryLoading ? <RefreshCcw size={24} aria-hidden /> : <FolderOpen size={24} aria-hidden />}
-                <span>{libraryLoading ? "正在扫描文件库" : libraryItems.length ? "没有匹配目录" : "暂无本地漫画目录"}</span>
-              </div>
+            <AsyncState
+              kind={libraryLoading ? "loading" : "empty"}
+              message={libraryLoading ? "正在扫描文件库" : libraryItems.length ? "没有匹配目录" : "暂无本地漫画目录"}
+              icon={libraryLoading ? undefined : <FolderOpen size={24} aria-hidden />}
+            />
           )}
         </section>
 
         {error && (
-          <div className="error library-error">
-            <AlertTriangle size={16} aria-hidden />
-            {error}
-          </div>
+          <AsyncState kind="error" message={error} className="library-error" />
         )}
       </section>
     );
@@ -4293,7 +4296,7 @@ export function Dashboard() {
               {exportHistory.length ? (
                 exportHistory.slice(0, 8).map((result) => renderLibraryExportResult(result.format.toUpperCase(), result))
               ) : (
-                <div className="empty compact">暂无导出记录</div>
+                <AsyncState compact kind="empty" message="暂无导出记录" />
               )}
             </div>
           </section>
@@ -4349,7 +4352,11 @@ export function Dashboard() {
                 ))}
               </div>
             ) : (
-              <div className="empty compact">{libraryDetailLoading ? "正在读取页面列表" : "暂无可预览图片"}</div>
+              <AsyncState
+                compact
+                kind={libraryDetailLoading ? "loading" : "empty"}
+                message={libraryDetailLoading ? "正在读取页面列表" : "暂无可预览图片"}
+              />
             )}
             {pageTotal > 24 && (
               <div className="output-actions">
@@ -4698,7 +4705,7 @@ export function Dashboard() {
                   </>
                 )}
 
-                {error && <div className="error">{error}</div>}
+                {error && <AsyncState kind="error" message={error} />}
               </form>
             </div>
           </details>
@@ -4904,10 +4911,11 @@ export function Dashboard() {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="empty">
-                    <Search size={24} aria-hidden />
-                    <span>{tasks.length ? "没有匹配任务" : "暂无任务"}</span>
-                  </div>
+                  <AsyncState
+                    kind="empty"
+                    message={tasks.length ? "没有匹配任务" : "暂无任务"}
+                    icon={<Search size={24} aria-hidden />}
+                  />
                 )}
               </div>
             </section>

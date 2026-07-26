@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Activity,
   AlertTriangle,
@@ -58,16 +59,11 @@ import {
   getRemoteReaderSession,
   getLibraryDetail,
   listLibraryExports,
-  listLibrary,
   listLibraryPages,
-  listLibraryTags,
   loadMoreSearchTaskResults,
   listRemoteReaderPageStatuses,
   listRemoteReaderPages,
-  listRemoteReaderSessions,
   libraryExportDownloadUrl,
-  listSources,
-  listTasks,
   parseTaskEvent,
   saveSourceAuth,
   updateRemoteReaderProgress,
@@ -95,6 +91,13 @@ import {
   type TaskSearchResult,
   type TaskStatus,
 } from "@/lib/api";
+import {
+  fetchDashboardLibrary,
+  fetchDashboardLibraryTags,
+  fetchDashboardRemoteReaderSessions,
+  fetchDashboardSources,
+  fetchDashboardTasks,
+} from "@/lib/dashboard-queries";
 import {
   cancelableStatuses,
   clampPageNumber,
@@ -201,6 +204,7 @@ function visibleReaderPageFromEntries(entries: IntersectionObserverEntry[]) {
 }
 
 export function Dashboard() {
+  const queryClient = useQueryClient();
   const [view, setView] = useState<View>("tasks");
   const [mode, setMode] = useState<Mode>("search");
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -296,7 +300,13 @@ export function Dashboard() {
     let active = true;
     const source = createTaskEventsSource();
 
-    Promise.all([listTasks(), listSources(), listLibrary(), listLibraryTags({ limit: 36 }), listRemoteReaderSessions()])
+    Promise.all([
+      fetchDashboardTasks(queryClient),
+      fetchDashboardSources(queryClient),
+      fetchDashboardLibrary(queryClient),
+      fetchDashboardLibraryTags(queryClient),
+      fetchDashboardRemoteReaderSessions(queryClient),
+    ])
       .then(([nextTasks, nextSources, nextLibraryItems, nextLibraryTagStats, nextRemoteReaderSessions]) => {
         if (!active) {
           return;
@@ -340,7 +350,7 @@ export function Dashboard() {
       active = false;
       source.close();
     };
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     if (!tasks.some((task) => task.status === "queued" || task.status === "running" || task.status === "paused")) {
@@ -348,13 +358,13 @@ export function Dashboard() {
     }
 
     const interval = window.setInterval(() => {
-      listTasks()
+      fetchDashboardTasks(queryClient, true)
         .then((nextTasks) => setTasks(nextTasks))
         .catch(() => undefined);
     }, 4000);
 
     return () => window.clearInterval(interval);
-  }, [tasks]);
+  }, [queryClient, tasks]);
 
   useEffect(() => {
     return () => {
@@ -944,7 +954,10 @@ export function Dashboard() {
     setLoading(true);
     setError(null);
     try {
-      const [nextTasks, nextSources] = await Promise.all([listTasks(), listSources()]);
+      const [nextTasks, nextSources] = await Promise.all([
+        fetchDashboardTasks(queryClient, true),
+        fetchDashboardSources(queryClient, true),
+      ]);
       setTasks(nextTasks);
       setSources(nextSources);
       pushLog(`refreshed ${nextTasks.length} tasks and ${nextSources.length} sources`);
@@ -959,7 +972,10 @@ export function Dashboard() {
     setLibraryLoading(true);
     setError(null);
     try {
-      const [nextLibraryItems, nextLibraryTagStats] = await Promise.all([listLibrary(), listLibraryTags({ limit: 36 })]);
+      const [nextLibraryItems, nextLibraryTagStats] = await Promise.all([
+        fetchDashboardLibrary(queryClient, true),
+        fetchDashboardLibraryTags(queryClient, 36, true),
+      ]);
       setLibraryItems(nextLibraryItems);
       setLibraryTagStats(nextLibraryTagStats);
       setLibraryDetails({});
@@ -989,7 +1005,7 @@ export function Dashboard() {
     setError(null);
     try {
       const status = await getSourceAuth(sourceId);
-      const nextSources = await listSources();
+      const nextSources = await fetchDashboardSources(queryClient, true);
       setSourceAuthStatus(status);
       setSources(nextSources);
       pushLog(`loaded source auth status for ${sourceId}`);
@@ -1018,7 +1034,7 @@ export function Dashboard() {
         cookie: sourceAuthCookie,
         headers: sourceAuthHeaders,
       });
-      const nextSources = await listSources();
+      const nextSources = await fetchDashboardSources(queryClient, true);
       setSourceAuthStatus(status);
       setSources(nextSources);
       setSourceAuthCookie("");
@@ -1036,7 +1052,7 @@ export function Dashboard() {
     setError(null);
     try {
       const status = await deleteSourceAuth(sourceAuthSourceId);
-      const nextSources = await listSources();
+      const nextSources = await fetchDashboardSources(queryClient, true);
       setSourceAuthStatus(status);
       setSources(nextSources);
       setSourceAuthCookie("");
@@ -1413,7 +1429,7 @@ export function Dashboard() {
     setRemoteReaderSessionsLoading(true);
     setError(null);
     try {
-      const sessions = await listRemoteReaderSessions();
+      const sessions = await fetchDashboardRemoteReaderSessions(queryClient, true);
       setRemoteReaderSessions(sessions);
       pushLog(`loaded ${sessions.length} remote reader session(s)`);
     } catch (caught) {

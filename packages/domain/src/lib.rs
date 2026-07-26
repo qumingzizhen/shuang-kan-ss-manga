@@ -163,6 +163,12 @@ pub struct TaskSearchResult {
     pub tags: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub thumbnail_url: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uploader: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub uploaded_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

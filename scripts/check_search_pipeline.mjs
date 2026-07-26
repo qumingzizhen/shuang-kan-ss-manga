@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { executeSearchPipeline } from "../services/dev-api/search-pipeline.mjs";
+import { executeSearchPipeline, sortSearchResultsByNewest } from "../services/dev-api/search-pipeline.mjs";
 
 const sources = [
   { id: "one", name: "One" },
@@ -42,6 +42,19 @@ assert.deepEqual(
   ["https://one.test/keep", "https://two.test/keep"],
   "results should preserve source order, exclude blocked items, and remove duplicates",
 );
+const sorted = sortSearchResultsByNewest([
+  { source_id: "one", title: "unknown-one-1" },
+  { source_id: "one", title: "older", uploaded_at: "2026-07-24T10:00:00Z" },
+  { source_id: "one", title: "unknown-one-2" },
+  { source_id: "two", title: "newest", uploaded_at: "2026-07-26T10:00:00Z" },
+  { source_id: "two", title: "unknown-two-1" },
+]);
+assert.deepEqual(
+  sorted.map((item) => item.title),
+  ["newest", "older", "unknown-one-1", "unknown-two-1", "unknown-one-2"],
+  "dated results should be newest-first and undated results should interleave by source",
+);
+
 assert.equal(report.excludedCount, 2);
 assert.deepEqual(report.sourceErrors, [{ source_id: "three", source_name: "Three", message: "offline" }]);
 

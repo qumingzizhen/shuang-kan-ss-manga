@@ -593,6 +593,40 @@ def find_nearby_image_url(text: str, page_url: str, markers: list[str], *, befor
     return ""
 
 
+def find_enclosing_html_block(
+    text: str,
+    markers: list[str],
+    *,
+    tags: tuple[str, ...] = ("tr", "article", "li"),
+    max_chars: int = 24000,
+) -> str:
+    """Return the smallest nearby structural block containing one of the markers."""
+    lower_text = text.lower()
+    candidates: list[str] = []
+    for marker in markers:
+        normalized_marker = clean_text(unescape(marker)).lower()
+        if not normalized_marker:
+            continue
+        marker_position = lower_text.find(normalized_marker)
+        if marker_position < 0:
+            continue
+        for tag in tags:
+            opening = lower_text.rfind(f"<{tag}", max(0, marker_position - max_chars), marker_position + 1)
+            if opening < 0:
+                continue
+            closing = lower_text.find(f"</{tag}>", marker_position, min(len(text), marker_position + max_chars))
+            if closing < 0:
+                continue
+            block = text[opening : closing + len(tag) + 3]
+            if len(block) <= max_chars:
+                candidates.append(block)
+    return min(candidates, key=len) if candidates else ""
+
+
+def html_fragment_text(fragment: str) -> str:
+    return clean_text(re.sub(r"<[^>]+>", " ", unescape(fragment or "")))
+
+
 def header_value(headers: dict[str, str], key: str) -> str | None:
     key = key.lower()
     for header_key, value in headers.items():

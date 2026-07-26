@@ -12,6 +12,20 @@ while output answers "what did the task produce".
 | `gallery_download` | Direct gallery tasks | Stores output folder and page counters for a completed download |
 | `retry_plan` | Retry-folder tasks | Stores the page indexes selected for repair |
 
+## 搜索结果字段
+
+`search_results.results[]` 保留原有 `source_id`、`gallery_url`、`title`、
+`tags` 和 `thumbnail_url`，并新增以下可选字段：
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `uploader` | `string \| null` | 来源确实返回的上传人 |
+| `uploaded_at` | `string \| null` | 可解析上传时间；开发 API 规范化为 ISO 时间 |
+| `category` | `string \| null` | 漫画、同人志、游戏 CG 等粗分类 |
+
+旧任务和旧来源可以完全省略这些字段。默认任务输出先按上传时间降序排列；
+没有时间的结果按来源轮转，加载下一页后会对完整合并结果重新排序。
+
 Every task event carries the full `Task` snapshot, so web clients receive the
 latest output through the same SSE stream used for status updates.
 
@@ -34,8 +48,8 @@ contract.
 The current web console renders a compact `TaskOutput` summary in the task list
 and the complete result in a detail drawer:
 
-- `search_results` can be selected individually or in batches to create direct
-  gallery download tasks.
+- `search_results` 一级列表用于浏览和批量选择；单条阅读、下载、来源链接与
+  完整 Tag 位于二级详情。
 - `gallery_download` exposes the output folder and page counters.
 - `retry_plan` exposes the folder and selected page indexes.
 - Payload and output JSON are serialized only after the collapsed technical

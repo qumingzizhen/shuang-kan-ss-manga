@@ -101,6 +101,9 @@ impl TaskDispatcher {
                                     title: item.title,
                                     tags: item.tags,
                                     thumbnail_url: item.thumbnail_url,
+                                    uploader: item.uploader,
+                                    uploaded_at: item.uploaded_at,
+                                    category: item.category,
                                 })
                             })
                             .collect::<Vec<_>>();

@@ -37,6 +37,7 @@ from source_bridge_core import (
     write_json_atomic,
 )
 from source_tag_resolver import resolve_source_tag
+from search_result_metadata import merge_search_metadata, parse_ehentai_search_metadata
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -134,7 +135,9 @@ def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
         title = clean_search_title(anchor.get("title") or anchor.get("text") or "")
         if not title:
             title = f"e-hentai-{match.group(1)}"
-        thumbnail_url = find_nearby_image_url(text, page_url, [href, url, f"/g/{match.group(1)}/{match.group(2)}"])
+        markers = [href, url, f"/g/{match.group(1)}/{match.group(2)}"]
+        thumbnail_url = find_nearby_image_url(text, page_url, markers)
+        metadata = parse_ehentai_search_metadata(text, markers)
         item = by_url.get(url)
         if item is None:
             by_url[url] = {
@@ -143,7 +146,8 @@ def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
                 "url": url,
                 "gid": match.group(1),
                 "token": match.group(2),
-                "tags": [],
+                "tags": metadata.get("tags", []),
+                **{key: value for key, value in metadata.items() if key != "tags"},
             }
             if thumbnail_url:
                 by_url[url]["thumbnail_url"] = thumbnail_url
@@ -154,6 +158,7 @@ def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
                 item["thumbnail_url"] = thumbnail_url
         elif thumbnail_url and not item.get("thumbnail_url"):
             item["thumbnail_url"] = thumbnail_url
+        merge_search_metadata(item or by_url[url], metadata)
 
     return [by_url[url] for url in order]
 
@@ -687,8 +692,9 @@ def flatten_tags(tags: dict[str, list[str]]) -> list[str]:
 def run_self_test() -> dict[str, Any]:
     search_html = """
     <table class="itg">
-      <tr><td><a href="/g/12345/abcdef1234/" title="Image: Sample EH Book"><img src="https://ehgt.org/g/t.png"><img src="https://ehgt.example.test/thumbs/12345.jpg"></a></td>
-      <td><a class="glink" href="https://e-hentai.org/g/12345/abcdef1234/">Sample EH Book</a></td></tr>
+      <tr><td><div class="cn">Doujinshi</div><a href="/g/12345/abcdef1234/" title="Image: Sample EH Book"><img src="https://ehgt.org/g/t.png"><img src="https://ehgt.example.test/thumbs/12345.jpg"></a></td>
+      <td><a class="glink" href="https://e-hentai.org/g/12345/abcdef1234/">Sample EH Book</a><div title="female:big_breasts"></div></td>
+      <td class="gl4c"><a href="/?f_uploader=sample-user">sample-user</a></td><td>2026-07-26 10:12</td></tr>
     </table>
     """
     gallery_html = """
@@ -720,6 +726,10 @@ def run_self_test() -> dict[str, Any]:
     assert len(search_results) == 1, search_results
     assert search_results[0]["title"] == "Sample EH Book", search_results
     assert search_results[0].get("thumbnail_url") == "https://ehgt.example.test/thumbs/12345.jpg", search_results
+    assert search_results[0].get("category") == "Doujinshi", search_results
+    assert search_results[0].get("uploader") == "sample-user", search_results
+    assert search_results[0].get("uploaded_at") == "2026-07-26 10:12", search_results
+    assert "female:big breasts" in search_results[0].get("tags", []), search_results
     assert build_query(["female:big breasts", "language:chinese"], None, None) == "female:big breasts language:chinese"
     assert gallery.title == "Sample EH Book", gallery.title
     assert gallery.length == 2, gallery.length

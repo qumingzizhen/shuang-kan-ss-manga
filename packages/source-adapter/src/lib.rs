@@ -28,6 +28,9 @@ pub struct GallerySummary {
     pub title: String,
     pub tags: Vec<String>,
     pub thumbnail_url: Option<String>,
+    pub uploader: Option<String>,
+    pub uploaded_at: Option<String>,
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -394,6 +397,9 @@ impl SourceAdapter for PythonBridgeAdapter {
                     title: item.title,
                     tags: item.tags,
                     thumbnail_url: item.thumbnail_url,
+                    uploader: item.uploader,
+                    uploaded_at: item.uploaded_at,
+                    category: item.category,
                 })
                 .collect())
         })
@@ -704,6 +710,12 @@ struct SearchBridgeItem {
     tags: Vec<String>,
     #[serde(default)]
     thumbnail_url: Option<String>,
+    #[serde(default)]
+    uploader: Option<String>,
+    #[serde(default)]
+    uploaded_at: Option<String>,
+    #[serde(default)]
+    category: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

@@ -120,7 +120,7 @@ export async function executeSearchPipeline(options) {
     sourceErrors,
     excludedTags,
     excludedCount,
-    results,
+    results: sortSearchResultsByNewest(results),
   };
 }
 
@@ -135,7 +135,69 @@ function normalizeSearchResult(item, source) {
     title: String(item?.title || galleryUrl).trim() || galleryUrl,
     tags: cleanTagList(item?.tags),
     thumbnail_url: textOrNull(item?.thumbnail_url),
+    uploader: textOrNull(item?.uploader),
+    uploaded_at: normalizeUploadedAt(item?.uploaded_at),
+    category: textOrNull(item?.category),
   };
+}
+
+export function sortSearchResultsByNewest(results) {
+  const indexed = Array.from(results || [], (result, index) => ({
+    result,
+    index,
+    timestamp: uploadedAtTimestamp(result?.uploaded_at),
+  }));
+  const known = indexed
+    .filter((item) => item.timestamp !== null)
+    .sort((left, right) => right.timestamp - left.timestamp || left.index - right.index)
+    .map((item) => item.result);
+  const unknown = interleaveBySource(
+    indexed.filter((item) => item.timestamp === null).map((item) => item.result),
+  );
+  return [...known, ...unknown];
+}
+
+function interleaveBySource(results) {
+  const queues = new Map();
+  for (const result of results) {
+    const sourceId = String(result?.source_id || "");
+    const queue = queues.get(sourceId);
+    if (queue) {
+      queue.push(result);
+    } else {
+      queues.set(sourceId, [result]);
+    }
+  }
+
+  const interleaved = [];
+  while (interleaved.length < results.length) {
+    for (const queue of queues.values()) {
+      const result = queue.shift();
+      if (result) {
+        interleaved.push(result);
+      }
+    }
+  }
+  return interleaved;
+}
+
+function normalizeUploadedAt(value) {
+  const timestamp = uploadedAtTimestamp(value);
+  return timestamp === null ? null : new Date(timestamp).toISOString();
+}
+
+function uploadedAtTimestamp(value) {
+  const text = textOrNull(value);
+  if (!text) {
+    return null;
+  }
+  const numeric = Number(text);
+  if (Number.isFinite(numeric) && numeric > 0) {
+    const milliseconds = numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+    return Number.isFinite(milliseconds) ? milliseconds : null;
+  }
+  const timestamp = Date.parse(text);
+  return Number.isFinite(timestamp) ? timestamp : null;
 }
 
 function textOrNull(value) {

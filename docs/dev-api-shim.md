@@ -21,6 +21,7 @@ It mirrors the Rust API surface used by the web console:
 | `POST /v1/library/{id}/exports/pdf` | Export a local gallery folder to a project-local PDF |
 | `GET /v1/tasks?q=&kind=&status=` | In-memory task list with optional filters |
 | `GET /v1/tasks/events` | SSE task events |
+| `POST /v1/search-result-details` | 按需读取单条漫画详情，补齐完整 Tag 与页数 |
 | `POST /v1/tasks/search` | Search task |
 | `POST /v1/tasks/{id}/search-more` | Load and append the next page for a completed search task |
 | `POST /v1/tasks/gallery` | Direct gallery download task |

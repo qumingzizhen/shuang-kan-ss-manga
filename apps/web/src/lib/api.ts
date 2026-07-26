@@ -47,6 +47,13 @@ export type TaskSearchResult = {
   title: string;
   tags: string[];
   thumbnail_url?: string | null;
+  uploader?: string | null;
+  uploaded_at?: string | null;
+  category?: string | null;
+};
+
+export type SearchResultDetail = TaskSearchResult & {
+  page_count?: number | null;
 };
 
 export type TaskOutput =
@@ -435,6 +442,13 @@ export function listTasks(params: TaskListParams = {}): Promise<Task[]> {
 
 export function listSources(): Promise<SourceAdapterDescriptor[]> {
   return request<SourceAdapterDescriptor[]>("/v1/sources");
+}
+
+export function getSearchResultDetail(result: TaskSearchResult): Promise<SearchResultDetail> {
+  return request<SearchResultDetail>("/v1/search-result-details", {
+    method: "POST",
+    body: JSON.stringify(result),
+  });
 }
 
 export function getSourceAuth(sourceId: string): Promise<SourceAuthStatus> {

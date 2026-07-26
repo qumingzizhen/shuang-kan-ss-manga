@@ -134,7 +134,7 @@ import {
 } from "@/lib/dashboard-model";
 import { AsyncState } from "@/components/async-state";
 import { TagAutocomplete } from "@/components/tag-autocomplete";
-import { InfiniteSearchResults, SearchResultThumbnail } from "@/components/search-results";
+import { SearchResultsView } from "@/components/search-results-view";
 import { TaskTechnicalDetails } from "@/components/task-technical-details";
 import {
   canonicalTag,
@@ -146,6 +146,7 @@ import {
   uniqueTags,
 } from "@/lib/tag-system";
 import { readerLoadPlan } from "@/lib/reader-model";
+import { searchResultKey } from "@/lib/search-result-model";
 import { prettyJson } from "@/lib/json";
 
 const allSourcesValue = "__all_sources__";
@@ -2269,17 +2270,11 @@ export function Dashboard() {
     saveGlobalExcludedTags(globalExcludedTags.filter((item) => normalizeTag(item) !== normalizeTag(tag)));
   }
 
-  function searchResultKey(result: TaskSearchResult) {
-    return `${result.source_id}|${result.gallery_url}`;
-  }
 
   function libraryExportKey(itemId: string, format: LibraryExportFormat) {
     return `${itemId}:${format}`;
   }
 
-  function isSearchResultSelected(taskId: string, result: TaskSearchResult) {
-    return (selectedResults[taskId] ?? []).includes(searchResultKey(result));
-  }
 
   function toggleSearchResult(taskId: string, result: TaskSearchResult) {
     const key = searchResultKey(result);
@@ -2888,59 +2883,20 @@ export function Dashboard() {
               ) : null}
               {detailExcludedCount ? <div className="excluded-result-notice">已自动排除 {detailExcludedCount} 条命中全局禁用词条的结果</div> : null}
               {detailSearchResults.length ? (
-                <InfiniteSearchResults
+                <SearchResultsView
                   taskId={task.id}
                   results={detailSearchResults}
+                  selectedKeys={selectedResults[task.id] ?? []}
                   hasMore={Boolean(output.has_more)}
-                  loading={Boolean(output.loading_more) || searchResultsLoadingTaskId === task.id}
-                  error={output.load_more_error}
+                  loadingMore={Boolean(output.loading_more) || searchResultsLoadingTaskId === task.id}
+                  loadMoreError={output.load_more_error}
+                  actionBusy={loading}
+                  readerBusy={remoteReaderLoading}
+                  canRead={sourceSupportsRemoteReading}
+                  onToggleSelected={(result) => toggleSearchResult(task.id, result)}
                   onLoadMore={() => void loadMoreTaskSearchResults(task)}
-                  renderResult={(result) => (
-                    <div className="search-result detail-result" key={`${result.source_id}-${result.gallery_url}`}>
-                      <input
-                        className="result-checkbox"
-                        type="checkbox"
-                        aria-label={`选择：${result.title}`}
-                        checked={isSearchResultSelected(task.id, result)}
-                        onChange={() => toggleSearchResult(task.id, result)}
-                      />
-                      <SearchResultThumbnail result={result} />
-                      <div className="result-main">
-                        <span className="result-source">{result.source_id}</span>
-                        <a className="result-link" href={result.gallery_url} target="_blank" rel="noreferrer">
-                          <ExternalLink size={13} aria-hidden />
-                          {result.title}
-                        </a>
-                        <div className="result-tags">
-                          {result.tags.slice(0, 6).map((tag) => (
-                            <span key={tag}>{tag}</span>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="result-actions">
-                        <button
-                          className="icon-button"
-                          type="button"
-                          title={sourceSupportsRemoteReading(result.source_id) ? "打开在线阅读器" : "该源站暂不支持在线阅读"}
-                          aria-label={`打开在线阅读器：${result.title}`}
-                          disabled={remoteReaderLoading || !sourceSupportsRemoteReading(result.source_id)}
-                          onClick={() => openRemoteReader(result)}
-                        >
-                          <BookOpen size={15} aria-hidden />
-                        </button>
-                        <button
-                          className="icon-button"
-                          type="button"
-                          title="创建下载任务"
-                          aria-label={`创建下载任务：${result.title}`}
-                          disabled={loading}
-                          onClick={() => downloadSearchResult(result)}
-                        >
-                          <Download size={15} aria-hidden />
-                        </button>
-                      </div>
-                    </div>
-                  )}
+                  onRead={(result) => void openRemoteReader(result)}
+                  onDownload={(result) => void downloadSearchResult(result)}
                 />
               ) : <AsyncState compact kind="empty" message="当前结果均已被全局禁用词条排除" />}
             </section>

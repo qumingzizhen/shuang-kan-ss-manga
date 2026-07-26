@@ -78,6 +78,16 @@ def parse_page_url(page_url: str) -> tuple[str, int]:
     raise RuntimeError(f"Unsupported 18comic API page URL: {page_url}")
 
 
+def first_info_text(info: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = info.get(key)
+        if isinstance(value, (str, int, float)):
+            text = clean_text(str(value))
+            if text:
+                return text
+    return ""
+
+
 def search(parsed: argparse.Namespace, query: str, base_url: str) -> dict[str, Any]:
     query = clean_text(query)
     if not query:
@@ -105,6 +115,12 @@ def search(parsed: argparse.Namespace, query: str, base_url: str) -> dict[str, A
                 "gid": album_id,
                 "tags": [tag for tag in tags if tag],
             }
+            optional_metadata = {
+                "uploader": first_info_text(info, "uploader", "author", "username", "user"),
+                "uploaded_at": first_info_text(info, "uploaded_at", "pub_date", "created_at", "update_date", "updated_at"),
+                "category": first_info_text(info, "category", "category_name", "type"),
+            }
+            item.update({key: value for key, value in optional_metadata.items() if value})
             try:
                 item["thumbnail_url"] = JmcomicText.get_album_cover_url(album_id)
             except Exception:

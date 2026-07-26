@@ -13,7 +13,7 @@ import {
 } from "./source-registry.mjs";
 import { createAsyncLimiter, createSingleFlight, normalizeConcurrency } from "./async-pool.mjs";
 import { cleanTagList } from "./search-filter.mjs";
-import { executeSearchPipeline, SearchPipelineCanceledError } from "./search-pipeline.mjs";
+import { executeSearchPipeline, SearchPipelineCanceledError, sortSearchResultsByNewest } from "./search-pipeline.mjs";
 import { cleanSearchThumbnailUrl } from "./thumbnail-policy.mjs";
 import { createSearchThumbnailCache } from "./thumbnail-cache.mjs";
 
@@ -152,6 +152,15 @@ const server = createServer(async (request, response) => {
 
     if (request.method === "GET" && path === "/v1/search-thumbnails") {
       await sendSearchThumbnail(response, url.searchParams);
+      return;
+    }
+
+    if (request.method === "POST" && path === "/v1/search-result-details") {
+      try {
+        sendJson(response, 200, await loadSearchResultDetail(await readJson(request)));
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
+      }
       return;
     }
 
@@ -911,7 +920,7 @@ async function loadMoreSearchResults(task) {
       return true;
     });
 
-    task.output.results.push(...addedResults);
+    task.output.results = sortSearchResultsByNewest([...task.output.results, ...addedResults]);
     task.output.source_errors = searchReport.sourceErrors;
     task.output.excluded_tags = searchReport.excludedTags;
     task.output.excluded_count = Number(task.output.excluded_count || 0) + searchReport.excludedCount;
@@ -1424,6 +1433,34 @@ function publicTaskOutput(output) {
       ...result,
       thumbnail_url: cleanSearchThumbnailUrl(result?.thumbnail_url),
     })),
+  };
+}
+
+async function loadSearchResultDetail(body) {
+  const sourceId = textOrNull(body?.source_id) || defaultSourceId;
+  const galleryUrl = textOrNull(body?.gallery_url);
+  if (!galleryUrl) {
+    throw new Error("gallery_url is required");
+  }
+  if (!sourceById.has(sourceId)) {
+    throw new Error(`unknown source_id: ${sourceId}`);
+  }
+
+  const report = await runSourceBridge(sourceId, ["gallery", "--gallery-url", galleryUrl], {
+    childKey: `search-result-detail:${randomUUID()}`,
+    isCanceled: () => false,
+    timeoutMs: galleryBridgeTimeoutMs(),
+  });
+  return {
+    source_id: textOrNull(report?.source_id) || sourceId,
+    gallery_url: textOrNull(report?.url) || galleryUrl,
+    title: textOrNull(report?.title) || textOrNull(body?.title) || galleryUrl,
+    tags: cleanTagList(report?.tags?.length ? report.tags : body?.tags),
+    thumbnail_url: cleanSearchThumbnailUrl(body?.thumbnail_url),
+    uploader: textOrNull(report?.uploader) || textOrNull(body?.uploader),
+    uploaded_at: textOrNull(report?.uploaded_at) || textOrNull(body?.uploaded_at),
+    category: textOrNull(report?.category) || textOrNull(body?.category),
+    page_count: positiveIntegerOrNull(report?.page_count),
   };
 }
 

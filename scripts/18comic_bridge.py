@@ -15,6 +15,7 @@ from typing import Any
 
 import jmcomic_api_adapter
 from source_tag_resolver import resolve_source_tag
+from search_result_metadata import parse_generic_search_metadata
 
 from source_bridge_core import (
     BLOCKED_STATUSES,
@@ -226,8 +227,10 @@ def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
             continue
         seen.add(url)
         title = clean_search_title(anchor.get("title") or anchor.get("text") or f"album-{match.group(1)}")
-        thumbnail_url = find_nearby_image_url(text, page_url, [href, url, gallery_marker_from_match(match)])
-        result = {"source_id": SOURCE_ID, "title": title, "url": url, "gid": match.group(1), "tags": []}
+        markers = [href, url, gallery_marker_from_match(match)]
+        thumbnail_url = find_nearby_image_url(text, page_url, markers)
+        metadata = parse_generic_search_metadata(text, markers)
+        result = {"source_id": SOURCE_ID, "title": title, "url": url, "gid": match.group(1), **metadata}
         if thumbnail_url:
             result["thumbnail_url"] = thumbnail_url
         results.append(result)
@@ -241,8 +244,10 @@ def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
             continue
         seen.add(url)
         title = clean_search_title(match.group(3) or f"album-{match.group(2)}")
-        thumbnail_url = find_nearby_image_url(text, page_url, [match.group(1), url, f"/album/{match.group(2)}", f"/photo/{match.group(2)}"])
-        result = {"source_id": SOURCE_ID, "title": title, "url": url, "gid": match.group(2), "tags": []}
+        markers = [match.group(1), url, f"/album/{match.group(2)}", f"/photo/{match.group(2)}"]
+        thumbnail_url = find_nearby_image_url(text, page_url, markers)
+        metadata = parse_generic_search_metadata(text, markers)
+        result = {"source_id": SOURCE_ID, "title": title, "url": url, "gid": match.group(2), **metadata}
         if thumbnail_url:
             result["thumbnail_url"] = thumbnail_url
         results.append(result)
@@ -815,12 +820,18 @@ def run_self_test() -> dict[str, Any]:
         <img data-src="/media/albums/12345-cover.webp" alt="Sample Book">
         Read
       </a>
+      <span class="author">sample-uploader</span>
+      <span class="category">Manga</span>
+      <time datetime="2026-07-25T08:30:00Z"></time>
     </article>
     <article class="album-card">
       <a class="thumb" href="/photo/54321" title="Photo Style Book">
         <img data-src="/media/albums/54321-cover.webp" alt="Photo Style Book">
         Read
       </a>
+      <span class="author">sample-uploader</span>
+      <span class="category">Manga</span>
+      <time datetime="2026-07-25T08:30:00Z"></time>
     </article>
     <a href="https://18comic.vip/album/12345/sample">duplicate</a>
     """
@@ -854,6 +865,9 @@ def run_self_test() -> dict[str, Any]:
     )
     assert len(search_results) == 2, search_results
     assert search_results[0].get("thumbnail_url") == f"{DEFAULT_BASE_URL}media/albums/12345-cover.webp", search_results
+    assert search_results[0].get("uploader") == "sample-uploader", search_results
+    assert search_results[0].get("category") == "Manga", search_results
+    assert search_results[0].get("uploaded_at") == "2026-07-25T08:30:00Z", search_results
     assert search_results[1]["url"] == f"{DEFAULT_BASE_URL}photo/54321", search_results
     assert build_query(["female:big breasts", "language:chinese"], None, None) == "巨乳 中文"
     assert build_site_query(["female:big breasts", "language:chinese"], None, None) == "巨乳 中文"

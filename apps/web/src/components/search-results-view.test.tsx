@@ -39,11 +39,13 @@ beforeEach(() => {
 });
 
 describe("SearchResultsView", () => {
-  it("一级结果默认按最新排序，且不直接显示阅读下载和 Tag", () => {
+  it("一级结果以封面网格展示、默认按最新排序，且不直接显示阅读下载和 Tag", () => {
     const { container } = renderView();
     const summaries = container.querySelectorAll(".search-result-summary strong");
 
     expect(summaries[0]).toHaveTextContent("最新作品");
+    expect(container.querySelectorAll(".search-result-card")).toHaveLength(2);
+    expect(container.querySelector(".search-result-row")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "在线阅读" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "下载" })).not.toBeInTheDocument();
     expect(screen.queryByText("female:big breasts")).not.toBeInTheDocument();
@@ -51,7 +53,7 @@ describe("SearchResultsView", () => {
 
   it("打开二级详情后按需补齐 Tag，并提供阅读和下载", async () => {
     renderView();
-    fireEvent.click(screen.getAllByRole("button", { name: "查看详情" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "查看详情：最新作品" }));
 
     expect(await screen.findByRole("dialog", { name: "最新作品" })).toBeInTheDocument();
     await waitFor(() => expect(getSearchResultDetail).toHaveBeenCalledTimes(1));
@@ -66,17 +68,17 @@ function renderView() {
   return render(
     <QueryProvider>
       <SearchResultsView
-      taskId="task-1"
-      results={results}
-      selectedKeys={[]}
-      hasMore={false}
-      loadingMore={false}
-      actionBusy={false}
-      readerBusy={false}
-      canRead={() => true}
-      onToggleSelected={vi.fn()}
-      onLoadMore={vi.fn()}
-      onRead={vi.fn()}
+        taskId="task-1"
+        results={results}
+        selectedKeys={[]}
+        hasMore={false}
+        loadingMore={false}
+        actionBusy={false}
+        readerBusy={false}
+        canRead={() => true}
+        onToggleSelected={vi.fn()}
+        onLoadMore={vi.fn()}
+        onRead={vi.fn()}
         onDownload={vi.fn()}
       />
     </QueryProvider>,

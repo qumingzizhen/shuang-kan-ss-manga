@@ -138,7 +138,7 @@ function thumbnailAttemptUrl(baseUrl: string, attempt: number) {
   return attempt > 0 ? `${baseUrl}&thumbnail_attempt=${attempt}` : baseUrl;
 }
 
-export function SearchResultThumbnail({ result }: { result: TaskSearchResult }) {
+export function SearchResultThumbnail({ result, onOpen }: { result: TaskSearchResult; onOpen?: () => void }) {
   const baseUrl = useMemo(() => thumbnailProxyUrl(result), [result.gallery_url, result.source_id, result.thumbnail_url]);
   const retryTimer = useRef<number | null>(null);
   const [attempt, setAttempt] = useState(0);
@@ -184,15 +184,8 @@ export function SearchResultThumbnail({ result }: { result: TaskSearchResult }) 
           : "封面加载中";
   const imageVisible = Boolean(baseUrl && (status === "loading" || status === "loaded"));
 
-  return (
-    <a
-      className={`result-thumbnail ${status}`}
-      href={result.gallery_url}
-      target="_blank"
-      rel="noreferrer"
-      aria-label={`打开来源：${result.title}`}
-      aria-busy={status === "loading" || status === "waiting"}
-    >
+  const thumbnailContent = (
+    <>
       <span className="result-thumbnail-fallback">
         <Image size={22} aria-hidden />
         <span>{statusLabel}</span>
@@ -212,6 +205,33 @@ export function SearchResultThumbnail({ result }: { result: TaskSearchResult }) 
           onError={handleError}
         />
       ) : null}
+    </>
+  );
+
+  if (onOpen) {
+    return (
+      <button
+        className={`result-thumbnail ${status}`}
+        type="button"
+        aria-label={`查看详情：${result.title}`}
+        aria-busy={status === "loading" || status === "waiting"}
+        onClick={onOpen}
+      >
+        {thumbnailContent}
+      </button>
+    );
+  }
+
+  return (
+    <a
+      className={`result-thumbnail ${status}`}
+      href={result.gallery_url}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={`打开来源：${result.title}`}
+      aria-busy={status === "loading" || status === "waiting"}
+    >
+      {thumbnailContent}
     </a>
   );
 }

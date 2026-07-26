@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("搜索结果按最新上传排列，并把操作与 Tag 放在二级详情", async ({ page }) => {
+test("搜索结果使用封面网格、按最新上传排列，并把操作与 Tag 放在二级详情", async ({ page }) => {
   await page.route("**/v1/sources", (route) => route.fulfill({
     json: [{
       id: "e-hentai",
@@ -63,8 +63,16 @@ test("搜索结果按最新上传排列，并把操作与 Tag 放在二级详情
   await expect(titles.nth(1)).toHaveText("较早作品");
   await expect(page.getByRole("button", { name: "在线阅读", exact: true })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "下载", exact: true })).toHaveCount(0);
+  const cards = page.locator(".search-result-card");
+  await expect(cards).toHaveCount(2);
+  const firstCard = await cards.nth(0).boundingBox();
+  const secondCard = await cards.nth(1).boundingBox();
+  expect(firstCard).not.toBeNull();
+  expect(secondCard).not.toBeNull();
+  expect(Math.abs((firstCard?.y ?? 0) - (secondCard?.y ?? 0))).toBeLessThan(4);
+  expect(secondCard?.x ?? 0).toBeGreaterThan(firstCard?.x ?? 0);
 
-  await page.locator(".search-result-detail-button").first().click();
+  await page.getByRole("button", { name: "查看详情：最新作品" }).click();
   await expect(page.getByRole("dialog", { name: "最新作品" })).toBeVisible();
   await expect(page.getByRole("dialog", { name: "最新作品" }).getByText("female:big breasts", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "在线阅读", exact: true })).toBeVisible();

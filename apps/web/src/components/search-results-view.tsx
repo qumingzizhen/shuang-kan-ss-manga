@@ -3,7 +3,6 @@
 import {
   BookOpen,
   CalendarDays,
-  ChevronRight,
   Download,
   ExternalLink,
   LoaderCircle,
@@ -121,40 +120,38 @@ export function SearchResultsView({
           const category = formatSearchResultCategory(result.category);
           const uploadedAt = formatSearchResultTime(result.uploaded_at);
           return (
-            <article className="search-result search-result-row" key={searchResultKey(result)}>
-              <input
-                className="result-checkbox"
-                type="checkbox"
-                aria-label={`选择：${result.title}`}
-                checked={selected.has(searchResultKey(result))}
-                onChange={() => onToggleSelected(result)}
-              />
-              <SearchResultThumbnail result={result} />
-              <button className="search-result-summary" type="button" onClick={() => void openDetail(result)}>
-                <span className="search-result-badges">
-                  <span className="result-source">{result.source_id}</span>
-                  {category ? <span className="result-category">{category}</span> : null}
-                </span>
-                <strong>{result.title}</strong>
-                <span className="search-result-meta">
-                  {result.uploader ? (
-                    <span>
-                      <UserRound size={13} aria-hidden />
-                      {result.uploader}
-                    </span>
-                  ) : null}
-                  {uploadedAt ? (
-                    <span>
-                      <CalendarDays size={13} aria-hidden />
-                      <time dateTime={result.uploaded_at ?? undefined}>{uploadedAt}</time>
-                    </span>
-                  ) : null}
-                </span>
+            <article className="search-result search-result-card" key={searchResultKey(result)}>
+              <button className="search-result-summary" type="button" onClick={() => openDetail(result)}>
+                <strong title={result.title}>{result.title}</strong>
               </button>
-              <button className="mini-button search-result-detail-button" type="button" onClick={() => void openDetail(result)}>
-                查看详情
-                <ChevronRight size={14} aria-hidden />
-              </button>
+              <div className="search-result-cover">
+                <input
+                  className="result-checkbox"
+                  type="checkbox"
+                  aria-label={`选择：${result.title}`}
+                  checked={selected.has(searchResultKey(result))}
+                  onChange={() => onToggleSelected(result)}
+                />
+                <SearchResultThumbnail result={result} onOpen={() => openDetail(result)} />
+              </div>
+              <div className="search-result-badges">
+                {category ? <span className="result-category">{category}</span> : null}
+                <span className="result-source">{result.source_id}</span>
+              </div>
+              <div className="search-result-meta">
+                {uploadedAt ? (
+                  <span>
+                    <CalendarDays size={13} aria-hidden />
+                    <time dateTime={result.uploaded_at ?? undefined}>{uploadedAt}</time>
+                  </span>
+                ) : null}
+                {result.uploader ? (
+                  <span title={result.uploader}>
+                    <UserRound size={13} aria-hidden />
+                    {result.uploader}
+                  </span>
+                ) : null}
+              </div>
             </article>
           );
         }}

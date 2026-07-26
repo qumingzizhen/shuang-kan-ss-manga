@@ -84,6 +84,28 @@ $CacheRoot = Join-Path $ProjectRoot ".cache"
 $TempRoot = Join-Path $CacheRoot "tmp"
 $PythonPackages = Join-Path $CacheRoot "python"
 
+# Reuse an existing Playwright browser cache without moving browser binaries
+# back to the system drive. An explicit environment variable always wins.
+if (-not $env:PLAYWRIGHT_BROWSERS_PATH) {
+  $PlaywrightCandidates = New-Object System.Collections.Generic.List[string]
+  if ($env:MANGA_DEV_CACHE_ROOT) {
+    $PlaywrightCandidates.Add((Join-Path $env:MANGA_DEV_CACHE_ROOT "ms-playwright"))
+  }
+  foreach ($drive in Get-PSDrive -PSProvider FileSystem -ErrorAction SilentlyContinue) {
+    $PlaywrightCandidates.Add((Join-Path $drive.Root "MangaDevCache\ms-playwright"))
+  }
+  $PlaywrightCandidates.Add((Join-Path $CacheRoot "ms-playwright"))
+  if ($env:LOCALAPPDATA) {
+    $PlaywrightCandidates.Add((Join-Path $env:LOCALAPPDATA "ms-playwright"))
+  }
+  $ExistingPlaywrightCache = $PlaywrightCandidates |
+    Where-Object { Test-Path -LiteralPath $_ } |
+    Select-Object -First 1
+  if ($ExistingPlaywrightCache) {
+    $env:PLAYWRIGHT_BROWSERS_PATH = $ExistingPlaywrightCache
+  }
+}
+
 $env:NPM_CONFIG_CACHE = Join-Path $CacheRoot "npm"
 $env:CARGO_HOME = Join-Path $CacheRoot "cargo"
 $env:RUSTUP_HOME = Join-Path $CacheRoot "rustup"
@@ -131,6 +153,7 @@ Write-Host "RUSTUP_HOME=$env:RUSTUP_HOME"
 Write-Host "CARGO_TARGET_DIR=$env:CARGO_TARGET_DIR"
 Write-Host "TEMP=$env:TEMP"
 Write-Host "PYTHONPATH=$env:PYTHONPATH"
+Write-Host "PLAYWRIGHT_BROWSERS_PATH=$env:PLAYWRIGHT_BROWSERS_PATH"
 Write-Host "MANGA_BRIDGE_PYTHON=$env:MANGA_BRIDGE_PYTHON"
 Write-Host "PostgreSQL bin=$PostgresBin"
 Write-Host "Rust GNU bin=$RustGnuBin"

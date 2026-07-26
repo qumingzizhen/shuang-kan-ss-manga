@@ -56,6 +56,9 @@ Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") fmt --all -- --ch
 Write-Host "`n[check] Rust workspace"
 Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") check --workspace }
 
+Write-Host "`n[check] Web unit tests"
+Invoke-Checked { npm --prefix .\apps\web run test }
+
 Write-Host "`n[check] Web build"
 Invoke-Checked { npm --prefix .\apps\web run build }
 

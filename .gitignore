@@ -45,3 +45,7 @@ characters.translation-in-progress.json
 character_translation_audit.jsonl
 character_translation_stats.json
 translate_character_names.py
+# Local test runner artifacts
+apps/web/test-results/
+apps/web/playwright-report/
+apps/web/blob-report/

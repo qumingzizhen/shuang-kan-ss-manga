@@ -92,11 +92,23 @@ npm --prefix .\apps\web install
 检查范围包括：
 
 - JSON 与源站配置校验
-- Node.js 语法和搜索/并发/标签规则回归测试
+- Node.js 语法、搜索/并发/标签规则和前端 Vitest 回归测试
 - Python 桥接脚本编译、自测和下载调度测试
 - Rust workspace 格式与编译检查
 - Next.js 生产构建与 TypeScript 检查
 - 公开仓库敏感信息和隐私文件扫描
+
+浏览器端桌面和移动端回归测试可单独运行：
+
+```powershell
+.\scripts\test-web-e2e.ps1
+```
+
+采集测试、构建产物和本地 HTTP 延迟基线：
+
+```powershell
+.\scripts\measure_baseline.ps1
+```
 
 该命令只执行检查，不会保持项目运行。
 
@@ -163,6 +175,7 @@ python .\scripts\check_public_repo.py
 - [公开发布与隐私边界](docs/public-release.md)
 - [控制台审核与基础设施实施规划](docs/console-feature-plan.md)
 - [搜索结果与封面链路重构说明](docs/search-thumbnail-refactor-2026-07-25.md)
+- [工程化优化实施计划与性能基线](docs/engineering-optimization-plan-2026-07-26.md)
 - [项目架构与数据库设计](docs/项目架构与数据库设计.md)
 
 ## 参与开发

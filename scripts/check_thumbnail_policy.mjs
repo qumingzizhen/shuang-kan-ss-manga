@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../services/dev-api/thumbnail-policy.mjs";
 import {
   createSearchThumbnailCache,
+  detectImageMimeType,
   isRetryableThumbnailStatus,
   normalizeThumbnailInteger,
   thumbnailRetryDelayMs,
@@ -42,6 +43,15 @@ assert.equal(isRetryableThumbnailStatus(404), false);
 assert.equal(normalizeThumbnailInteger("99", 3, 1, 5), 5);
 assert.equal(thumbnailRetryDelayMs(2, 100), 400);
 
+const jpegFixture = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.alloc(125, 1)]);
+assert.equal(detectImageMimeType(jpegFixture()), "image/jpeg");
+assert.equal(detectImageMimeType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])), "image/png");
+assert.equal(
+  detectImageMimeType(Buffer.from([0, 0, 0, 20, 0x66, 0x74, 0x79, 0x70, 0x6d, 0x69, 0x66, 0x31, 0x61, 0x76, 0x69, 0x66])),
+  "image/avif",
+);
+assert.equal(detectImageMimeType(Buffer.alloc(128, 1)), null);
+
 const cacheRoot = await mkdtemp(join(tmpdir(), "manga-thumbnail-test-"));
 let fetchCalls = 0;
 try {
@@ -57,7 +67,7 @@ try {
       if (fetchCalls === 1) {
         return new Response(null, { status: 503 });
       }
-      return new Response(Buffer.alloc(128, 1), { status: 200, headers: { "content-type": "image/jpeg" } });
+      return new Response(jpegFixture(), { status: 200, headers: { "content-type": "image/jpeg" } });
     },
     lookupImpl: async () => [{ address: "1.1.1.1", family: 4 }],
   });
@@ -69,6 +79,22 @@ try {
   assert.equal(firstFile, secondFile);
   assert.equal(fetchCalls, 2, "one retry should be shared by both concurrent callers");
   assert.equal((await readFile(firstFile)).length, 128);
+  await writeFile(firstFile, Buffer.alloc(128, 1));
+  const repaired = await cache.getEntry(source, "https://cdn.example.net/cover.jpg", "https://example.org/gallery/1");
+  assert.equal(repaired.filePath, firstFile);
+  assert.equal(repaired.mimeType, "image/jpeg");
+  assert.equal(fetchCalls, 3, "an invalid cached signature should trigger one shared refetch");
+  const hit = await cache.getEntry(source, "https://cdn.example.net/cover.jpg", "https://example.org/gallery/1");
+  assert.equal(hit.cacheStatus, "hit");
+  assert.deepEqual(cache.stats(), {
+    requests: 4,
+    hits: 1,
+    misses: 2,
+    shared: 1,
+    downloads: 2,
+    retries: 1,
+    in_flight: 0,
+  });
   assert.equal(singleFlight.has(firstFile), false, "single-flight entry should be released after completion");
 } finally {
   await rm(cacheRoot, { recursive: true, force: true });

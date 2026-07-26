@@ -111,7 +111,11 @@ const server = createServer(async (request, response) => {
     const path = url.pathname;
 
     if (request.method === "GET" && path === "/health") {
-      sendJson(response, 200, { status: "ok", service: "comic-platform-dev-api" });
+      sendJson(response, 200, {
+        status: "ok",
+        service: "comic-platform-dev-api",
+        thumbnail_cache: searchThumbnailCache.stats(),
+      });
       return;
     }
 
@@ -1438,10 +1442,11 @@ async function sendSearchThumbnail(response, searchParams) {
       return;
     }
 
-    const cacheFile = await searchThumbnailCache.get(source, thumbnailUrl, textOrNull(searchParams.get("referer")));
-    const fileStat = await stat(cacheFile);
-    sendFile(response, cacheFile, mimeTypeForImage(cacheFile), fileStat, {
+    const cacheEntry = await searchThumbnailCache.getEntry(source, thumbnailUrl, textOrNull(searchParams.get("referer")));
+    sendFile(response, cacheEntry.filePath, cacheEntry.mimeType, cacheEntry, {
       "cache-control": "private, max-age=86400",
+      "x-content-type-options": "nosniff",
+      "x-thumbnail-cache": cacheEntry.cacheStatus,
     });
   } catch (error) {
     sendJson(response, 502, { error: error instanceof Error ? error.message : String(error) });

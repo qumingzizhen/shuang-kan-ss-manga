@@ -1,11 +1,13 @@
 import { createHash } from "node:crypto";
 import { lookup } from "node:dns/promises";
-import { mkdir, rename, stat, unlink, writeFile } from "node:fs/promises";
+import { mkdir, open, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { isPrivateHostname, validateThumbnailUrl } from "./thumbnail-policy.mjs";
 
 const redirectStatuses = new Set([301, 302, 303, 307, 308]);
 const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const avifBrands = new Set(["avif", "avis"]);
 
 class RetryableThumbnailError extends Error {}
 
@@ -17,6 +19,36 @@ export function normalizeThumbnailInteger(value, fallback, minimum, maximum) {
 
 export function isRetryableThumbnailStatus(status) {
   return retryableStatuses.has(Number(status));
+}
+
+export function detectImageMimeType(bytes) {
+  const data = Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes || []);
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return "image/jpeg";
+  }
+  if (data.length >= 8 && data.subarray(0, 8).equals(pngSignature)) {
+    return "image/png";
+  }
+  const gifSignature = data.subarray(0, 6).toString("ascii");
+  if (data.length >= 6 && (gifSignature === "GIF87a" || gifSignature === "GIF89a")) {
+    return "image/gif";
+  }
+  if (
+    data.length >= 12 &&
+    data.subarray(0, 4).toString("ascii") === "RIFF" &&
+    data.subarray(8, 12).toString("ascii") === "WEBP"
+  ) {
+    return "image/webp";
+  }
+  if (data.length >= 12 && data.subarray(4, 8).toString("ascii") === "ftyp") {
+    const brandLimit = Math.min(data.length, 32);
+    for (let offset = 8; offset + 4 <= brandLimit; offset += 4) {
+      if (avifBrands.has(data.subarray(offset, offset + 4).toString("ascii").toLowerCase())) {
+        return "image/avif";
+      }
+    }
+  }
+  return null;
 }
 
 export function thumbnailRetryDelayMs(attempt, baseDelayMs) {
@@ -55,8 +87,17 @@ export function createSearchThumbnailCache({
   const attemptLimit = normalizeThumbnailInteger(maxAttempts, 3, 1, 5);
   const retryDelayMs = normalizeThumbnailInteger(retryBaseDelayMs, 350, 0, 5000);
   const usableImageBytes = normalizeThumbnailInteger(minimumImageBytes, 64, 16, 4096);
+  const metrics = {
+    requests: 0,
+    hits: 0,
+    misses: 0,
+    shared: 0,
+    downloads: 0,
+    retries: 0,
+  };
 
-  async function get(source, thumbnailUrl, referer) {
+  async function getEntry(source, thumbnailUrl, referer) {
+    metrics.requests += 1;
     if (!source || typeof source.id !== "string" || !source.id.trim()) {
       throw new TypeError("thumbnail source with a stable id is required");
     }
@@ -66,11 +107,17 @@ export function createSearchThumbnailCache({
       throw new Error("thumbnail cache path is outside the configured cache root");
     }
 
-    // Every cache lookup participates in single-flight: a miss performs one stat and one shared retry chain.
-    await singleFlight.run(cacheFile, async () => {
-      if (await hasUsableCachedFile(cacheFile, usableImageBytes)) {
-        return;
+    if (singleFlight.has(cacheFile)) {
+      metrics.shared += 1;
+    }
+
+    const metadata = await singleFlight.run(cacheFile, async () => {
+      const cached = await inspectCachedImage(cacheFile, usableImageBytes);
+      if (cached) {
+        metrics.hits += 1;
+        return { ...cached, cacheStatus: "hit" };
       }
+      metrics.misses += 1;
       await fetchAndCacheWithRetry({
         source,
         thumbnailUrl: parsed.href,
@@ -81,28 +128,60 @@ export function createSearchThumbnailCache({
         maxAttempts: attemptLimit,
         retryBaseDelayMs: retryDelayMs,
         minimumImageBytes: usableImageBytes,
+        onRetry: () => {
+          metrics.retries += 1;
+        },
         fetchImpl,
         lookupImpl,
       });
+      metrics.downloads += 1;
+      const downloaded = await inspectCachedImage(cacheFile, usableImageBytes);
+      if (!downloaded) {
+        throw new Error("thumbnail cache file failed post-write validation");
+      }
+      return { ...downloaded, cacheStatus: "miss" };
     });
-    return cacheFile;
+    return { filePath: cacheFile, ...metadata };
   }
-  return { get };
+
+  async function get(source, thumbnailUrl, referer) {
+    return (await getEntry(source, thumbnailUrl, referer)).filePath;
+  }
+
+  function stats() {
+    return { ...metrics, in_flight: Array.from(singleFlight.entries()).length };
+  }
+
+  return { get, getEntry, stats };
 }
 
-async function hasUsableCachedFile(cacheFile, minimumImageBytes) {
+async function inspectCachedImage(cacheFile, minimumImageBytes) {
   try {
     const cached = await stat(cacheFile);
-    if (cached.isFile() && cached.size >= minimumImageBytes) {
-      return true;
+    if (!cached.isFile() || cached.size < minimumImageBytes) {
+      if (cached.isFile()) {
+        await unlink(cacheFile);
+      }
+      return null;
     }
-    if (cached.isFile()) {
+
+    const file = await open(cacheFile, "r");
+    let bytesRead = 0;
+    const header = Buffer.alloc(32);
+    try {
+      ({ bytesRead } = await file.read(header, 0, header.length, 0));
+    } finally {
+      await file.close();
+    }
+    const mimeType = detectImageMimeType(header.subarray(0, bytesRead));
+    if (!mimeType) {
       await unlink(cacheFile);
+      return null;
     }
-    return false;
+    return { size: cached.size, mimeType };
   } catch (error) {
     if (error?.code === "ENOENT") {
-      return false;
+      return null;
     }
     throw error;
   }
@@ -120,6 +199,7 @@ async function fetchAndCacheWithRetry(options) {
       if (!(error instanceof RetryableThumbnailError) || attempt + 1 >= options.maxAttempts) {
         throw error;
       }
+      options.onRetry?.(attempt + 1, error);
       await delay(thumbnailRetryDelayMs(attempt, options.retryBaseDelayMs));
     }
   }
@@ -173,6 +253,9 @@ async function fetchAndCacheAttempt(options) {
     }
     if (body.length < options.minimumImageBytes) {
       throw new RetryableThumbnailError("thumbnail response is too small to be a usable image");
+    }
+    if (!detectImageMimeType(body)) {
+      throw new RetryableThumbnailError("thumbnail response does not have a supported image signature");
     }
 
     const temporary = `${options.cacheFile}.${process.pid}.${Date.now()}.part`;

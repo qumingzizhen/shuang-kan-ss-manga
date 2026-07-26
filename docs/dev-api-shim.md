@@ -155,6 +155,8 @@ last updated time, and local shelf metadata.
 | `DEV_API_SEARCH_THUMBNAIL_CACHE_DIR` | `.data/thumbnail-cache` | 本地封面缓存目录 |
 
 只有超时、临时 DNS 错误、`408/425/429/5xx` 和异常小图片会重试。协议、私网地址、非白名单域名、非图片响应和超限响应会直接拒绝，避免重试放大无效或危险请求。
+
+下载成功和旧缓存命中都会校验 JPEG、PNG、GIF、WebP 或 AVIF 文件签名；损坏缓存会在 single-flight 内删除并重新获取。代理响应使用实际签名对应的 Content-Type，并附带 X-Thumbnail-Cache: hit|miss 与 X-Content-Type-Options: nosniff。GET /health 保持原有 status、service 字段，并新增可选 thumbnail_cache 统计快照，便于排查命中、共享、下载、重试和在途请求。
 ## Run
 
 Recommended one-terminal startup:

@@ -134,8 +134,7 @@ import {
 } from "@/lib/dashboard-model";
 import { AsyncState } from "@/components/async-state";
 import { TagAutocomplete } from "@/components/tag-autocomplete";
-import { SearchResultsView } from "@/components/search-results-view";
-import { TaskTechnicalDetails } from "@/components/task-technical-details";
+import { TaskDetailDrawer, type TaskDetailSearchState } from "@/components/task-detail-drawer";
 import {
   canonicalTag,
   expandExcludedTags,
@@ -891,6 +890,23 @@ export function Dashboard() {
   const selectedTask = useMemo(() => {
     return selectedTaskId ? tasks.find((task) => task.id === selectedTaskId) ?? null : null;
   }, [selectedTaskId, tasks]);
+  const selectedTaskSearchState = useMemo<TaskDetailSearchState | null>(() => {
+    if (!selectedTask || selectedTask.output?.type !== "search_results") {
+      return null;
+    }
+
+    const output = selectedTask.output;
+    const results = filterSearchResults(output.results, globalExcludedTags);
+    return {
+      results,
+      selectedKeys: selectedResults[selectedTask.id] ?? [],
+      sourceErrorCount: visibleSearchSourceErrors(output).length,
+      excludedCount: (output.excluded_count ?? 0) + Math.max(output.results.length - results.length, 0),
+      hasMore: Boolean(output.has_more),
+      loadingMore: Boolean(output.loading_more) || searchResultsLoadingTaskId === selectedTask.id,
+      loadMoreError: output.load_more_error,
+    };
+  }, [globalExcludedTags, searchResultsLoadingTaskId, selectedResults, selectedTask, sources]);
   const selectedLibrarySummary = useMemo(() => {
     return selectedLibraryId ? libraryItems.find((item) => item.id === selectedLibraryId) ?? null : null;
   }, [selectedLibraryId, libraryItems]);
@@ -2793,150 +2809,6 @@ export function Dashboard() {
       primary: `${output.page_indexes.length} 页待补`,
       detail: output.page_indexes.length ? undefined : "无需补缺",
     };
-  }
-
-  function renderTaskDetail(task: Task) {
-    const selectedCount = selectedResults[task.id]?.length ?? 0;
-    const output = task.output;
-    const detailSourceErrors = output?.type === "search_results" ? visibleSearchSourceErrors(output) : [];
-    const detailSearchResults = output?.type === "search_results" ? searchResultsForTask(task) : [];
-    const detailExcludedCount =
-      output?.type === "search_results" ? (output.excluded_count ?? 0) + Math.max(output.results.length - detailSearchResults.length, 0) : 0;
-
-    return (
-      <aside
-        className={[
-          "detail-drawer",
-          output?.type === "search_results" ? "search-detail-drawer" : "",
-          detailDrawerClosing ? "closing" : "",
-        ].filter(Boolean).join(" ")}
-        aria-label="任务详情"
-      >
-        <div className="detail-header">
-          <div>
-            <h2>{task.title}</h2>
-            <span>{task.id}</span>
-          </div>
-          <div className="detail-actions">
-            <button
-              className="mini-button"
-              type="button"
-              title="按原 payload 重新创建任务"
-              disabled={loading || Boolean(rerunningTaskId)}
-              onClick={() => rerunTask(task)}
-            >
-              <RefreshCcw size={13} aria-hidden />
-              重跑
-            </button>
-            <button className="drawer-close-button" type="button" title="收回侧边栏" aria-label="收回任务详情侧边栏" onClick={closeDetailDrawer}>
-              <PanelRightClose size={16} aria-hidden />
-            </button>
-          </div>
-        </div>
-
-        <div className="detail-body">
-          <section className="detail-section">
-            <div className="detail-grid">
-              <div>
-                <span>类型</span>
-                <strong>{kindLabel[task.kind]}</strong>
-              </div>
-              <div>
-                <span>状态</span>
-                <strong>{statusLabel[task.status]}</strong>
-              </div>
-              <div>
-                <span>完成</span>
-                <strong>
-                  {task.progress.done}/{Math.max(task.progress.total, task.progress.done + task.progress.failed, 1)}
-                </strong>
-              </div>
-              <div>
-                <span>失败</span>
-                <strong>{task.progress.failed}</strong>
-              </div>
-            </div>
-            <p className="detail-message">{task.progress.message}</p>
-          </section>
-
-          {output?.type === "search_results" && (
-            <section className="detail-section search-results-section">
-              <div className="detail-section-title">
-                <h3>搜索结果</h3>
-                <div className="detail-actions">
-                  <button className="mini-button" type="button" onClick={() => selectAllSearchResults(task)}>
-                    全选
-                  </button>
-                  <button className="mini-button" type="button" onClick={() => clearSearchSelection(task.id)} disabled={!selectedCount}>
-                    清空
-                  </button>
-                  <button className="mini-button primary" type="button" onClick={() => downloadSelectedSearchResults(task)} disabled={loading || !selectedCount}>
-                    <Download size={13} aria-hidden />
-                    {selectedCount ? `下载 ${selectedCount}` : "批量下载"}
-                  </button>
-                </div>
-              </div>
-              {detailSourceErrors.length ? (
-                <div className="source-warning">
-                  {detailSourceErrors.length} 个源站暂时不可用，已合并显示其余结果。
-                </div>
-              ) : null}
-              {detailExcludedCount ? <div className="excluded-result-notice">已自动排除 {detailExcludedCount} 条命中全局禁用词条的结果</div> : null}
-              {detailSearchResults.length ? (
-                <SearchResultsView
-                  taskId={task.id}
-                  results={detailSearchResults}
-                  selectedKeys={selectedResults[task.id] ?? []}
-                  hasMore={Boolean(output.has_more)}
-                  loadingMore={Boolean(output.loading_more) || searchResultsLoadingTaskId === task.id}
-                  loadMoreError={output.load_more_error}
-                  actionBusy={loading}
-                  readerBusy={remoteReaderLoading}
-                  canRead={sourceSupportsRemoteReading}
-                  onToggleSelected={(result) => toggleSearchResult(task.id, result)}
-                  onLoadMore={() => void loadMoreTaskSearchResults(task)}
-                  onRead={(result) => void openRemoteReader(result)}
-                  onDownload={(result) => void downloadSearchResult(result)}
-                />
-              ) : <AsyncState compact kind="empty" message="当前结果均已被全局禁用词条排除" />}
-            </section>
-          )}
-
-          {output?.type === "gallery_download" && (
-            <section className="detail-section">
-              <div className="detail-section-title">
-                <h3>下载结果</h3>
-                <button className="mini-button" type="button" onClick={() => copyText("output folder", output.output_folder)}>
-                  <Copy size={13} aria-hidden />
-                  复制路径
-                </button>
-              </div>
-              <div className="path-box">{output.output_folder}</div>
-            </section>
-          )}
-
-          {output?.type === "retry_plan" && (
-            <section className="detail-section">
-              <div className="detail-section-title">
-                <h3>补缺计划</h3>
-                <button className="mini-button" type="button" onClick={() => copyText("retry folder", output.folder)}>
-                  <Copy size={13} aria-hidden />
-                  复制目录
-                </button>
-              </div>
-              <div className="path-box">{output.folder}</div>
-              <div className="result-tags">
-                {output.page_indexes.slice(0, 40).map((page) => (
-                  <span key={page}>p{page}</span>
-                ))}
-              </div>
-            </section>
-          )}
-
-          <TaskTechnicalDetails payload={task.payload} output={output} onCopy={copyText} />
-        </div>
-      </aside>
-    );
   }
 
   function renderLibraryView() {
@@ -4898,7 +4770,29 @@ export function Dashboard() {
       {(selectedTask || selectedLibrarySummary) && (
         <button className={detailDrawerClosing ? "drawer-backdrop closing" : "drawer-backdrop"} type="button" aria-label="收回侧边栏" onClick={closeDetailDrawer} />
       )}
-      {selectedTask && renderTaskDetail(selectedTask)}
+      {selectedTask ? (
+        <TaskDetailDrawer
+          task={selectedTask}
+          closing={detailDrawerClosing}
+          actionBusy={loading}
+          rerunBusy={Boolean(rerunningTaskId)}
+          readerBusy={remoteReaderLoading}
+          search={selectedTaskSearchState}
+          canRead={sourceSupportsRemoteReading}
+          actions={{
+            close: closeDetailDrawer,
+            rerun: () => void rerunTask(selectedTask),
+            copy: copyText,
+            selectAll: () => selectAllSearchResults(selectedTask),
+            clearSelection: () => clearSearchSelection(selectedTask.id),
+            downloadSelected: () => void downloadSelectedSearchResults(selectedTask),
+            toggleSelected: (result) => toggleSearchResult(selectedTask.id, result),
+            loadMore: () => void loadMoreTaskSearchResults(selectedTask),
+            read: (result) => void openRemoteReader(result),
+            download: (result) => void downloadSearchResult(result),
+          }}
+        />
+      ) : null}
       {selectedLibrarySummary && renderLibraryDetail(selectedLibrarySummary, selectedLibraryDetail)}
       {libraryReader && renderLibraryReader(libraryReader)}
       {remoteReader && renderRemoteReader(remoteReader)}

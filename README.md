@@ -178,6 +178,7 @@ python .\scripts\check_public_repo.py
 - [搜索结果与封面链路重构说明](docs/search-thumbnail-refactor-2026-07-25.md)
 - [搜索结果信息分层与跨来源排序说明](docs/search-result-hierarchy-and-sorting-2026-07-26.md)
 - [任务详情抽屉组件拆分说明](docs/task-detail-drawer-refactor-2026-07-27.md)
+- [最近在线阅读组件拆分说明](docs/remote-reader-history-refactor-2026-07-27.md)
 - [工程化优化实施计划与性能基线](docs/engineering-optimization-plan-2026-07-26.md)
 - [项目架构与数据库设计](docs/项目架构与数据库设计.md)
 

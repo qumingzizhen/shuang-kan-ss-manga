@@ -133,6 +133,7 @@ import {
   type View,
 } from "@/lib/dashboard-model";
 import { AsyncState } from "@/components/async-state";
+import { RemoteReaderHistory } from "@/components/remote-reader-history";
 import { TagAutocomplete } from "@/components/tag-autocomplete";
 import { TaskDetailDrawer, type TaskDetailSearchState } from "@/components/task-detail-drawer";
 import {
@@ -254,8 +255,7 @@ export function Dashboard() {
   const [remoteReaderMaintenanceKey, setRemoteReaderMaintenanceKey] = useState<string | null>(null);
   const [remoteReaderBookmarkSavingKey, setRemoteReaderBookmarkSavingKey] = useState<string | null>(null);
   const [remoteReaderPageInput, setRemoteReaderPageInput] = useState("1");
-  const [remoteReaderQuery, setRemoteReaderQuery] = useState("");
-  const [remoteReaderHistoryExpanded, setRemoteReaderHistoryExpanded] = useState(false);
+
   const [readerImageStates, setReaderImageStates] = useState<Record<string, ReaderImageStatus>>({});
   const [readerImageErrors, setReaderImageErrors] = useState<Record<string, string>>({});
   const [readerImageReloadKeys, setReaderImageReloadKeys] = useState<Record<string, number>>({});
@@ -2329,12 +2329,6 @@ export function Dashboard() {
     return `${(value / 1024 ** index).toFixed(index === 0 ? 0 : 1)} ${units[index]}`;
   }
 
-  function remoteReaderProgressPercent(session: RemoteReaderSessionSummary) {
-    const total = Math.max(session.page_count || 0, 1);
-    const page = Math.min(Math.max(session.last_page || 0, 0), total);
-    return Math.min(100, Math.round((page / total) * 100));
-  }
-
   function remoteReaderPreloadText(preload: RemoteReaderPreloadState | null) {
     if (!preload) {
       return "预载待命";
@@ -2663,117 +2657,6 @@ export function Dashboard() {
           );
         })}
       </div>
-    );
-  }
-
-  function renderRemoteReaderHistory() {
-    const queryText = normalizeSearchText(remoteReaderQuery);
-    const filteredSessions = remoteReaderSessions.filter((session) => {
-      if (!queryText) {
-        return true;
-      }
-      return normalizeSearchText([session.title, session.source_name, session.gallery_url, ...session.tags].join(" ")).includes(queryText);
-    });
-    const visibleLimit = remoteReaderHistoryExpanded ? 12 : 5;
-    const visibleSessions = filteredSessions.slice(0, visibleLimit);
-
-    return (
-      <section className="panel remote-reader-panel">
-        <div className="panel-header">
-          <div>
-            <h2 className="panel-title">最近在线阅读</h2>
-            <span className="section-note">
-              {filteredSessions.length}/{remoteReaderSessions.length} 个会话
-            </span>
-          </div>
-          <div className="remote-reader-header-actions">
-            <button
-              className="mini-button"
-              type="button"
-              disabled={remoteReaderSessions.length <= 5}
-              onClick={() => setRemoteReaderHistoryExpanded((current) => !current)}
-            >
-              {remoteReaderHistoryExpanded ? "折叠" : "展开"}
-            </button>
-            <button className="icon-button" type="button" title="刷新在线阅读记录" aria-label="刷新在线阅读记录" onClick={refreshRemoteReaderSessions}>
-              <RefreshCcw size={15} aria-hidden />
-            </button>
-          </div>
-        </div>
-        <label className="remote-reader-filter">
-          <Search size={14} aria-hidden />
-          <input
-            value={remoteReaderQuery}
-            onChange={(event) => setRemoteReaderQuery(event.target.value)}
-            placeholder="筛选标题、来源、tag"
-            aria-label="筛选在线阅读记录"
-          />
-          {remoteReaderQuery && (
-            <button type="button" aria-label="清空在线阅读筛选" onClick={() => setRemoteReaderQuery("")}>
-              <XCircle size={14} aria-hidden />
-            </button>
-          )}
-        </label>
-        <div className="remote-reader-list">
-          {visibleSessions.length ? (
-            visibleSessions.map((session) => {
-              const percent = remoteReaderProgressPercent(session);
-              const lastPage = session.last_page ?? 1;
-              const bookmarkCount = remoteReaderBookmarks(session).length;
-              return (
-                <article className="remote-reader-card" key={session.id}>
-                  <div className="remote-reader-main">
-                    <span>{session.source_name}</span>
-                    <strong>{session.title}</strong>
-                    <small>
-                      p{lastPage}/{Math.max(session.page_count, lastPage, 1)} · {formatLastReadTime(session.last_read_at)}
-                      {bookmarkCount ? ` · 书签 ${bookmarkCount}` : ""}
-                    </small>
-                  </div>
-                  <div className="remote-reader-progress" aria-label={`阅读进度 ${percent}%`}>
-                    <span style={{ width: `${percent}%` }} />
-                  </div>
-                  <div className="remote-reader-actions">
-                    <button className="mini-button primary" type="button" disabled={remoteReaderLoading} onClick={() => resumeRemoteReaderSession(session)}>
-                      <BookOpen size={13} aria-hidden />
-                      继续
-                    </button>
-                    <button
-                      className="mini-button"
-                      type="button"
-                      disabled={remoteReaderMaintenanceKey === `clear-session:${session.id}`}
-                      onClick={() => clearRemoteReaderHistoryCache(session)}
-                    >
-                      <HardDrive size={13} aria-hidden />
-                      缓存
-                    </button>
-                    <button className="mini-button" type="button" onClick={() => copyText("remote reader link", session.gallery_url)}>
-                      <Copy size={13} aria-hidden />
-                      链接
-                    </button>
-                    <button
-                      className="icon-button danger"
-                      type="button"
-                      title="删除在线阅读记录"
-                      aria-label={`删除在线阅读记录：${session.title}`}
-                      disabled={remoteReaderMaintenanceKey === `delete:${session.id}`}
-                      onClick={() => deleteRemoteReaderHistory(session)}
-                    >
-                      <XCircle size={15} aria-hidden />
-                    </button>
-                  </div>
-                </article>
-              );
-            })
-          ) : (
-            <AsyncState
-              compact
-              kind={remoteReaderSessionsLoading ? "loading" : "empty"}
-              message={remoteReaderSessionsLoading ? "正在加载" : "暂无匹配的在线阅读记录"}
-            />
-          )}
-        </div>
-      </section>
     );
   }
 
@@ -4578,7 +4461,17 @@ export function Dashboard() {
               </button>
             </section>
 
-            {renderRemoteReaderHistory()}
+            <RemoteReaderHistory
+              sessions={remoteReaderSessions}
+              loading={remoteReaderSessionsLoading}
+              readerBusy={remoteReaderLoading}
+              maintenanceKey={remoteReaderMaintenanceKey}
+              onRefresh={() => void refreshRemoteReaderSessions()}
+              onResume={(session) => void resumeRemoteReaderSession(session)}
+              onClearCache={(session) => void clearRemoteReaderHistoryCache(session)}
+              onCopyLink={(session) => void copyText("remote reader link", session.gallery_url)}
+              onDelete={(session) => void deleteRemoteReaderHistory(session)}
+            />
 
             <section className="panel task-list-panel">
               <div className="panel-header task-list-header">

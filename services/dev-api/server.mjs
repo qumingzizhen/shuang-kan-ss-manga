@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
-import { createReadStream } from "node:fs";
+import { createReadStream, watch } from "node:fs";
 import { appendFile, mkdir, readdir, readFile, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { basename, dirname, join, resolve } from "node:path";
@@ -11,9 +11,14 @@ import {
   materializeSourceAdapters,
   publicSourceDescriptors,
 } from "./source-registry.mjs";
-import { createAsyncLimiter, createSingleFlight, normalizeConcurrency } from "./async-pool.mjs";
+import { createAsyncLimiter, createSingleFlight, mapWithConcurrency, normalizeConcurrency } from "./async-pool.mjs";
+import { createDownloadQuota, DownloadQuotaCanceledError } from "./download-quota.mjs";
+import { buildDiagnosticReport } from "./diagnostics.mjs";
 import { cleanTagList } from "./search-filter.mjs";
-import { executeSearchPipeline, SearchPipelineCanceledError, sortSearchResultsByNewest } from "./search-pipeline.mjs";
+import { executeSearchPipeline, SearchPipelineCanceledError } from "./search-pipeline.mjs";
+import { mergeSearchResults, sortSearchResultsByNewest } from "./search-results.mjs";
+import { createDevApiStateStore } from "./state-store.mjs";
+import { compareNaturalPageNames, createLibraryImageInspector } from "./library-index.mjs";
 import { cleanSearchThumbnailUrl } from "./thumbnail-policy.mjs";
 import { createSearchThumbnailCache } from "./thumbnail-cache.mjs";
 
@@ -27,6 +32,7 @@ const defaultPython = resolvePython(collectPythonEnvKeys(sourceAdapterRegistry))
 const libraryExportScript = process.env.LIBRARY_EXPORT_SCRIPT || join(projectRoot, "scripts", "library_export.py");
 const libraryPdfExportScript = process.env.LIBRARY_PDF_EXPORT_SCRIPT || join(projectRoot, "scripts", "library_pdf_export.py");
 const dataDir = process.env.DEV_API_DATA_DIR || join(projectRoot, ".data", "dev-api");
+const stateDatabaseFile = process.env.DEV_API_STATE_DATABASE || join(dataDir, "state.sqlite3");
 const libraryCbzExportsDir = process.env.DEV_API_LIBRARY_EXPORT_DIR || join(projectRoot, ".data", "exports", "cbz");
 const libraryPdfExportsDir = process.env.DEV_API_LIBRARY_PDF_EXPORT_DIR || join(projectRoot, ".data", "exports", "pdf");
 const tasksFile = join(dataDir, "tasks.json");
@@ -41,11 +47,14 @@ const bridgeProgressPrefix = "__COMIC_PLATFORM_PROGRESS__";
 const defaultBridgeTimeoutMs = Number(process.env.DEV_API_BRIDGE_TIMEOUT_MS || 30 * 60 * 1000);
 const orphanedRunningTaskMs = Number(process.env.DEV_API_ORPHANED_RUNNING_TASK_MS || 5 * 60 * 1000);
 const librarySuspiciousImageBytes = Number(process.env.DEV_API_LIBRARY_SUSPICIOUS_IMAGE_BYTES || 2048);
+const libraryScanCacheMs = Math.max(Number(process.env.DEV_API_LIBRARY_SCAN_CACHE_MS || 1500), 0);
 const searchThumbnailTimeoutMs = Number(process.env.DEV_API_SEARCH_THUMBNAIL_TIMEOUT_MS || 10000);
 const searchThumbnailMaxBytes = Number(process.env.DEV_API_SEARCH_THUMBNAIL_MAX_BYTES || 5 * 1024 * 1024);
 const searchThumbnailMaxAttempts = Number(process.env.DEV_API_SEARCH_THUMBNAIL_MAX_ATTEMPTS || 3);
 const searchThumbnailRetryBaseDelayMs = Number(process.env.DEV_API_SEARCH_THUMBNAIL_RETRY_BASE_DELAY_MS || 350);
 const galleryDownloadConcurrency = Number(process.env.DEV_API_GALLERY_DOWNLOAD_CONCURRENCY || 0);
+const downloadGlobalConcurrency = normalizeConcurrency(process.env.DEV_API_DOWNLOAD_GLOBAL_CONCURRENCY, 8, 32);
+const downloadDefaultSourceConcurrency = normalizeConcurrency(process.env.DEV_API_DOWNLOAD_SOURCE_CONCURRENCY, 4, 16);
 const searchSourceConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_SOURCE_CONCURRENCY, 2, 8);
 const searchEnrichConcurrency = normalizeConcurrency(process.env.DEV_API_SEARCH_ENRICH_CONCURRENCY, 4, 12);
 const configuredSearchMaximumPages = Number(process.env.DEV_API_SEARCH_MAX_PAGES || 25);
@@ -58,12 +67,20 @@ const tasks = new Map();
 const libraryShelf = new Map();
 const readerSessions = new Map();
 const readerPageFailures = new Map();
+const libraryImageInspector = createLibraryImageInspector();
+const libraryWatchers = [];
+let libraryBaseCache = { expiresAt: 0, items: [] };
 const history = [];
 const subscribers = new Set();
 const runningChildren = new Map();
 const readerPageFetches = createSingleFlight();
 const searchThumbnailFetches = createSingleFlight();
 const searchMoreTasks = new Set();
+const recoveredTaskIds = [];
+const downloadQuota = createDownloadQuota({
+  globalCapacity: downloadGlobalConcurrency,
+  sourceCapacity: sourceDownloadConcurrency,
+});
 const searchThumbnailCache = createSearchThumbnailCache({
   cacheDir: searchThumbnailCacheDir,
   singleFlight: searchThumbnailFetches,
@@ -93,6 +110,14 @@ if (!sourceById.has(defaultSourceId)) {
   throw new Error(`default source adapter is not registered: ${defaultSourceId}`);
 }
 
+const stateStore = await createDevApiStateStore({
+  databaseFile: stateDatabaseFile,
+  legacyFiles: {
+    tasks: tasksFile,
+    libraryShelf: libraryShelfFile,
+    readerSessions: readerSessionsFile,
+  },
+});
 await loadPersistedTasks();
 await loadLibraryShelf();
 await loadReaderSessions();
@@ -116,6 +141,20 @@ const server = createServer(async (request, response) => {
         service: "comic-platform-dev-api",
         thumbnail_cache: searchThumbnailCache.stats(),
       });
+      return;
+    }
+
+    if (request.method === "GET" && path === "/v1/diagnostics") {
+      sendJson(
+        response,
+        200,
+        buildDiagnosticReport({
+          tasks: Array.from(tasks.values()),
+          sources,
+          libraryRootCount: libraryRoots.length,
+          downloadQuota: downloadQuota.stats(),
+        }),
+      );
       return;
     }
 
@@ -427,6 +466,22 @@ const server = createServer(async (request, response) => {
       return;
     }
 
+    const retrySearchSourceMatch = path.match(/^\/v1\/tasks\/([^/]+)\/retry-source$/);
+    if (retrySearchSourceMatch && request.method === "POST") {
+      const task = tasks.get(retrySearchSourceMatch[1]);
+      if (!task) {
+        sendJson(response, 404, { error: "task not found" });
+        return;
+      }
+      try {
+        const payload = await readJson(request);
+        sendJson(response, 200, publicTask(await retrySearchSource(task, payload.source_id)));
+      } catch (error) {
+        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
+      }
+      return;
+    }
+
     const taskMatch = path.match(/^\/v1\/tasks\/([^/]+)$/);
     if (taskMatch && request.method === "GET") {
       const task = tasks.get(taskMatch[1]);
@@ -479,11 +534,13 @@ server.listen(port, "127.0.0.1", () => {
   console.log(`Source adapter config: ${sourceAdapterConfigFile}`);
   console.log(`Default python: ${defaultPython}`);
   console.log(`Source bridges: ${sourceAdapters.map((adapter) => `${adapter.id}=${adapter.bridgeScript}`).join("; ")}`);
-  console.log(`Task data file: ${tasksFile}`);
-  console.log(`Reader session file: ${readerSessionsFile}`);
+  console.log(`State database: ${stateDatabaseFile}`);
+  console.log(`Legacy state inputs retained in: ${dataDir}`);
   console.log(`Reader page cache: ${readerPageCacheDir}`);
   console.log(`Source auth dir: ${sourceAuthDir}`);
   console.log(`Library roots: ${libraryRoots.join("; ")}`);
+  startLibraryWatchers();
+  resumeRecoveredTasks();
 });
 
 async function sourceAuthStatus(sourceId) {
@@ -833,8 +890,12 @@ function hostsMatch(candidateHost, sourceHost) {
   return candidateHost === sourceHost || candidateHost.endsWith(`.${sourceHost}`);
 }
 
-async function executeTaskSearchPage(task, startPage, reportProgress = false) {
-  const searchSources = taskSearchSources(task);
+async function executeTaskSearchPage(task, startPage, reportProgress = false, sourceIds = null) {
+  const requestedSourceIds = Array.isArray(sourceIds) ? new Set(sourceIds) : null;
+  const searchSources = taskSearchSources(task).filter((source) => !requestedSourceIds || requestedSourceIds.has(source.id));
+  if (!searchSources.length) {
+    throw new Error("search requires at least one matching source adapter");
+  }
   const searchArgs = [
     "search",
     "--tags-json",
@@ -886,13 +947,16 @@ async function loadMoreSearchResults(task) {
     throw new Error("search result loading is already in progress");
   }
 
-  const requestedPage = Number(task.output.next_search_page || 2);
-  const page = Number.isFinite(requestedPage) ? Math.max(2, Math.trunc(requestedPage)) : 2;
+  let page = Math.max(2, Math.trunc(Number(task.output.next_search_page || 2)) || 2);
   if (page > searchMaximumPages && !task.output.load_more_error) {
     task.output.has_more = false;
     return task;
   }
 
+  const targetAdditional = Math.max(1, Math.min(Number(task.payload.limit || 40), 100));
+  const initialCount = task.output.results.length;
+  let sawRawResults = false;
+  let lastSourceErrors = [];
   searchMoreTasks.add(task.id);
   task.output.loading_more = true;
   task.output.load_more_error = null;
@@ -900,40 +964,42 @@ async function loadMoreSearchResults(task) {
   publish("task_updated", task);
 
   try {
-    const searchReport = await executeTaskSearchPage(task, page);
-    if (!searchReport.results.length && searchReport.sourceErrors.length === searchReport.sourceIds.length) {
-      throw new Error(
-        `all source searches failed: ${searchReport.sourceErrors
-          .map((error) => `${error.source_name}: ${error.message}`)
-          .join("; ")}`,
-      );
-    }
-    const existingKeys = new Set(
-      task.output.results.map((item) => `${item.source_id}|${item.gallery_url}`),
-    );
-    const addedResults = searchReport.results.filter((item) => {
-      const key = `${item.source_id}|${item.gallery_url}`;
-      if (existingKeys.has(key)) {
-        return false;
+    while (page <= searchMaximumPages && task.output.results.length - initialCount < targetAdditional) {
+      const searchReport = await executeTaskSearchPage(task, page);
+      if (!searchReport.results.length && searchReport.sourceErrors.length === searchReport.sourceIds.length) {
+        throw new Error(
+          `all source searches failed: ${searchReport.sourceErrors
+            .map((error) => `${error.source_name}: ${error.message}`)
+            .join("; ")}`,
+        );
       }
-      existingKeys.add(key);
-      return true;
-    });
+      lastSourceErrors = searchReport.sourceErrors;
+      sawRawResults = sawRawResults || searchReport.results.length > 0;
+      const merged = mergeSearchResults([
+        { results: task.output.results, excludedCount: 0, error: null },
+        { results: searchReport.results, excludedCount: searchReport.excludedCount, error: null },
+      ]);
+      task.output.results = merged.results;
+      task.output.excluded_count = Number(task.output.excluded_count || 0) + searchReport.excludedCount;
+      task.output.excluded_tags = searchReport.excludedTags;
+      page += 1;
+      if (!searchReport.results.length) {
+        break;
+      }
+    }
 
-    task.output.results = sortSearchResultsByNewest([...task.output.results, ...addedResults]);
-    task.output.source_errors = searchReport.sourceErrors;
-    task.output.excluded_tags = searchReport.excludedTags;
-    task.output.excluded_count = Number(task.output.excluded_count || 0) + searchReport.excludedCount;
-    task.output.next_search_page = page + 1;
-    task.output.has_more = addedResults.length > 0 && page < searchMaximumPages;
+    const addedCount = task.output.results.length - initialCount;
+    task.output.source_errors = lastSourceErrors;
+    task.output.next_search_page = page;
+    task.output.has_more = sawRawResults && page <= searchMaximumPages;
     task.output.load_more_error = null;
     task.progress = {
       total: task.output.results.length,
       done: task.output.results.length,
-      failed: searchReport.sourceErrors.length,
-      message: addedResults.length
-        ? `loaded ${addedResults.length} more result(s), ${task.output.results.length} total`
-        : `no more search results after page ${page}`,
+      failed: lastSourceErrors.length,
+      message: addedCount
+        ? `loaded ${addedCount} more result(s), ${task.output.results.length} total`
+        : `no more search results before page ${page}`,
     };
   } catch (error) {
     task.output.has_more = false;
@@ -948,6 +1014,38 @@ async function loadMoreSearchResults(task) {
   return task;
 }
 
+async function retrySearchSource(task, sourceId) {
+  if (task.kind !== "search" || task.status !== "completed" || task.output?.type !== "search_results") {
+    throw new Error("only a completed search task can retry a source");
+  }
+  const normalizedSourceId = String(sourceId || "").trim();
+  if (!normalizedSourceId || !task.output.source_ids.includes(normalizedSourceId)) {
+    throw new Error("source_id must be one of the task search sources");
+  }
+  const report = await executeTaskSearchPage(task, 1, false, [normalizedSourceId]);
+  const retained = task.output.results.filter((item) => item.source_id !== normalizedSourceId);
+  const merged = mergeSearchResults([
+    { results: retained, excludedCount: 0, error: null },
+    { results: report.results, excludedCount: report.excludedCount, error: null },
+  ]);
+  task.output.results = merged.results;
+  task.output.source_errors = [
+    ...task.output.source_errors.filter((error) => error.source_id !== normalizedSourceId),
+    ...report.sourceErrors,
+  ];
+  task.output.excluded_count = Number(task.output.excluded_count || 0) + report.excludedCount;
+  task.progress = {
+    total: task.output.results.length,
+    done: task.output.results.length,
+    failed: task.output.source_errors.length,
+    message: report.sourceErrors.length
+      ? `source retry failed: ${report.sourceErrors[0].message}`
+      : `source ${normalizedSourceId} retried with ${report.results.length} result(s)`,
+  };
+  touch(task);
+  publish("task_updated", task);
+  return task;
+}
 async function runTask(task) {
   if (task.status === "canceled") {
     return;
@@ -1000,11 +1098,23 @@ async function runTask(task) {
       touch(task);
       publish("task_progressed", task);
 
-      const report = await runBridge(task, galleryDownloadArgs(task.payload.gallery_url), null, {
-        timeoutMs: galleryBridgeTimeoutMs(),
-        onProgress: (progress) => applyGalleryDownloadProgress(task, progress),
+      const permit = await downloadQuota.acquire({
+        key: task.id,
+        sourceId: source.id,
+        requested: requestedGalleryDownloadConcurrency(source.id),
       });
-      finishGalleryDownloadTask(task, source, report);
+      try {
+        if (task.status === "canceled") {
+          return;
+        }
+        const report = await runBridge(task, galleryDownloadArgs(task.payload.gallery_url, permit.tokens), null, {
+          timeoutMs: galleryBridgeTimeoutMs(),
+          onProgress: (progress) => applyGalleryDownloadProgress(task, progress),
+        });
+        finishGalleryDownloadTask(task, source, report);
+      } finally {
+        permit.release();
+      }
       return;
     }
 
@@ -1028,7 +1138,7 @@ async function runTask(task) {
       },
     });
   } catch (error) {
-    if (error instanceof SearchPipelineCanceledError || task.status === "canceled") {
+    if (error instanceof SearchPipelineCanceledError || error instanceof DownloadQuotaCanceledError || task.status === "canceled") {
       return;
     }
 
@@ -1065,12 +1175,25 @@ function galleryBridgeTimeoutMs() {
   return Number.isFinite(value) && value > 0 ? value : 30 * 60 * 1000;
 }
 
-function galleryDownloadArgs(galleryUrl) {
+function galleryDownloadArgs(galleryUrl, allocatedConcurrency = null) {
   const args = ["download-gallery", "--gallery-url", galleryUrl];
-  if (Number.isFinite(galleryDownloadConcurrency) && galleryDownloadConcurrency > 0) {
-    args.push("--download-concurrency", String(Math.min(Math.max(Math.floor(galleryDownloadConcurrency), 1), 8)));
+  const concurrency = Number(allocatedConcurrency || galleryDownloadConcurrency);
+  if (Number.isFinite(concurrency) && concurrency > 0) {
+    args.push("--download-concurrency", String(Math.min(Math.max(Math.floor(concurrency), 1), 16)));
   }
   return args;
+}
+
+function requestedGalleryDownloadConcurrency(sourceId) {
+  if (Number.isFinite(galleryDownloadConcurrency) && galleryDownloadConcurrency > 0) {
+    return Math.trunc(galleryDownloadConcurrency);
+  }
+  return sourceDownloadConcurrency(sourceId);
+}
+
+function sourceDownloadConcurrency(sourceId) {
+  const envKey = `DEV_API_DOWNLOAD_${String(sourceId || "source").toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_CONCURRENCY`;
+  return normalizeConcurrency(process.env[envKey], downloadDefaultSourceConcurrency, 16);
 }
 
 function taskSearchSources(task) {
@@ -1338,6 +1461,7 @@ function cancelTask(task) {
   if (task.status === "completed" || task.status === "failed" || task.status === "canceled") {
     return;
   }
+  downloadQuota.cancel(task.id);
   const children = runningChildren.get(task.id);
   for (const child of children || []) {
     if (!child.killed) {
@@ -1563,6 +1687,10 @@ async function createReaderSession(payload) {
     pages,
     last_page: existingSession?.last_page || null,
     last_read_at: existingSession?.last_read_at || null,
+    reading_mode: normalizeReaderMode(existingSession?.reading_mode),
+    reading_direction: normalizeReaderDirection(existingSession?.reading_direction),
+    scroll_offset: normalizeReaderScrollOffset(existingSession?.scroll_offset),
+    scroll_ratio: normalizeReaderScrollRatio(existingSession?.scroll_ratio),
     bookmarks: normalizeReaderBookmarks(existingSession?.bookmarks || [], pages.length),
     created_at: existingSession?.created_at || now,
     updated_at: now,
@@ -1606,15 +1734,28 @@ function updateReaderSessionProgress(sessionId, payload) {
     throw new Error(`last_page must be between 1 and ${total}`);
   }
 
+  const mode = Object.prototype.hasOwnProperty.call(body, "reading_mode") ? normalizeReaderMode(body.reading_mode, null) : session.reading_mode;
+  const direction = Object.prototype.hasOwnProperty.call(body, "reading_direction")
+    ? normalizeReaderDirection(body.reading_direction, null)
+    : session.reading_direction;
+  if (Object.prototype.hasOwnProperty.call(body, "reading_mode") && !mode) {
+    throw new Error("reading_mode must be single, double, or scroll");
+  }
+  if (Object.prototype.hasOwnProperty.call(body, "reading_direction") && !direction) {
+    throw new Error("reading_direction must be ltr or rtl");
+  }
+
   const now = new Date().toISOString();
   session.last_page = page;
   session.last_read_at = now;
+  session.reading_mode = mode || "single";
+  session.reading_direction = direction || "ltr";
+  session.scroll_offset = normalizeReaderScrollOffset(body.scroll_offset ?? session.scroll_offset);
+  session.scroll_ratio = normalizeReaderScrollRatio(body.scroll_ratio ?? session.scroll_ratio);
   session.updated_at = now;
   persistReaderSessionsSoon();
   return readerSessionSummary(session);
-}
-
-function upsertReaderBookmark(sessionId, payload) {
+}function upsertReaderBookmark(sessionId, payload) {
   const session = readerSessions.get(sessionId);
   if (!session) {
     return null;
@@ -2125,24 +2266,45 @@ function clearReaderSessionFailures(sessionId) {
 }
 
 async function listLibrary(filters = {}) {
-  const items = [];
+  let items = libraryBaseCache.expiresAt > Date.now() ? libraryBaseCache.items : null;
+  if (!items) {
+    items = [];
+    for (const root of libraryRoots) {
+      const rootEntries = await safeReadDir(root);
+      for (const entry of rootEntries) {
+        if (!entry.isDirectory()) {
+          continue;
+        }
 
-  for (const root of libraryRoots) {
-    const rootEntries = await safeReadDir(root);
-    for (const entry of rootEntries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-
-      const folder = join(root, entry.name);
-      const item = await inspectLibraryFolder(root, folder, entry.name);
-      if (item) {
-        items.push(item);
+        const folder = join(root, entry.name);
+        const item = await inspectLibraryFolder(root, folder, entry.name);
+        if (item) {
+          items.push(item);
+        }
       }
     }
+    libraryBaseCache = { expiresAt: Date.now() + libraryScanCacheMs, items };
   }
 
-  return sortLibraryItems(items.filter((item) => matchesLibraryFilters(item, filters)), filters.sort);
+  const currentItems = items.map((item) => ({ ...item, shelf: shelfForItem(item.id) }));
+  return sortLibraryItems(currentItems.filter((item) => matchesLibraryFilters(item, filters)), filters.sort);
+}
+
+function invalidateLibraryScanCache() {
+  libraryBaseCache = { expiresAt: 0, items: [] };
+  libraryImageInspector.clear();
+}
+
+function startLibraryWatchers() {
+  for (const root of libraryRoots) {
+    try {
+      const watcher = watch(root, { persistent: false }, () => invalidateLibraryScanCache());
+      watcher.on("error", () => undefined);
+      libraryWatchers.push(watcher);
+    } catch {
+      // Non-existent or inaccessible roots remain covered by the short scan TTL.
+    }
+  }
 }
 
 async function listLibraryTags(searchParams) {
@@ -2302,40 +2464,54 @@ async function inspectLibraryFolder(root, folder, folderName) {
   const downloadState = await readOptionalJson(downloadStatePath);
   const itemId = toStableId(root, folderName);
   const imageEntries = entries.filter((entry) => entry.isFile() && isImageFile(entry.name)).sort((left, right) => comparePageNames(left.name, right.name));
-  const coverEntry = imageEntries[0] || null;
-
   let sizeBytes = 0;
   let updatedAt = folderStat.mtime.toISOString();
   const imageStats = [];
+  const fileReports = await mapWithConcurrency(
+    entries.filter((entry) => entry.isFile()),
+    8,
+    async (entry) => {
+      const filePath = join(folder, entry.name);
+      try {
+        const fileStat = await stat(filePath);
+        const integrity = isImageFile(entry.name) ? await libraryImageInspector.inspect(filePath, fileStat) : null;
+        return { entry, fileStat, integrity };
+      } catch {
+        return null;
+      }
+    },
+  );
 
-  for (const entry of entries) {
-    if (!entry.isFile()) {
+  for (const report of fileReports) {
+    if (!report) {
       continue;
     }
-    const filePath = join(folder, entry.name);
-    try {
-      const fileStat = await stat(filePath);
-      sizeBytes += fileStat.size;
-      if (fileStat.mtime.toISOString() > updatedAt) {
-        updatedAt = fileStat.mtime.toISOString();
-      }
-      if (isImageFile(entry.name)) {
-        imageStats.push({
-          filename: entry.name,
-          size_bytes: fileStat.size,
-        });
-      }
-    } catch {
-      continue;
+    sizeBytes += report.fileStat.size;
+    if (report.fileStat.mtime.toISOString() > updatedAt) {
+      updatedAt = report.fileStat.mtime.toISOString();
+    }
+    if (report.integrity) {
+      imageStats.push({
+        filename: report.entry.name,
+        size_bytes: report.fileStat.size,
+        valid: report.integrity.valid,
+        format: report.integrity.format,
+        width: report.integrity.width,
+        height: report.integrity.height,
+        error: report.integrity.error,
+      });
     }
   }
-
+  imageStats.sort((left, right) => comparePageNames(left.filename, right.filename));
+  const validImageNames = new Set(imageStats.filter((image) => image.valid).map((image) => image.filename));
+  const validImageEntries = imageEntries.filter((entry) => validImageNames.has(entry.name));
+  const coverEntry = validImageEntries[0] || null;
   const failedCount = await countFailedPages(failureLogPath);
   const metadataPageCount = pageCountFromMetadata(metadata);
   const tags = tagsFromMetadata(metadata);
   const health = buildLibraryHealth({
     expectedCount: metadataPageCount ?? imageEntries.length,
-    imageCount: imageEntries.length,
+    imageCount: validImageEntries.length,
     failedCount,
     imageStats: imageStats.sort((left, right) => comparePageNames(left.filename, right.filename)),
     downloadState,
@@ -2349,7 +2525,7 @@ async function inspectLibraryFolder(root, folder, folderName) {
     title: textOrNull(metadata?.title) || folderName,
     gallery_url: textOrNull(metadata?.url) || textOrNull(metadata?.gallery_url),
     page_count: metadataPageCount ?? imageEntries.length,
-    image_count: imageEntries.length,
+    image_count: validImageEntries.length,
     failed_count: failedCount,
     size_bytes: sizeBytes,
     metadata_path: metadata ? metadataPath : null,
@@ -2377,7 +2553,16 @@ async function getLibraryDetail(id) {
 
   const metadata = await readOptionalJson(join(resolved.folder, "metadata.json"));
   const pageBatch = await listLibraryPageBatch(id, resolved.folder, { offset: 0, limit: 24 });
-  const failed_entries = await readFailureEntries(join(resolved.folder, "failed_pages.jsonl"));
+  const loggedFailures = await readFailureEntries(join(resolved.folder, "failed_pages.jsonl"));
+  const integrityFailures = (item.health.issues || [])
+    .filter((issue) => issue.kind === "corrupted_images")
+    .flatMap((issue) => (issue.samples || []).map((sample) => ({
+      kind: "corrupted_image",
+      filename: sample.filename,
+      size_bytes: sample.size_bytes,
+      message: sample.error || "image integrity validation failed",
+    })));
+  const failed_entries = [...loggedFailures, ...integrityFailures].slice(0, 100);
 
   return {
     ...item,
@@ -2439,8 +2624,21 @@ async function updateLibraryShelf(id, payload) {
     next.last_page = Number.isFinite(page) && page > 0 ? page : null;
     next.last_read_at = next.last_page ? next.updated_at : null;
   }
+  if (Object.prototype.hasOwnProperty.call(patch, "reading_mode")) {
+    next.reading_mode = normalizeReaderMode(patch.reading_mode);
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "reading_direction")) {
+    next.reading_direction = normalizeReaderDirection(patch.reading_direction);
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "scroll_offset")) {
+    next.scroll_offset = normalizeReaderScrollOffset(patch.scroll_offset);
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, "scroll_ratio")) {
+    next.scroll_ratio = normalizeReaderScrollRatio(patch.scroll_ratio);
+  }
 
   libraryShelf.set(id, next);
+  libraryBaseCache.expiresAt = 0;
   await persistLibraryShelf();
   return next;
 }
@@ -2612,41 +2810,41 @@ function isAllowedExportFile(filePath) {
 
 async function listLibraryPageBatch(id, folder, options = {}) {
   const entries = await safeReadDir(folder);
-  const imageEntries = entries.filter((entry) => entry.isFile() && isImageFile(entry.name)).sort((left, right) => comparePageNames(left.name, right.name));
-  const offset = Math.min(Math.max(Number(options.offset || 0), 0), imageEntries.length);
-  const limit = Math.min(Math.max(Number(options.limit || 24), 1), 100);
-  const selectedEntries = imageEntries.slice(offset, offset + limit);
-  const pages = [];
-
-  for (const [localIndex, entry] of selectedEntries.entries()) {
+  const imageEntries = entries
+    .filter((entry) => entry.isFile() && isImageFile(entry.name))
+    .sort((left, right) => comparePageNames(left.name, right.name));
+  const reports = await mapWithConcurrency(imageEntries, 8, async (entry) => {
     const filePath = join(folder, entry.name);
-    const index = offset + localIndex;
     try {
       const fileStat = await stat(filePath);
-      pages.push({
-        index: index + 1,
-        filename: entry.name,
-        path: filePath,
-        size_bytes: fileStat.size,
-        updated_at: fileStat.mtime.toISOString(),
-        url: `/v1/library/${encodeURIComponent(id)}/pages/${encodeURIComponent(entry.name)}`,
-      });
+      const integrity = await libraryImageInspector.inspect(filePath, fileStat);
+      return integrity.valid ? { entry, filePath, fileStat } : null;
     } catch {
-      continue;
+      return null;
     }
-  }
+  });
+  const readableImages = reports.filter(Boolean);
+  const offset = Math.min(Math.max(Number(options.offset || 0), 0), readableImages.length);
+  const limit = Math.min(Math.max(Number(options.limit || 24), 1), 100);
+  const selectedImages = readableImages.slice(offset, offset + limit);
+  const pages = selectedImages.map((report, localIndex) => ({
+    index: offset + localIndex + 1,
+    filename: report.entry.name,
+    path: report.filePath,
+    size_bytes: report.fileStat.size,
+    updated_at: report.fileStat.mtime.toISOString(),
+    url: `/v1/library/${encodeURIComponent(id)}/pages/${encodeURIComponent(report.entry.name)}`,
+  }));
 
-  const nextOffset = offset + selectedEntries.length;
+  const nextOffset = offset + selectedImages.length;
   return {
     items: pages,
-    total: imageEntries.length,
+    total: readableImages.length,
     offset,
     limit,
-    next_offset: nextOffset < imageEntries.length ? nextOffset : null,
+    next_offset: nextOffset < readableImages.length ? nextOffset : null,
   };
-}
-
-async function resolveLibraryPageFile(id, encodedFilename) {
+}async function resolveLibraryPageFile(id, encodedFilename) {
   const resolved = resolveLibraryFolderFromId(id);
   if (!resolved) {
     return null;
@@ -2670,6 +2868,10 @@ async function resolveLibraryPageFile(id, encodedFilename) {
   try {
     const fileStat = await stat(filePath);
     if (!fileStat.isFile()) {
+      return null;
+    }
+    const integrity = await libraryImageInspector.inspect(filePath, fileStat);
+    if (!integrity.valid) {
       return null;
     }
     return {
@@ -2865,7 +3067,8 @@ function buildLibraryHealth({ expectedCount, imageCount, failedCount, imageStats
   const minBytes = Number.isFinite(librarySuspiciousImageBytes) && librarySuspiciousImageBytes > 0 ? librarySuspiciousImageBytes : 2048;
   const expected = Math.max(Number(expectedCount || 0), 0);
   const missingCount = expected > imageCount ? expected - imageCount : 0;
-  const suspiciousImages = imageStats.filter((image) => Number(image.size_bytes || 0) > 0 && Number(image.size_bytes || 0) < minBytes);
+  const suspiciousImages = imageStats.filter((image) => image.valid !== false && Number(image.size_bytes || 0) > 0 && Number(image.size_bytes || 0) < minBytes);
+  const corruptedImages = imageStats.filter((image) => image.valid === false);
   const stateFailed = Number(downloadState?.failed || 0);
   const stopped = Boolean(downloadState?.stopped);
   const issues = [];
@@ -2886,7 +3089,19 @@ function buildLibraryHealth({ expectedCount, imageCount, failedCount, imageStats
       count: Math.max(failedCount, stateFailed),
     });
   }
-  if (suspiciousImages.length > 0) {
+  if (corruptedImages.length > 0) {
+    issues.push({
+      kind: "corrupted_images",
+      severity: corruptedImages.length >= imageStats.length ? "failed" : "warning",
+      message: `${corruptedImages.length} image file(s) failed signature, dimension, or end-marker validation`,
+      count: corruptedImages.length,
+      samples: corruptedImages.slice(0, 20).map((image) => ({
+        filename: image.filename,
+        size_bytes: image.size_bytes,
+        error: image.error,
+      })),
+    });
+  }  if (suspiciousImages.length > 0) {
     issues.push({
       kind: "small_images",
       severity: suspiciousImages.length >= imageCount ? "failed" : "warning",
@@ -2912,6 +3127,7 @@ function buildLibraryHealth({ expectedCount, imageCount, failedCount, imageStats
     missing_count: missingCount,
     failed_count: failedCount,
     suspicious_count: suspiciousImages.length,
+    corrupted_count: corruptedImages.length,
     suspicious_min_bytes: minBytes,
     stopped,
     last_done: Number(downloadState?.done || 0),
@@ -2955,7 +3171,7 @@ function mimeTypeForExport(record) {
 }
 
 function comparePageNames(left, right) {
-  return left.localeCompare(right, undefined, { numeric: true, sensitivity: "base" });
+  return compareNaturalPageNames(left, right);
 }
 
 function createLibraryExportFilename(item, fallbackName, extension) {
@@ -3025,6 +3241,10 @@ function normalizeLibraryShelf(value) {
     note: typeof value?.note === "string" ? value.note : "",
     last_page: Number.isFinite(lastPage) && lastPage > 0 ? lastPage : null,
     last_read_at: typeof value?.last_read_at === "string" ? value.last_read_at : null,
+    reading_mode: normalizeReaderMode(value?.reading_mode),
+    reading_direction: normalizeReaderDirection(value?.reading_direction),
+    scroll_offset: normalizeReaderScrollOffset(value?.scroll_offset),
+    scroll_ratio: normalizeReaderScrollRatio(value?.scroll_ratio),
     updated_at: typeof value?.updated_at === "string" ? value.updated_at : null,
   };
 }
@@ -3035,88 +3255,59 @@ function toStableId(root, folderName) {
 
 async function loadLibraryShelf() {
   try {
-    const text = await readFile(libraryShelfFile, "utf8");
-    const savedShelf = JSON.parse(text);
-    if (!savedShelf || typeof savedShelf !== "object" || Array.isArray(savedShelf)) {
-      console.warn(`Ignoring invalid library shelf file: ${libraryShelfFile}`);
-      return;
-    }
-
-    for (const [id, value] of Object.entries(savedShelf)) {
+    for (const [id, value] of stateStore.loadLibraryShelf()) {
       if (typeof id === "string" && id) {
         libraryShelf.set(id, normalizeLibraryShelf(value));
       }
     }
-    console.log(`Loaded ${libraryShelf.size} library shelf item(s) from ${libraryShelfFile}`);
+    console.log(`Loaded ${libraryShelf.size} library shelf item(s) from ${stateDatabaseFile}`);
   } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return;
-    }
-    console.warn(`Failed to load library shelf file ${libraryShelfFile}: ${error.message}`);
+    console.warn(`Failed to load library shelf state from ${stateDatabaseFile}: ${error.message}`);
   }
 }
 
 async function persistLibraryShelf() {
-  await mkdir(dataDir, { recursive: true });
   const sortedEntries = Array.from(libraryShelf.entries()).sort(([left], [right]) => left.localeCompare(right));
-  await writeFile(libraryShelfFile, JSON.stringify(Object.fromEntries(sortedEntries), null, 2), "utf8");
+  stateStore.replaceLibraryShelf(sortedEntries);
 }
 
 async function loadPersistedTasks() {
   try {
-    const text = await readFile(tasksFile, "utf8");
-    const savedTasks = JSON.parse(text);
-    if (!Array.isArray(savedTasks)) {
-      console.warn(`Ignoring invalid task data file: ${tasksFile}`);
-      return;
-    }
-
+    const savedTasks = stateStore.loadTasks();
     let changed = false;
     for (const savedTask of savedTasks) {
       if (!savedTask || typeof savedTask.id !== "string") {
         continue;
       }
-      const { task, normalized } = normalizeLoadedTask(savedTask);
+      const { task, normalized, resumable } = normalizeLoadedTask(savedTask);
       tasks.set(task.id, task);
       changed = changed || normalized;
+      if (resumable) {
+        recoveredTaskIds.push(task.id);
+      }
     }
-
-    console.log(`Loaded ${tasks.size} task(s) from ${tasksFile}`);
+    console.log(`Loaded ${tasks.size} task(s) from ${stateDatabaseFile}`);
     if (changed) {
       persistTasksSoon();
     }
   } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return;
-    }
-    console.warn(`Failed to load task data file ${tasksFile}: ${error.message}`);
+    console.warn(`Failed to load task state from ${stateDatabaseFile}: ${error.message}`);
   }
 }
 
 async function loadReaderSessions() {
   try {
-    const text = await readFile(readerSessionsFile, "utf8");
-    const savedSessions = JSON.parse(text);
-    if (!Array.isArray(savedSessions)) {
-      console.warn(`Ignoring invalid reader session file: ${readerSessionsFile}`);
-      return;
-    }
-
-    for (const savedSession of savedSessions) {
+    for (const savedSession of stateStore.loadReaderSessions()) {
       const session = normalizeLoadedReaderSession(savedSession);
       if (session) {
         readerSessions.set(session.id, session);
       }
     }
-    console.log(`Loaded ${readerSessions.size} reader session(s) from ${readerSessionsFile}`);
+    console.log(`Loaded ${readerSessions.size} reader session(s) from ${stateDatabaseFile}`);
   } catch (error) {
-    if (error && error.code === "ENOENT") {
-      return;
-    }
-    console.warn(`Failed to load reader session file ${readerSessionsFile}: ${error.message}`);
+    console.warn(`Failed to load reader session state from ${stateDatabaseFile}: ${error.message}`);
   }
 }
-
 function normalizeLoadedReaderSession(savedSession) {
   if (!savedSession || typeof savedSession !== "object" || Array.isArray(savedSession)) {
     return null;
@@ -3144,10 +3335,32 @@ function normalizeLoadedReaderSession(savedSession) {
     pages,
     last_page: normalizeReaderLastPage(savedSession.last_page, pages.length),
     last_read_at: textOrNull(savedSession.last_read_at),
+    reading_mode: normalizeReaderMode(savedSession.reading_mode),
+    reading_direction: normalizeReaderDirection(savedSession.reading_direction),
+    scroll_offset: normalizeReaderScrollOffset(savedSession.scroll_offset),
+    scroll_ratio: normalizeReaderScrollRatio(savedSession.scroll_ratio),
     bookmarks: normalizeReaderBookmarks(savedSession.bookmarks || [], pages.length),
     created_at: textOrNull(savedSession.created_at) || now,
     updated_at: textOrNull(savedSession.updated_at) || now,
   };
+}
+
+function normalizeReaderMode(value, fallback = "single") {
+  return ["single", "double", "scroll"].includes(value) ? value : fallback;
+}
+
+function normalizeReaderDirection(value, fallback = "ltr") {
+  return ["ltr", "rtl"].includes(value) ? value : fallback;
+}
+
+function normalizeReaderScrollOffset(value) {
+  const offset = Number(value);
+  return Number.isFinite(offset) && offset >= 0 ? offset : null;
+}
+
+function normalizeReaderScrollRatio(value) {
+  const ratio = Number(value);
+  return Number.isFinite(ratio) ? Math.min(Math.max(ratio, 0), 1) : null;
 }
 
 function normalizeReaderLastPage(value, totalPages) {
@@ -3160,8 +3373,7 @@ function normalizeReaderLastPage(value, totalPages) {
 
 function persistReaderSessionsSoon() {
   readerSessionSaveChain = readerSessionSaveChain
-    .then(async () => {
-      await mkdir(dataDir, { recursive: true });
+    .then(() => {
       const sessions = Array.from(readerSessions.values())
         .sort((left, right) => readerSessionSortTime(right).localeCompare(readerSessionSortTime(left)))
         .slice(0, 100)
@@ -3176,17 +3388,20 @@ function persistReaderSessionsSoon() {
           pages: session.pages,
           last_page: session.last_page || null,
           last_read_at: session.last_read_at || null,
+          reading_mode: normalizeReaderMode(session.reading_mode),
+          reading_direction: normalizeReaderDirection(session.reading_direction),
+          scroll_offset: normalizeReaderScrollOffset(session.scroll_offset),
+          scroll_ratio: normalizeReaderScrollRatio(session.scroll_ratio),
           bookmarks: normalizeReaderBookmarks(session.bookmarks || [], session.pages.length),
           created_at: session.created_at,
           updated_at: session.updated_at,
         }));
-      await writeFile(readerSessionsFile, JSON.stringify(sessions, null, 2), "utf8");
+      stateStore.replaceReaderSessions(sessions);
     })
     .catch((error) => {
       console.error(`Failed to persist reader sessions: ${error.message}`);
     });
 }
-
 function normalizeLoadedTask(savedTask) {
   const now = new Date().toISOString();
   const task = {
@@ -3201,32 +3416,37 @@ function normalizeLoadedTask(savedTask) {
     updated_at: savedTask.updated_at || now,
   };
 
-  const interrupted = task.status === "queued" || task.status === "running" || task.status === "paused";
-  if (interrupted) {
-    task.status = "failed";
+  const resumable = task.status === "queued" || task.status === "running" || task.status === "paused";
+  if (resumable) {
+    task.status = "queued";
     task.progress = {
       total: task.progress.total || 1,
       done: task.progress.done || 0,
-      failed: task.progress.failed || 1,
-      message: "interrupted by dev API restart; create a new task to rerun",
+      failed: task.progress.failed || 0,
+      message: "recovered after dev API restart; waiting to resume",
     };
     task.updated_at = now;
   }
-
-  return { task, normalized: interrupted };
+  return { task, normalized: resumable, resumable };
 }
 
 function persistTasksSoon() {
   saveChain = saveChain
-    .then(async () => {
-      await mkdir(dataDir, { recursive: true });
-      await writeFile(tasksFile, JSON.stringify(listTasks(), null, 2), "utf8");
-    })
+    .then(() => stateStore.saveTasks(listTasks()))
     .catch((error) => {
       console.error(`Failed to persist dev API tasks: ${error.message}`);
     });
 }
 
+function resumeRecoveredTasks() {
+  for (const taskId of recoveredTaskIds.splice(0)) {
+    const task = tasks.get(taskId);
+    if (!task || task.status !== "queued") {
+      continue;
+    }
+    setTimeout(() => runTask(task), 0);
+  }
+}
 function titleForSearch(payload) {
   if (Array.isArray(payload.tags) && payload.tags.length) {
     return payload.tags.join(" ");

@@ -6,5 +6,5 @@ version.workspace = true
 
 [dependencies]
 comic-platform-domain = { path = "../domain" }
-chrono.workspace = true
+chrono = { workspace = true, features = ["clock"] }
 tokio.workspace = true

@@ -32,20 +32,32 @@ Invoke-Checked { node --check .\services\dev-api\source-registry.mjs }
 Invoke-Checked { node --check .\services\dev-api\search-filter.mjs }
 Invoke-Checked { node --check .\services\dev-api\async-pool.mjs }
 Invoke-Checked { node --check .\services\dev-api\search-pipeline.mjs }
+Invoke-Checked { node --check .\services\dev-api\search-results.mjs }
+Invoke-Checked { node --check .\services\dev-api\download-quota.mjs }
+Invoke-Checked { node --check .\services\dev-api\diagnostics.mjs }
+Invoke-Checked { node --check .\services\dev-api\state-store.mjs }
+Invoke-Checked { node --check .\services\dev-api\library-index.mjs }
 Invoke-Checked { node --check .\services\dev-api\thumbnail-policy.mjs }
 
 Write-Host "`n[check] Tag dictionary and exclusion rules"
 Invoke-Checked { node .\scripts\check_tag_system.mjs }
 Invoke-Checked { node .\scripts\check_search_pipeline.mjs }
+Invoke-Checked { node .\scripts\check_search_results.mjs }
+Invoke-Checked { node .\scripts\check_download_quota.mjs }
+Invoke-Checked { node .\scripts\check_diagnostics.mjs }
 Invoke-Checked { node .\scripts\check_dev_api_search_merge.mjs }
 Invoke-Checked { node .\scripts\check_async_pool.mjs }
+Invoke-Checked { node .\scripts\check_state_store.mjs }
+Invoke-Checked { node .\scripts\check_reader_progress.mjs }
+Invoke-Checked { node .\scripts\check_library_index.mjs }
+Invoke-Checked { node .\scripts\check_performance_baseline.mjs }
 Invoke-Checked { node .\scripts\check_thumbnail_policy.mjs }
 Invoke-Checked { python -m py_compile .\scripts\update_tag_translations.py .\scripts\sample_18comic_tags.py .\scripts\sync_source_tag_mappings.py .\scripts\audit_tag_alignment.py .\scripts\source_tag_resolver.py }
 Invoke-Checked { python .\scripts\audit_tag_alignment.py --minimum-coverage 0.90 }
 
 Write-Host "`n[check] Python bridges"
 Invoke-Checked { python -c "import jmcomic; print('ok jmcomic', jmcomic.__version__ if hasattr(jmcomic, '__version__') else 'installed')" }
-Invoke-Checked { python -m py_compile .\scripts\source_bridge_core.py .\scripts\search_result_metadata.py .\scripts\gallery_search_parser.py .\scripts\source_tag_resolver.py .\scripts\jmcomic_api_adapter.py .\scripts\fangliding_bridge.py .\scripts\check_fangliding_pagination.py .\scripts\check_fangliding_reader.py .\scripts\check_gallery_search_parser.py .\scripts\18comic_bridge.py .\scripts\ehentai_bridge.py }
+Invoke-Checked { python -m py_compile .\scripts\contract_validator.py .\scripts\source_bridge_core.py .\scripts\search_result_metadata.py .\scripts\gallery_search_parser.py .\scripts\source_tag_resolver.py .\scripts\jmcomic_api_adapter.py .\scripts\fangliding_bridge.py .\scripts\check_fangliding_pagination.py .\scripts\check_fangliding_reader.py .\scripts\check_gallery_search_parser.py .\scripts\18comic_bridge.py .\scripts\ehentai_bridge.py }
 Invoke-Checked { python .\scripts\check_download_core.py }
 Invoke-Checked { python .\scripts\check_fangliding_pagination.py }
 Invoke-Checked { python .\scripts\check_fangliding_reader.py }
@@ -58,6 +70,10 @@ Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") fmt --all -- --ch
 
 Write-Host "`n[check] Rust workspace"
 Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") check --workspace }
+
+Write-Host "`n[check] Cross-runtime contracts"
+Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") run --quiet --no-default-features -p comic-platform-domain --bin contract_tool -- check-schema .\config\contracts\task.schema.json }
+Invoke-Checked { node .\scripts\check_contracts.mjs }
 
 Write-Host "`n[check] Web unit tests"
 Invoke-Checked { npm --prefix .\apps\web run test }

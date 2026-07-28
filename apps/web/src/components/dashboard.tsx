@@ -107,6 +107,7 @@ import {
   hasLibraryReadingHistory,
   isLibraryComplete,
   isReaderMode,
+  isReaderDirection,
   isReaderFit,
   kindLabel,
   libraryPageTotal,
@@ -114,6 +115,7 @@ import {
   normalizeSearchText,
   readerFitLabel,
   readerFitStorageKey,
+  readerDirectionStorageKey,
   readerModeLabel,
   readerModeStorageKey,
   readingProgressPercent,
@@ -128,6 +130,7 @@ import {
   type LibraryReaderState,
   type LibraryViewMode,
   type Mode,
+  type ReaderDirection,
   type ReaderFit,
   type ReaderMode,
   type View,
@@ -145,7 +148,15 @@ import {
   tagTranslations,
   uniqueTags,
 } from "@/lib/tag-system";
-import { readerLoadPlan } from "@/lib/reader-model";
+import {
+  readerLoadPlan,
+  readerModeSwitchRequiresConfirmation,
+  readerNavigationDelta,
+  readerProgressSnapshot,
+  readerSpreadPlan,
+  type ReaderPageOrientation,
+} from "@/lib/reader-model";
+import { browserImagePreloadLoader, ReaderPreloadQueue } from "@/lib/reader-preload-queue";
 import { searchResultKey } from "@/lib/search-result-model";
 import { prettyJson } from "@/lib/json";
 
@@ -242,6 +253,8 @@ export function Dashboard() {
   const [libraryReader, setLibraryReader] = useState<LibraryReaderState | null>(null);
   const [libraryReaderFit, setLibraryReaderFit] = useState<ReaderFit>("width");
   const [readerMode, setReaderMode] = useState<ReaderMode>("single");
+  const [readerDirection, setReaderDirection] = useState<ReaderDirection>("ltr");
+  const [readerPageOrientations, setReaderPageOrientations] = useState<Record<string, ReaderPageOrientation>>({});
   const [readerControlsCollapsed, setReaderControlsCollapsed] = useState(true);
   const [libraryReaderLoading, setLibraryReaderLoading] = useState(false);
   const [libraryReaderPageInput, setLibraryReaderPageInput] = useState("1");
@@ -293,6 +306,8 @@ export function Dashboard() {
   const remoteReaderStageRef = useRef<HTMLDivElement | null>(null);
   const libraryVisiblePageSaveTimer = useRef<number | null>(null);
   const remoteVisiblePageSaveTimer = useRef<number | null>(null);
+  const readerPreloadQueue = useRef<ReaderPreloadQueue | null>(null);
+  const readerScrollRestoredKey = useRef<string | null>(null);
 
   const libraryReaderObservedPageCount = libraryReader ? (libraryPages[libraryReader.item.id]?.length ?? 0) : 0;
   const remoteReaderObservedPageCount = remoteReader ? (remoteReaderPages[remoteReader.session.id]?.length ?? 0) : 0;
@@ -378,10 +393,12 @@ export function Dashboard() {
       if (remoteVisiblePageSaveTimer.current !== null) {
         window.clearTimeout(remoteVisiblePageSaveTimer.current);
       }
+      readerPreloadQueue.current?.cancelAll();
     };
   }, []);
 
   useEffect(() => {
+    readerPreloadQueue.current = new ReaderPreloadQueue(browserImagePreloadLoader, 3);
     try {
       const savedFit = window.localStorage.getItem(readerFitStorageKey);
       if (isReaderFit(savedFit)) {
@@ -390,6 +407,10 @@ export function Dashboard() {
       const savedMode = window.localStorage.getItem(readerModeStorageKey);
       if (isReaderMode(savedMode)) {
         setReaderMode(savedMode);
+      }
+      const savedDirection = window.localStorage.getItem(readerDirectionStorageKey);
+      if (isReaderDirection(savedDirection)) {
+        setReaderDirection(savedDirection);
       }
       const savedControlsCollapsed = window.localStorage.getItem(readerControlsCollapsedStorageKey);
       if (savedControlsCollapsed !== null) {
@@ -422,6 +443,14 @@ export function Dashboard() {
       // Local storage can be unavailable in privacy modes.
     }
   }, [readerMode]);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(readerDirectionStorageKey, readerDirection);
+    } catch {
+      // Local storage can be unavailable in privacy modes.
+    }
+  }, [readerDirection]);
 
   useEffect(() => {
     try {
@@ -465,13 +494,13 @@ export function Dashboard() {
 
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
-        void goToLibraryReaderPage(1);
+        void goToLibraryReaderPage(readerNavigationDelta(readerMode, readerDirection, true));
         return;
       }
 
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
-        void goToLibraryReaderPage(-1);
+        void goToLibraryReaderPage(readerNavigationDelta(readerMode, readerDirection, false));
         return;
       }
 
@@ -507,7 +536,7 @@ export function Dashboard() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [libraryReader, libraryReaderLoading]);
+  }, [libraryReader, libraryReaderLoading, readerDirection, readerMode]);
 
   useEffect(() => {
     if (!libraryReader) {
@@ -532,14 +561,20 @@ export function Dashboard() {
           return;
         }
         mergeLibraryPages(libraryReader.item.id, batch.items, batch.total);
-        if (typeof window !== "undefined") {
+        const queue = readerPreloadQueue.current;
+        if (queue) {
           const eagerPages = new Set(plan.eagerPageIndexes);
-          batch.items
-            .filter((page) => eagerPages.has(page.index))
-            .forEach((page) => {
-              const image = new window.Image();
-              image.src = apiUrl(page.url);
+          const targets = batch.items.filter((page) => eagerPages.has(page.index));
+          const keys = targets.map((page) => `library:${libraryReader.item.id}:${page.index}`);
+          queue.cancelExcept(keys);
+          targets.forEach((page) => {
+            const key = `library:${libraryReader.item.id}:${page.index}`;
+            void queue.enqueue(key, apiUrl(page.url)).then((outcome) => {
+              if (outcome === "loaded") {
+                markReaderImageStatus(page.url, "loaded");
+              }
             });
+          });
         }
       })
       .catch(() => undefined);
@@ -568,13 +603,13 @@ export function Dashboard() {
 
       if (event.key === "ArrowRight" || event.key === "PageDown" || event.key === " ") {
         event.preventDefault();
-        void goToRemoteReaderPage(1);
+        void goToRemoteReaderPage(readerNavigationDelta(readerMode, readerDirection, true));
         return;
       }
 
       if (event.key === "ArrowLeft" || event.key === "PageUp") {
         event.preventDefault();
-        void goToRemoteReaderPage(-1);
+        void goToRemoteReaderPage(readerNavigationDelta(readerMode, readerDirection, false));
         return;
       }
 
@@ -610,7 +645,7 @@ export function Dashboard() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [remoteReader, remoteReaderLoading]);
+  }, [remoteReader, remoteReaderLoading, readerDirection, readerMode]);
 
   useEffect(() => {
     if (!remoteReader) {
@@ -649,7 +684,8 @@ export function Dashboard() {
         void refreshRemoteReaderPageStatuses(remoteReader.session.id, plan.startPage - 1, plan.count);
         const eagerPages = new Set(plan.eagerPageIndexes);
         const pagesToPreload = batch.items.filter((page) => eagerPages.has(page.index));
-        if (!pagesToPreload.length || typeof window === "undefined") {
+        const queue = readerPreloadQueue.current;
+        if (!pagesToPreload.length || !queue) {
           setRemoteReaderPreload({
             sessionId: remoteReader.session.id,
             page: currentPage,
@@ -663,38 +699,31 @@ export function Dashboard() {
 
         let loaded = 0;
         let failed = 0;
-        const settle = (ok: boolean) => {
-          if (!active) {
-            return;
-          }
-          if (ok) {
-            loaded += 1;
-          } else {
-            failed += 1;
-          }
-          setRemoteReaderPreload({
-            sessionId: remoteReader.session.id,
-            page: currentPage,
-            requested: pagesToPreload.length,
-            loaded,
-            failed,
-            status: failed ? "failed" : loaded === pagesToPreload.length ? "ready" : "loading",
-          });
-        };
-
+        const keys = pagesToPreload.map((page) => `remote:${remoteReader.session.id}:${page.index}`);
+        queue.cancelExcept(keys);
         pagesToPreload.forEach((page) => {
-          const image = new window.Image();
-          image.onload = () => {
-            markReaderImageStatus(page.url, "loaded");
-            settle(true);
-          };
-          image.onerror = () => {
-            handleReaderImageError(page.url);
-            settle(false);
-          };
-          image.src = readerImageSrc(page.url);
-        });
-      })
+          const key = `remote:${remoteReader.session.id}:${page.index}`;
+          void queue.enqueue(key, readerImageSrc(page.url)).then((outcome) => {
+            if (!active || outcome === "canceled") {
+              return;
+            }
+            if (outcome === "loaded") {
+              loaded += 1;
+              markReaderImageStatus(page.url, "loaded");
+            } else {
+              failed += 1;
+              handleReaderImageError(page.url);
+            }
+            setRemoteReaderPreload({
+              sessionId: remoteReader.session.id,
+              page: currentPage,
+              requested: pagesToPreload.length,
+              loaded,
+              failed,
+              status: failed ? "failed" : loaded === pagesToPreload.length ? "ready" : "loading",
+            });
+          });
+        });      })
       .catch((caught) => {
         if (!active) {
           return;
@@ -775,6 +804,39 @@ export function Dashboard() {
     return () => observer.disconnect();
   }, [readerMode, remoteReader?.session.id, remoteReader?.page.index, remoteReaderObservedPageCount]);
 
+  useEffect(() => {
+    if (!libraryReader || readerMode !== "scroll" || !libraryReaderStageRef.current) {
+      return;
+    }
+    const key = `library:${libraryReader.item.id}`;
+    if (readerScrollRestoredKey.current === key) {
+      return;
+    }
+    readerScrollRestoredKey.current = key;
+    const stage = libraryReaderStageRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      const extent = Math.max(stage.scrollHeight - stage.clientHeight, 0);
+      stage.scrollTop = libraryReader.item.shelf.scroll_offset ?? (libraryReader.item.shelf.scroll_ratio ?? 0) * extent;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [libraryReader?.item.id, libraryReaderObservedPageCount, readerMode]);
+
+  useEffect(() => {
+    if (!remoteReader || readerMode !== "scroll" || !remoteReaderStageRef.current) {
+      return;
+    }
+    const key = `remote:${remoteReader.session.id}`;
+    if (readerScrollRestoredKey.current === key) {
+      return;
+    }
+    readerScrollRestoredKey.current = key;
+    const stage = remoteReaderStageRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      const extent = Math.max(stage.scrollHeight - stage.clientHeight, 0);
+      stage.scrollTop = remoteReader.session.scroll_offset ?? (remoteReader.session.scroll_ratio ?? 0) * extent;
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [remoteReader?.session.id, remoteReaderObservedPageCount, readerMode]);
   const metrics = useMemo(() => {
     return {
       total: tasks.length,
@@ -1667,9 +1729,24 @@ export function Dashboard() {
     }
   }
 
+  function readerProgressPatch(page: number, total: number, stage: HTMLDivElement | null) {
+    const scrollExtent = stage ? Math.max(stage.scrollHeight - stage.clientHeight, 0) : null;
+    const snapshot = readerProgressSnapshot(page, total, stage?.scrollTop ?? null, scrollExtent);
+    return {
+      last_page: snapshot.lastPage,
+      reading_mode: readerMode,
+      reading_direction: readerDirection,
+      scroll_offset: readerMode === "scroll" ? snapshot.scrollOffset : null,
+      scroll_ratio: readerMode === "scroll" ? snapshot.scrollRatio : null,
+    };
+  }
+
   async function markLibraryPageRead(item: LibraryItem, page: number) {
     const nextStatus: LibraryReadingStatus = page >= libraryPageTotal(item) ? "finished" : "reading";
-    return updateShelfForItem(item, { last_page: page, reading_status: nextStatus });
+    return updateShelfForItem(item, {
+      ...readerProgressPatch(page, libraryPageTotal(item), libraryReaderStageRef.current),
+      reading_status: nextStatus,
+    });
   }
 
   function syncLibraryVisibleScrollPage(pageNumber: number) {
@@ -1678,14 +1755,16 @@ export function Dashboard() {
     }
 
     const page = (libraryPages[libraryReader.item.id] ?? []).find((candidate) => candidate.index === pageNumber);
-    if (!page || page.index === libraryReader.page.index) {
+    if (!page) {
       return;
     }
 
     const item = libraryReader.item;
     const total = Math.max(libraryReader.total, libraryPageTotal(item));
-    setLibraryReader((current) => (current?.item.id === item.id ? { ...current, page, total: Math.max(current.total, total) } : current));
-    setLibraryReaderPageInput(String(page.index));
+    if (page.index !== libraryReader.page.index) {
+      setLibraryReader((current) => (current?.item.id === item.id ? { ...current, page, total: Math.max(current.total, total) } : current));
+      setLibraryReaderPageInput(String(page.index));
+    }
 
     if (libraryVisiblePageSaveTimer.current !== null) {
       window.clearTimeout(libraryVisiblePageSaveTimer.current);
@@ -1693,7 +1772,10 @@ export function Dashboard() {
     libraryVisiblePageSaveTimer.current = window.setTimeout(() => {
       libraryVisiblePageSaveTimer.current = null;
       const readingStatus: LibraryReadingStatus = page.index >= total ? "finished" : "reading";
-      void updateShelfForItem(item, { last_page: page.index, reading_status: readingStatus });
+      void updateShelfForItem(item, {
+        ...readerProgressPatch(page.index, total, libraryReaderStageRef.current),
+        reading_status: readingStatus,
+      });
     }, readerScrollSyncDelayMs);
   }
 
@@ -1703,22 +1785,24 @@ export function Dashboard() {
     }
 
     const page = (remoteReaderPages[remoteReader.session.id] ?? []).find((candidate) => candidate.index === pageNumber);
-    if (!page || page.index === remoteReader.page.index) {
+    if (!page) {
       return;
     }
 
     const sessionId = remoteReader.session.id;
-    setRemoteReader((current) =>
-      current?.session.id === sessionId ? { ...current, page, total: Math.max(current.total, page.index) } : current,
-    );
-    setRemoteReaderPageInput(String(page.index));
+    if (page.index !== remoteReader.page.index) {
+      setRemoteReader((current) =>
+        current?.session.id === sessionId ? { ...current, page, total: Math.max(current.total, page.index) } : current,
+      );
+      setRemoteReaderPageInput(String(page.index));
+    }
 
     if (remoteVisiblePageSaveTimer.current !== null) {
       window.clearTimeout(remoteVisiblePageSaveTimer.current);
     }
     remoteVisiblePageSaveTimer.current = window.setTimeout(() => {
       remoteVisiblePageSaveTimer.current = null;
-      void updateRemoteReaderProgress(sessionId, { last_page: page.index })
+      void updateRemoteReaderProgress(sessionId, readerProgressPatch(page.index, remoteReader.total, remoteReaderStageRef.current))
         .then((summary) => {
           mergeRemoteReaderSessionSummary(summary);
           setRemoteReader((current) =>
@@ -1819,6 +1903,12 @@ export function Dashboard() {
     }
 
     mergeRemoteReaderPages(session.id, batch.items, batch.total);
+    if (isReaderMode(session.reading_mode ?? null)) {
+      setReaderMode(session.reading_mode as ReaderMode);
+    }
+    if (isReaderDirection(session.reading_direction ?? null)) {
+      setReaderDirection(session.reading_direction as ReaderDirection);
+    }
     const nextSession = {
       ...session,
       page_count: batch.total,
@@ -1831,7 +1921,7 @@ export function Dashboard() {
       total: batch.total,
     });
 
-    const summary = await updateRemoteReaderProgress(session.id, { last_page: page.index });
+    const summary = await updateRemoteReaderProgress(session.id, readerProgressPatch(page.index, total, remoteReaderStageRef.current));
     mergeRemoteReaderSessionSummary(summary);
     setRemoteReader((current) =>
       current?.session.id === session.id
@@ -1928,7 +2018,7 @@ export function Dashboard() {
       mergeRemoteReaderPages(session.id, [page], batch.total);
       const nextSession = { ...session, page_count: batch.total, pages: batch, last_page: page.index };
       setRemoteReader({ session: nextSession, page, total: batch.total });
-      const summary = await updateRemoteReaderProgress(session.id, { last_page: page.index });
+      const summary = await updateRemoteReaderProgress(session.id, readerProgressPatch(page.index, batch.total, remoteReaderStageRef.current));
       mergeRemoteReaderSessionSummary(summary);
       setRemoteReader((current) =>
         current?.session.id === session.id
@@ -1980,6 +2070,8 @@ export function Dashboard() {
   }
 
   function closeRemoteReader() {
+    readerPreloadQueue.current?.cancelAll();
+    readerScrollRestoredKey.current = null;
     setRemoteReader(null);
     setRemoteReaderPreload(null);
     setRemoteReaderLoading(false);
@@ -2000,6 +2092,12 @@ export function Dashboard() {
         throw new Error("没有找到可阅读页面");
       }
       mergeLibraryPages(item.id, [page], batch.total);
+      if (isReaderMode(item.shelf.reading_mode ?? null)) {
+        setReaderMode(item.shelf.reading_mode as ReaderMode);
+      }
+      if (isReaderDirection(item.shelf.reading_direction ?? null)) {
+        setReaderDirection(item.shelf.reading_direction as ReaderDirection);
+      }
       const shelf = await markLibraryPageRead(item, page.index);
       setLibraryReader({
         item: shelf ? { ...item, shelf } : item,
@@ -2045,6 +2143,8 @@ export function Dashboard() {
   }
 
   function closeLibraryReader() {
+    readerPreloadQueue.current?.cancelAll();
+    readerScrollRestoredKey.current = null;
     setLibraryReader(null);
     setLibraryReaderLoading(false);
   }
@@ -2053,8 +2153,29 @@ export function Dashboard() {
     setLibraryReaderFit((current) => (current === "width" ? "height" : current === "height" ? "original" : "width"));
   }
 
+  function requestReaderMode(nextMode: ReaderMode) {
+    if (nextMode === readerMode) {
+      return;
+    }
+    const currentPage = libraryReader?.page.index ?? remoteReader?.page.index ?? 1;
+    if (
+      readerModeSwitchRequiresConfirmation(readerMode, nextMode, currentPage > 1) &&
+      typeof window !== "undefined" &&
+      !window.confirm("切换连续与分页阅读会按当前可见页换算进度，是否继续？")
+    ) {
+      return;
+    }
+    readerScrollRestoredKey.current = null;
+    setReaderMode(nextMode);
+  }
+
   function cycleReaderMode() {
-    setReaderMode((current) => (current === "single" ? "scroll" : "single"));
+    const nextMode: ReaderMode = readerMode === "single" ? "double" : readerMode === "double" ? "scroll" : "single";
+    requestReaderMode(nextMode);
+  }
+
+  function toggleReaderDirection() {
+    setReaderDirection((current) => (current === "ltr" ? "rtl" : "ltr"));
   }
 
   function toggleReaderControls() {
@@ -2541,7 +2662,14 @@ export function Dashboard() {
           alt={`${options.title} p${options.page}`}
           draggable={false}
           loading={options.loading}
-          onLoad={() => markReaderImageStatus(options.url, "loaded")}
+          onLoad={(event) => {
+            markReaderImageStatus(options.url, "loaded");
+            const image = event.currentTarget;
+            const orientation: ReaderPageOrientation = image.naturalWidth > image.naturalHeight ? "landscape" : "portrait";
+            setReaderPageOrientations((current) =>
+              current[options.url] === orientation ? current : { ...current, [options.url]: orientation },
+            );
+          }}
           onError={() => handleReaderImageError(options.url)}
         />
         {loading && (
@@ -2575,21 +2703,59 @@ export function Dashboard() {
     );
   }
 
+  function renderReaderSpread<TPage extends { index: number; url: string }>(options: {
+    title: string;
+    pages: Map<number, TPage>;
+    currentPage: number;
+    totalPages: number;
+  }) {
+    const plan = readerSpreadPlan(options.currentPage, options.totalPages, readerDirection, (pageNumber) => {
+      const page = options.pages.get(pageNumber);
+      return page ? readerPageOrientations[page.url] ?? "unknown" : "unknown";
+    });
+
+    return (
+      <div className={`reader-spread direction-${readerDirection}`} data-anchor-page={plan.anchorPage}>
+        {plan.displayPages.map((pageNumber) => {
+          const page = options.pages.get(pageNumber);
+          return page ? (
+            <div className="reader-spread-page" key={`${page.index}:${page.url}`}>
+              {renderReaderImage({ title: options.title, page: page.index, url: page.url, loading: "eager" })}
+            </div>
+          ) : (
+            <div className="reader-spread-placeholder" key={`spread-placeholder-${pageNumber}`}>
+              正在准备 p{pageNumber}
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   function renderReaderModeTabs() {
     return (
       <div className="reader-mode-tabs" aria-label="阅读模式">
-        {(["single", "scroll"] as ReaderMode[]).map((mode) => (
+        {(["single", "double", "scroll"] as ReaderMode[]).map((mode) => (
           <button
             className={readerMode === mode ? "reader-mode-button active" : "reader-mode-button"}
             type="button"
             key={mode}
             aria-pressed={readerMode === mode}
-            onClick={() => setReaderMode(mode)}
+            onClick={() => requestReaderMode(mode)}
           >
-            {mode === "single" ? <BookOpen size={13} aria-hidden /> : <ListRestart size={13} aria-hidden />}
+            {mode === "single" ? <BookOpen size={13} aria-hidden /> : mode === "double" ? <LayoutGrid size={13} aria-hidden /> : <ListRestart size={13} aria-hidden />}
             {readerModeLabel[mode]}
           </button>
         ))}
+        <button
+          className="reader-mode-button"
+          type="button"
+          title="切换双页阅读方向"
+          aria-label={`当前${readerDirection === "ltr" ? "从左到右" : "从右到左"}，点击切换`}
+          onClick={toggleReaderDirection}
+        >
+          {readerDirection === "ltr" ? "左 → 右" : "右 ← 左"}
+        </button>
       </div>
     );
   }
@@ -3270,8 +3436,10 @@ export function Dashboard() {
     const currentPage = reader.page.index;
     const totalPages = Math.max(reader.total, currentPage, 1);
     const progress = Math.min(100, Math.round((currentPage / totalPages) * 100));
-    const previousDisabled = libraryReaderLoading || currentPage <= 1;
-    const nextDisabled = libraryReaderLoading || currentPage >= totalPages;
+    const leftDelta = readerNavigationDelta(readerMode, readerDirection, false);
+    const rightDelta = readerNavigationDelta(readerMode, readerDirection, true);
+    const previousDisabled = libraryReaderLoading || currentPage + leftDelta < 1 || currentPage + leftDelta > totalPages;
+    const nextDisabled = libraryReaderLoading || currentPage + rightDelta < 1 || currentPage + rightDelta > totalPages;
     const shortcutStart = Math.max(1, Math.min(currentPage - 2, Math.max(totalPages - 4, 1)));
     const pageShortcuts = Array.from({ length: Math.min(5, totalPages) }, (_, index) => shortcutStart + index).filter((page) => page <= totalPages);
     const thumbnailStart = Math.max(1, currentPage - 3);
@@ -3336,11 +3504,15 @@ export function Dashboard() {
               title="上一页"
               aria-label="上一页"
               disabled={previousDisabled}
-              onClick={() => goToLibraryReaderPage(-1)}
+              onClick={() => goToLibraryReaderPage(readerNavigationDelta(readerMode, readerDirection, false))}
             >
               <ChevronLeft size={28} aria-hidden />
             </button>
-            <div ref={libraryReaderStageRef} className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}>
+            <div
+              ref={libraryReaderStageRef}
+              className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}
+              onScroll={() => readerMode === "scroll" && syncLibraryVisibleScrollPage(currentPage)}
+            >
               {libraryReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (
                 renderReaderScrollStack({
@@ -3353,6 +3525,8 @@ export function Dashboard() {
                   getCaption: (page) => page.filename,
                   jumpToPage: jumpLibraryReaderToPage,
                 })
+              ) : readerMode === "double" ? (
+                renderReaderSpread({ title: reader.item.title, pages: pageMap, currentPage, totalPages })
               ) : (
                 renderReaderImage({
                   title: reader.item.title,
@@ -3362,7 +3536,7 @@ export function Dashboard() {
                 })
               )}
             </div>
-            <button className="reader-side-button" type="button" title="下一页" aria-label="下一页" disabled={nextDisabled} onClick={() => goToLibraryReaderPage(1)}>
+            <button className="reader-side-button" type="button" title="下一页" aria-label="下一页" disabled={nextDisabled} onClick={() => goToLibraryReaderPage(readerNavigationDelta(readerMode, readerDirection, true))}>
               <ChevronRight size={28} aria-hidden />
             </button>
           </div>
@@ -3442,7 +3616,7 @@ export function Dashboard() {
               </form>
             </div>
             <div className="reader-footer-actions">
-              <button className="mini-button" type="button" disabled={previousDisabled} onClick={() => goToLibraryReaderPage(-1)}>
+              <button className="mini-button" type="button" disabled={previousDisabled} onClick={() => goToLibraryReaderPage(readerNavigationDelta(readerMode, readerDirection, false))}>
                 <ChevronLeft size={13} aria-hidden />
                 上一页
               </button>
@@ -3454,7 +3628,7 @@ export function Dashboard() {
                 <Maximize2 size={13} aria-hidden />
                 {readerFitLabel[libraryReaderFit]}
               </button>
-              <button className="mini-button primary" type="button" disabled={nextDisabled} onClick={() => goToLibraryReaderPage(1)}>
+              <button className="mini-button primary" type="button" disabled={nextDisabled} onClick={() => goToLibraryReaderPage(readerNavigationDelta(readerMode, readerDirection, true))}>
                 下一页
                 <ChevronRight size={13} aria-hidden />
               </button>
@@ -3470,8 +3644,10 @@ export function Dashboard() {
     const currentPage = reader.page.index;
     const totalPages = Math.max(reader.total, currentPage, 1);
     const progress = Math.min(100, Math.round((currentPage / totalPages) * 100));
-    const previousDisabled = remoteReaderLoading || currentPage <= 1;
-    const nextDisabled = remoteReaderLoading || currentPage >= totalPages;
+    const leftDelta = readerNavigationDelta(readerMode, readerDirection, false);
+    const rightDelta = readerNavigationDelta(readerMode, readerDirection, true);
+    const previousDisabled = remoteReaderLoading || currentPage + leftDelta < 1 || currentPage + leftDelta > totalPages;
+    const nextDisabled = remoteReaderLoading || currentPage + rightDelta < 1 || currentPage + rightDelta > totalPages;
     const shortcutStart = Math.max(1, Math.min(currentPage - 2, Math.max(totalPages - 4, 1)));
     const pageShortcuts = Array.from({ length: Math.min(5, totalPages) }, (_, index) => shortcutStart + index).filter((page) => page <= totalPages);
     const thumbnailStart = Math.max(1, currentPage - 3);
@@ -3545,11 +3721,15 @@ export function Dashboard() {
               title="上一页"
               aria-label="上一页"
               disabled={previousDisabled}
-              onClick={() => goToRemoteReaderPage(-1)}
+              onClick={() => goToRemoteReaderPage(readerNavigationDelta(readerMode, readerDirection, false))}
             >
               <ChevronLeft size={28} aria-hidden />
             </button>
-            <div ref={remoteReaderStageRef} className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}>
+            <div
+              ref={remoteReaderStageRef}
+              className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}
+              onScroll={() => readerMode === "scroll" && syncRemoteVisibleScrollPage(currentPage)}
+            >
               {remoteReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (
                 renderReaderScrollStack({
@@ -3563,6 +3743,8 @@ export function Dashboard() {
                   getStatus: (page) => remoteReaderPageVisualStatus(page, statusMap),
                   jumpToPage: jumpRemoteReaderToPage,
                 })
+              ) : readerMode === "double" ? (
+                renderReaderSpread({ title: reader.session.title, pages: pageMap, currentPage, totalPages })
               ) : (
                 renderReaderImage({
                   title: reader.session.title,
@@ -3572,7 +3754,7 @@ export function Dashboard() {
                 })
               )}
             </div>
-            <button className="reader-side-button" type="button" title="下一页" aria-label="下一页" disabled={nextDisabled} onClick={() => goToRemoteReaderPage(1)}>
+            <button className="reader-side-button" type="button" title="下一页" aria-label="下一页" disabled={nextDisabled} onClick={() => goToRemoteReaderPage(readerNavigationDelta(readerMode, readerDirection, true))}>
               <ChevronRight size={28} aria-hidden />
             </button>
           </div>
@@ -3755,7 +3937,7 @@ export function Dashboard() {
               </form>
             </div>
             <div className="reader-footer-actions">
-              <button className="mini-button" type="button" disabled={previousDisabled} onClick={() => goToRemoteReaderPage(-1)}>
+              <button className="mini-button" type="button" disabled={previousDisabled} onClick={() => goToRemoteReaderPage(readerNavigationDelta(readerMode, readerDirection, false))}>
                 <ChevronLeft size={13} aria-hidden />
                 上一页
               </button>
@@ -3767,7 +3949,7 @@ export function Dashboard() {
                 <Maximize2 size={13} aria-hidden />
                 {readerFitLabel[libraryReaderFit]}
               </button>
-              <button className="mini-button primary" type="button" disabled={nextDisabled} onClick={() => goToRemoteReaderPage(1)}>
+              <button className="mini-button primary" type="button" disabled={nextDisabled} onClick={() => goToRemoteReaderPage(readerNavigationDelta(readerMode, readerDirection, true))}>
                 下一页
                 <ChevronRight size={13} aria-hidden />
               </button>

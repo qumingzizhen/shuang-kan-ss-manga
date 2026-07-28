@@ -112,6 +112,10 @@ export type LibraryShelf = {
   note: string;
   last_page?: number | null;
   last_read_at?: string | null;
+  reading_mode?: "single" | "double" | "scroll" | null;
+  reading_direction?: "ltr" | "rtl" | null;
+  scroll_offset?: number | null;
+  scroll_ratio?: number | null;
   updated_at?: string | null;
 };
 
@@ -123,6 +127,7 @@ export type LibraryHealthIssue = {
   samples?: Array<{
     filename: string;
     size_bytes: number;
+    error?: string | null;
   }>;
 };
 
@@ -133,6 +138,7 @@ export type LibraryHealth = {
   missing_count: number;
   failed_count: number;
   suspicious_count: number;
+  corrupted_count?: number;
   suspicious_min_bytes: number;
   stopped: boolean;
   last_done: number;
@@ -281,6 +287,10 @@ export type RemoteReaderSession = {
   page_count: number;
   last_page?: number | null;
   last_read_at?: string | null;
+  reading_mode?: "single" | "double" | "scroll" | null;
+  reading_direction?: "ltr" | "rtl" | null;
+  scroll_offset?: number | null;
+  scroll_ratio?: number | null;
   bookmarks: RemoteReaderBookmark[];
   created_at: string;
   updated_at: string;
@@ -370,6 +380,10 @@ export type CreateRemoteReaderSessionRequest = {
 
 export type UpdateRemoteReaderProgressRequest = {
   last_page: number;
+  reading_mode?: "single" | "double" | "scroll";
+  reading_direction?: "ltr" | "rtl";
+  scroll_offset?: number | null;
+  scroll_ratio?: number | null;
 };
 
 export type ClearRemoteReaderCacheRequest = {
@@ -395,7 +409,7 @@ export type RetryFolderTaskRequest = {
   end_page?: number;
 };
 
-export type UpdateLibraryShelfRequest = Partial<Pick<LibraryShelf, "favorite" | "reading_status" | "note" | "last_page">>;
+export type UpdateLibraryShelfRequest = Partial<Pick<LibraryShelf, "favorite" | "reading_status" | "note" | "last_page" | "reading_mode" | "reading_direction" | "scroll_offset" | "scroll_ratio">>;
 
 export type UpdateTaskRequest = {
   status?: TaskStatus;

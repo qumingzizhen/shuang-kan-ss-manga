@@ -17,8 +17,9 @@ function searchTask(payload: unknown): Task {
     payload,
     output: null,
     progress: {
-      current: 1,
       total: 1,
+      done: 1,
+      failed: 0,
       message: "done",
     },
     created_at: "2026-07-25T00:00:00Z",

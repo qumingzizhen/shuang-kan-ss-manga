@@ -3385,6 +3385,54 @@ h2 {
   border-color: transparent;
 }
 
+/* —— 阅读器双页排版 —— */
+
+.reader-spread {
+  width: 100%;
+  min-height: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: clamp(8px, 1.2vw, 18px);
+}
+
+.reader-spread-page {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: min(50%, 920px);
+  display: grid;
+  place-items: start center;
+}
+
+.reader-spread:has(.reader-spread-page:only-child) .reader-spread-page {
+  flex-basis: 100%;
+  max-width: 100%;
+}
+
+.reader-spread-page .reader-image-frame {
+  width: 100%;
+  height: auto;
+  max-height: none;
+}
+
+.reader-spread-page .reader-image.fit-height {
+  width: auto;
+  max-width: 100%;
+  height: calc(100vh - 150px);
+  object-fit: contain;
+}
+
+.reader-spread-placeholder {
+  flex: 1 1 0;
+  min-height: 45vh;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  color: #c8b6e8;
+  font-size: 13px;
+  font-weight: 700;
+}
 /* —— 阅读器侧边按钮 —— */
 
 .reader-side-button {

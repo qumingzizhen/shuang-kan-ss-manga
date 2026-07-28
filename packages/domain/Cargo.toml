@@ -4,7 +4,12 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 
+[features]
+default = ["runtime"]
+runtime = ["chrono/clock", "uuid/v4"]
+
 [dependencies]
 chrono.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 uuid.workspace = true

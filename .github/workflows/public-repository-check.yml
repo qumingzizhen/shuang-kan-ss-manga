@@ -1,4 +1,4 @@
-name: 公开仓库隐私检查
+name: 项目质量检查
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   privacy:
-    name: 扫描敏感信息
+    name: 敏感信息扫描
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,3 +19,72 @@ jobs:
         with:
           python-version: "3.13"
       - run: python scripts/check_public_repo.py
+
+  quality:
+    name: 跨语言质量门
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: 安装已锁定依赖
+        run: |
+          python -m pip install -r requirements.txt
+          npm ci --prefix apps/web
+      - name: 配置与适配器检查
+        run: |
+          python scripts/check_source_adapters.py
+          python scripts/audit_tag_alignment.py --minimum-coverage 0.90
+      - name: Node 服务与管线测试
+        run: |
+          node --check services/dev-api/server.mjs
+          node --check services/dev-api/state-store.mjs
+          node --check services/dev-api/download-quota.mjs
+          node --check services/dev-api/diagnostics.mjs
+          node --check services/dev-api/search-results.mjs
+          node --check services/dev-api/library-index.mjs
+          node scripts/check_async_pool.mjs
+          node scripts/check_download_quota.mjs
+          node scripts/check_diagnostics.mjs
+          node scripts/check_state_store.mjs
+          node scripts/check_reader_progress.mjs
+          node scripts/check_library_index.mjs
+          node scripts/check_performance_baseline.mjs
+          node scripts/check_search_pipeline.mjs
+          node scripts/check_search_results.mjs
+          node scripts/check_dev_api_search_merge.mjs
+          node scripts/check_thumbnail_policy.mjs
+          node scripts/check_tag_system.mjs
+      - name: Python 下载与来源测试
+        run: |
+          python -m py_compile scripts/contract_validator.py scripts/source_bridge_core.py scripts/fangliding_bridge.py scripts/18comic_bridge.py scripts/ehentai_bridge.py
+          python scripts/check_download_core.py
+          python scripts/check_fangliding_pagination.py
+          python scripts/check_fangliding_reader.py
+          python scripts/check_gallery_search_parser.py
+          python scripts/18comic_bridge.py self-test
+          python scripts/ehentai_bridge.py self-test
+      - name: Rust 格式与工作区检查
+        run: |
+          cargo fmt --all -- --check
+          cargo check --workspace
+      - name: 三运行时契约门
+        run: |
+          cargo run --quiet --no-default-features -p comic-platform-domain --bin contract_tool -- check-schema config/contracts/task.schema.json
+          node scripts/check_contracts.mjs
+      - name: Web 单元测试与构建
+        run: |
+          npm --prefix apps/web run test
+          npm --prefix apps/web run build
+      - name: Node 依赖安全审计
+        run: npm audit --prefix apps/web --audit-level=high

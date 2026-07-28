@@ -6,6 +6,7 @@ import json
 import mimetypes
 import re
 import sys
+import struct
 import time
 import urllib.error
 import urllib.parse
@@ -20,7 +21,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 
-IMAGE_EXT_RE = re.compile(r"\.(?:avif|gif|jpe?g|png|webp)(?:[?#].*)?$", re.IGNORECASE)
+IMAGE_EXT_RE = re.compile(r"\.(?:avif|bmp|gif|jpe?g|png|webp)(?:[?#].*)?$", re.IGNORECASE)
 IMAGE_URL_RE = re.compile(
     r"(?:https?:)?//[^\"'\\\s<>]+?\.(?:avif|gif|jpe?g|png|webp)(?:\?[^\"'\\\s<>]*)?",
     re.IGNORECASE,
@@ -81,6 +82,125 @@ class ImageTarget:
     referer: str
 
 
+@dataclass(frozen=True)
+class ImageInfo:
+    format: str
+    extension: str
+    width: int
+    height: int
+
+
+class InvalidImagePayloadError(RuntimeError):
+    pass
+
+
+def inspect_image_payload(body: bytes, content_type: str | None = None) -> ImageInfo:
+    if body.startswith(b"\x89PNG\r\n\x1a\n"):
+        if len(body) < 33 or body[12:16] != b"IHDR" or not body.endswith(b"IEND\xaeB`\x82"):
+            raise InvalidImagePayloadError("truncated or malformed PNG payload")
+        width, height = struct.unpack(">II", body[16:24])
+        info = ImageInfo("png", ".png", width, height)
+    elif body.startswith(b"\xff\xd8"):
+        width, height = jpeg_dimensions(body)
+        if not body.rstrip().endswith(b"\xff\xd9"):
+            raise InvalidImagePayloadError("truncated JPEG payload")
+        info = ImageInfo("jpeg", ".jpg", width, height)
+    elif body.startswith((b"GIF87a", b"GIF89a")):
+        if len(body) < 14 or not body.rstrip(b"\x00\r\n\t ").endswith(b";"):
+            raise InvalidImagePayloadError("truncated GIF payload")
+        width, height = struct.unpack("<HH", body[6:10])
+        info = ImageInfo("gif", ".gif", width, height)
+    elif body.startswith(b"RIFF") and body[8:12] == b"WEBP":
+        info = inspect_webp(body)
+    elif body.startswith(b"BM"):
+        if len(body) < 26:
+            raise InvalidImagePayloadError("truncated BMP payload")
+        declared_size = struct.unpack("<I", body[2:6])[0]
+        width, height = struct.unpack("<ii", body[18:26])
+        if declared_size > len(body):
+            raise InvalidImagePayloadError("truncated BMP payload")
+        info = ImageInfo("bmp", ".bmp", abs(width), abs(height))
+    elif len(body) >= 16 and body[4:8] == b"ftyp" and b"avif" in body[8:32]:
+        marker = body.find(b"ispe")
+        if marker < 0 or marker + 16 > len(body):
+            raise InvalidImagePayloadError("AVIF payload has no readable ispe dimensions")
+        width, height = struct.unpack(">II", body[marker + 8 : marker + 16])
+        info = ImageInfo("avif", ".avif", width, height)
+    else:
+        raise InvalidImagePayloadError("response does not contain a supported image format")
+
+    if info.width < 1 or info.height < 1 or info.width > 100_000 or info.height > 100_000:
+        raise InvalidImagePayloadError(f"invalid image dimensions: {info.width}x{info.height}")
+    validate_image_content_type(info, content_type)
+    return info
+
+
+def jpeg_dimensions(body: bytes) -> tuple[int, int]:
+    position = 2
+    sof_markers = {0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF}
+    while position + 4 <= len(body):
+        if body[position] != 0xFF:
+            position += 1
+            continue
+        while position < len(body) and body[position] == 0xFF:
+            position += 1
+        if position >= len(body):
+            break
+        marker = body[position]
+        position += 1
+        if marker in {0x01, 0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
+            continue
+        if position + 2 > len(body):
+            break
+        segment_length = struct.unpack(">H", body[position : position + 2])[0]
+        if segment_length < 2 or position + segment_length > len(body):
+            raise InvalidImagePayloadError("malformed JPEG segment")
+        if marker in sof_markers:
+            if segment_length < 7:
+                break
+            height, width = struct.unpack(">HH", body[position + 3 : position + 7])
+            return width, height
+        position += segment_length
+    raise InvalidImagePayloadError("JPEG payload has no readable dimensions")
+
+
+def inspect_webp(body: bytes) -> ImageInfo:
+    if len(body) < 30 or struct.unpack("<I", body[4:8])[0] + 8 > len(body):
+        raise InvalidImagePayloadError("truncated WEBP payload")
+    chunk = body[12:16]
+    if chunk == b"VP8X":
+        width = int.from_bytes(body[24:27], "little") + 1
+        height = int.from_bytes(body[27:30], "little") + 1
+    elif chunk == b"VP8L" and len(body) >= 25 and body[20] == 0x2F:
+        bits = int.from_bytes(body[21:25], "little")
+        width = (bits & 0x3FFF) + 1
+        height = ((bits >> 14) & 0x3FFF) + 1
+    elif chunk == b"VP8 " and len(body) >= 30 and body[23:26] == b"\x9d\x01\x2a":
+        width = struct.unpack("<H", body[26:28])[0] & 0x3FFF
+        height = struct.unpack("<H", body[28:30])[0] & 0x3FFF
+    else:
+        raise InvalidImagePayloadError("WEBP payload has no readable dimensions")
+    return ImageInfo("webp", ".webp", width, height)
+
+
+def validate_image_content_type(info: ImageInfo, content_type: str | None) -> None:
+    normalized = (content_type or "").split(";", 1)[0].strip().lower()
+    if not normalized or normalized == "application/octet-stream":
+        return
+    accepted = {
+        "avif": {"image/avif"},
+        "bmp": {"image/bmp", "image/x-ms-bmp"},
+        "gif": {"image/gif"},
+        "jpeg": {"image/jpeg", "image/jpg", "image/pjpeg"},
+        "png": {"image/png"},
+        "webp": {"image/webp"},
+    }[info.format]
+    if normalized not in accepted:
+        raise InvalidImagePayloadError(
+            f"image content type mismatch: detected {info.format}, received {normalized}"
+        )
+
+
 def image_files(folder: Path) -> set[int]:
     indexes: set[int] = set()
     if not folder.exists():
@@ -110,26 +230,55 @@ def save_image_target(
     target: ImageTarget,
     overwrite: bool,
     min_image_bytes: int,
+    validation_attempts: int = 3,
 ) -> tuple[Path, str | None, int, bool]:
     existing = existing_image_for_index(folder, target.index)
     if existing and not overwrite:
-        existing_size = existing.stat().st_size
-        if existing_size >= min_image_bytes:
-            return existing, content_type_from_suffix(existing.suffix), existing_size, True
+        try:
+            existing_body = existing.read_bytes()
+            if len(existing_body) >= min_image_bytes:
+                inspect_image_payload(existing_body, content_type_from_suffix(existing.suffix))
+                return existing, content_type_from_suffix(existing.suffix), len(existing_body), True
+        except (OSError, InvalidImagePayloadError):
+            pass
 
-    body, content_type = client.fetch_binary(target.image_url, referer=target.referer)
+    attempts = max(1, min(int(validation_attempts), 5))
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        body, content_type = client.fetch_binary(target.image_url, referer=target.referer)
+        try:
+            return save_image_bytes(folder, target, body, content_type, min_image_bytes)
+        except InvalidImagePayloadError as error:
+            last_error = error
+            if attempt + 1 < attempts:
+                time.sleep(min(0.25 * (2**attempt), 2.0))
+    raise RuntimeError(
+        f"Image validation failed for page {target.index} after {attempts} attempt(s): {last_error}"
+    )
+
+
+def save_image_bytes(
+    folder: Path,
+    target: ImageTarget,
+    body: bytes,
+    content_type: str | None,
+    min_image_bytes: int,
+) -> tuple[Path, str | None, int, bool]:
     if len(body) < min_image_bytes:
-        raise RuntimeError(
-            f"Image response is too small for page {target.index}: {len(body)} bytes from {target.image_url}. "
-            "This usually means the source returned a placeholder or blocked image."
+        raise InvalidImagePayloadError(
+            f"image response is too small: {len(body)} bytes, minimum is {min_image_bytes}"
         )
-    extension = image_extension(target.image_url, content_type)
-    file_path = folder / f"{target.index:04d}{extension}"
+    info = inspect_image_payload(body, content_type)
+    folder.mkdir(parents=True, exist_ok=True)
+    file_path = folder / f"{target.index:04d}{info.extension}"
     temporary = file_path.with_name(f".{file_path.name}.part")
-    temporary.write_bytes(body)
-    temporary.replace(file_path)
+    try:
+        temporary.write_bytes(body)
+        temporary.replace(file_path)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
     return file_path, content_type, len(body), False
-
 
 def append_failed_page(folder: Path, source_id: str, target: ImageTarget, error: str) -> None:
     record = {

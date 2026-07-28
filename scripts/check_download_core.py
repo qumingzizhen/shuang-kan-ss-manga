@@ -5,7 +5,13 @@ import time
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from source_bridge_core import ImageTarget, run_bounded_downloads, save_image_target
+from source_bridge_core import (
+    ImageTarget,
+    InvalidImagePayloadError,
+    inspect_image_payload,
+    run_bounded_downloads,
+    save_image_target,
+)
 
 
 def main() -> None:
@@ -45,15 +51,32 @@ def main() -> None:
     assert failures == [(4, "fixture failure")]
     assert progress[-1] == (4, 1, 6, True)
 
+    def valid_jpeg(width: int = 3, height: int = 2) -> bytes:
+        sof = (
+            b"\xff\xc0\x00\x11\x08"
+            + height.to_bytes(2, "big")
+            + width.to_bytes(2, "big")
+            + b"\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00"
+        )
+        return b"\xff\xd8" + sof + b"fixture-pixels" * 8 + b"\xff\xd9"
+
     class FakeClient:
+        def __init__(self) -> None:
+            self.attempts = 0
+
         def fetch_binary(self, _url: str, referer: str | None = None) -> tuple[bytes, str]:
             assert referer == "https://gallery"
-            return b"\xff\xd8\xff" + b"x" * 128, "image/jpeg"
+            self.attempts += 1
+            if self.attempts == 1:
+                return b"<html>temporary placeholder</html>" * 4, "text/html"
+            return valid_jpeg(), "image/jpeg"
 
     with TemporaryDirectory() as temporary:
         folder = Path(temporary)
+        (folder / "0001.jpg").write_bytes(b"\xff\xd8truncated")
+        client = FakeClient()
         path, content_type, size, skipped = save_image_target(
-            FakeClient(),
+            client,
             folder,
             targets[0],
             overwrite=False,
@@ -61,10 +84,17 @@ def main() -> None:
         )
         assert path.name == "0001.jpg"
         assert content_type == "image/jpeg"
-        assert size == 131
+        assert size == len(valid_jpeg())
         assert skipped is False
+        assert client.attempts == 2
+        assert inspect_image_payload(path.read_bytes(), content_type).width == 3
         assert not list(folder.glob("*.part"))
-
+        try:
+            inspect_image_payload(b"\x89PNG\r\n\x1a\n" + b"x" * 80, "image/png")
+        except InvalidImagePayloadError:
+            pass
+        else:
+            raise AssertionError("truncated PNG must be rejected")
     print({"ok": True, "max_concurrency": max_active, "done": stats.done, "failed": stats.failed})
 
 

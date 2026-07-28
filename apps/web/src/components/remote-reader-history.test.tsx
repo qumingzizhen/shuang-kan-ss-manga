@@ -18,7 +18,7 @@ function session(index: number, tags: string[] = []): RemoteReaderSessionSummary
     last_page: index,
     last_read_at: "2026-07-27T00:00:00Z",
     bookmarks: index === 1
-      ? [{ page_index: 3, note: "", created_at: "2026-07-27T00:00:00Z" }]
+      ? [{ page_index: 3, label: "p3", created_at: "2026-07-27T00:00:00Z", updated_at: "2026-07-27T00:00:00Z" }]
       : [],
     created_at: "2026-07-27T00:00:00Z",
     updated_at: "2026-07-27T00:00:00Z",

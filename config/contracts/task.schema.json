@@ -1,0 +1,489 @@
+{
+  "$defs": {
+    "gallery_output": {
+      "additionalProperties": false,
+      "properties": {
+        "done": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "gallery_url": {
+          "type": "string"
+        },
+        "output_folder": {
+          "type": "string"
+        },
+        "page_count": {
+          "minimum": 0,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "skipped": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "stopped": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string"
+        },
+        "type": {
+          "const": "gallery_download"
+        }
+      },
+      "required": [
+        "type",
+        "source_id",
+        "gallery_url",
+        "title",
+        "output_folder",
+        "page_count",
+        "done",
+        "skipped",
+        "failed",
+        "stopped"
+      ],
+      "type": "object"
+    },
+    "gallery_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "gallery_url": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "type": {
+          "const": "gallery"
+        }
+      },
+      "required": [
+        "type",
+        "source_id",
+        "gallery_url"
+      ],
+      "type": "object"
+    },
+    "output": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/search_output"
+        },
+        {
+          "$ref": "#/$defs/gallery_output"
+        },
+        {
+          "$ref": "#/$defs/retry_output"
+        }
+      ]
+    },
+    "payload": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/search_payload"
+        },
+        {
+          "$ref": "#/$defs/gallery_payload"
+        },
+        {
+          "$ref": "#/$defs/retry_payload"
+        }
+      ]
+    },
+    "progress": {
+      "additionalProperties": false,
+      "properties": {
+        "done": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "failed": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "total": {
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total",
+        "done",
+        "failed",
+        "message"
+      ],
+      "type": "object"
+    },
+    "retry_output": {
+      "additionalProperties": false,
+      "properties": {
+        "folder": {
+          "type": "string"
+        },
+        "page_indexes": {
+          "items": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "type": {
+          "const": "retry_plan"
+        }
+      },
+      "required": [
+        "type",
+        "source_id",
+        "folder",
+        "page_indexes"
+      ],
+      "type": "object"
+    },
+    "retry_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "end_page": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "folder": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "missing_only": {
+          "type": "boolean"
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "start_page": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "type": {
+          "const": "retry_folder"
+        }
+      },
+      "required": [
+        "type",
+        "source_id",
+        "folder",
+        "missing_only",
+        "start_page",
+        "end_page"
+      ],
+      "type": "object"
+    },
+    "search_output": {
+      "additionalProperties": false,
+      "properties": {
+        "excluded_count": {
+          "minimum": 0,
+          "type": "integer"
+        },
+        "excluded_tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "has_more": {
+          "type": "boolean"
+        },
+        "load_more_error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "loading_more": {
+          "type": "boolean"
+        },
+        "next_search_page": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "results": {
+          "items": {
+            "$ref": "#/$defs/search_result"
+          },
+          "type": "array"
+        },
+        "source_errors": {
+          "items": {
+            "$ref": "#/$defs/source_error"
+          },
+          "type": "array"
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "search_results"
+        }
+      },
+      "required": [
+        "type",
+        "source_ids",
+        "source_errors",
+        "excluded_tags",
+        "excluded_count",
+        "results"
+      ],
+      "type": "object"
+    },
+    "search_payload": {
+      "additionalProperties": false,
+      "properties": {
+        "excluded_tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "limit": {
+          "maximum": 100,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "query": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "source_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "type": {
+          "const": "search"
+        }
+      },
+      "required": [
+        "type",
+        "source_id",
+        "source_ids",
+        "tags",
+        "excluded_tags",
+        "name",
+        "query",
+        "limit"
+      ],
+      "type": "object"
+    },
+    "search_result": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "gallery_url": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "page_count": {
+          "minimum": 1,
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "rating": {
+          "maximum": 5,
+          "minimum": 0,
+          "type": [
+            "number",
+            "null"
+          ]
+        },
+        "source_id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "thumbnail_url": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "uploaded_at": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uploader": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "source_id",
+        "gallery_url",
+        "title",
+        "tags"
+      ],
+      "type": "object"
+    },
+    "source_error": {
+      "additionalProperties": false,
+      "properties": {
+        "message": {
+          "type": "string"
+        },
+        "source_id": {
+          "type": "string"
+        },
+        "source_name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_name",
+        "message"
+      ],
+      "type": "object"
+    },
+    "task": {
+      "additionalProperties": false,
+      "properties": {
+        "created_at": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "search",
+            "gallery",
+            "retry_folder"
+          ]
+        },
+        "output": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/output"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "payload": {
+          "$ref": "#/$defs/payload"
+        },
+        "progress": {
+          "$ref": "#/$defs/progress"
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "paused",
+            "completed",
+            "failed",
+            "canceled"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "title",
+        "payload",
+        "progress",
+        "output",
+        "created_at",
+        "updated_at"
+      ],
+      "type": "object"
+    }
+  },
+  "$id": "https://comic-platform.local/contracts/task.schema.json",
+  "$ref": "#/$defs/task",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "漫画平台任务契约"
+}

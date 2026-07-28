@@ -1,0 +1,26 @@
+{
+  "id": "contract-task-invalid",
+  "kind": "search",
+  "status": "queued",
+  "title": "invalid extra field",
+  "payload": {
+    "type": "search",
+    "source_id": "fangliding",
+    "source_ids": ["fangliding"],
+    "tags": [],
+    "excluded_tags": [],
+    "name": null,
+    "query": "fixture",
+    "limit": 10,
+    "custom_field": "must be rejected"
+  },
+  "progress": {
+    "total": 0,
+    "done": 0,
+    "failed": 0,
+    "message": "queued"
+  },
+  "output": null,
+  "created_at": "2026-07-28T00:00:00Z",
+  "updated_at": "2026-07-28T00:00:00Z"
+}

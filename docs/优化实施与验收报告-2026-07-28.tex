@@ -1,0 +1,56 @@
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+\usepackage{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\geometry{margin=2.2cm}
+\hypersetup{colorlinks=true,linkcolor=blue,urlcolor=blue}
+
+\title{漫画平台优化实施与验收报告}
+\author{qumingzizhen}
+\date{2026年7月28日}
+
+\begin{document}
+\maketitle
+
+\section{实施结论}
+本轮按 P0 到 P1 顺序完成跨语言契约、SQLite 持久化与迁移、中断恢复、下载配额、全源搜索、阅读器、本地书库、诊断脱敏和质量门重构。原有启动入口、HTTP 路径、必填入参、任务流程及既有返回字段保持不变，新增字段均为可选字段。
+
+本轮未执行电脑重启、Docker 重启、项目服务强制重启、系统安装或系统修复。API 回归测试仅使用随机端口的隔离子进程。
+
+\section{验收矩阵}
+\begin{longtable}{p{0.19\textwidth}p{0.50\textwidth}p{0.23\textwidth}}
+\toprule
+工作包 & 实施结果 & 验收程序\\
+\midrule
+\endhead
+跨语言契约 & Rust Schema 与 Rust/Node/Python 字节级规范化比较 & \texttt{check\_contracts.mjs}\\
+状态存储 & SQLite WAL、事务、索引、旧 JSON 无损迁移 & \texttt{check\_state\_store.mjs}\\
+下载配额 & 全局和分来源原子令牌、取消与幂等释放 & \texttt{check\_download\_quota.mjs}\\
+搜索 & UTC 全源混排、分页回填、URL 与标题软去重 & 搜索管线测试\\
+阅读器 & 单/双/连续、LTR/RTL、模式化进度、可取消预加载 & 阅读器单测与 API 测试\\
+本地书库 & 自然排序、并发扫描、损坏容错、目录监听失效 & \texttt{check\_library\_index.mjs}\\
+诊断隐私 & Cookie、Authorization、token、password、key 脱敏 & \texttt{check\_diagnostics.mjs}\\
+\bottomrule
+\end{longtable}
+
+\section{性能基线}
+\begin{tabular}{lrr}
+\toprule
+场景 & 规模 & 耗时\\
+\midrule
+搜索合并、去重与排序 & 1,200 条 & 317.48 ms\\
+文件名自然排序 & 20,000 个 & 93.38 ms\\
+图片完整性判断 & 10,000 次 & 14.86 ms\\
+\bottomrule
+\end{tabular}
+
+\section{后续边界}
+审核、基础设施、来源管理、备份恢复应消费公共服务，不在页面组件内复制业务逻辑。Tauri、WebDAV、插件市场和 PDF 专用渲染属于 P2；任何新增下载、安装或可能触发环境与服务重启的操作，必须先说明影响并取得用户明确同意。
+
+\section{完整说明}
+代码级实施细节、兼容性说明、性能阈值和左上角功能规划见同目录
+\texttt{优化实施与验收报告-2026-07-28.md}。
+
+\end{document}

@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::{fmt, str::FromStr};
+#[cfg(feature = "runtime")]
 use uuid::Uuid;
 
 pub type TaskId = String;
@@ -127,6 +128,7 @@ impl SourceAdapterDescriptor {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskProgress {
     pub total: u32,
     pub done: u32,
@@ -156,26 +158,28 @@ impl Default for TaskProgress {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TaskSearchResult {
     pub source_id: SourceId,
     pub gallery_url: String,
     pub title: String,
     pub tags: Vec<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub thumbnail_url: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub uploader: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub uploaded_at: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub category: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub page_count: Option<u32>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub rating: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SourceSearchError {
     pub source_id: SourceId,
     pub source_name: String,
@@ -183,17 +187,25 @@ pub struct SourceSearchError {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TaskOutput {
     SearchResults {
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(default)]
         source_ids: Vec<SourceId>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(default)]
         source_errors: Vec<SourceSearchError>,
-        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        #[serde(default)]
         excluded_tags: Vec<String>,
-        #[serde(default, skip_serializing_if = "is_zero")]
+        #[serde(default)]
         excluded_count: u32,
+        #[serde(default)]
+        next_search_page: Option<u32>,
+        #[serde(default)]
+        has_more: bool,
+        #[serde(default)]
+        loading_more: bool,
+        #[serde(default)]
+        load_more_error: Option<String>,
         results: Vec<TaskSearchResult>,
     },
     GalleryDownload {
@@ -215,6 +227,7 @@ pub enum TaskOutput {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Task {
     pub id: TaskId,
     pub kind: TaskKind,
@@ -222,7 +235,7 @@ pub struct Task {
     pub title: String,
     pub payload: TaskPayload,
     pub progress: TaskProgress,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
     pub output: Option<TaskOutput>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -278,6 +291,7 @@ pub struct TaskEvent {
     pub emitted_at: DateTime<Utc>,
 }
 
+#[cfg(feature = "runtime")]
 impl TaskEvent {
     pub fn queued(task: &Task) -> Self {
         Self::new(TaskEventKind::TaskQueued, task)
@@ -320,7 +334,9 @@ impl TaskEvent {
     }
 }
 
+#[cfg(feature = "runtime")]
 impl Task {
+    #[cfg(feature = "runtime")]
     pub fn new(kind: TaskKind, title: impl Into<String>, payload: TaskPayload) -> Self {
         let now = Utc::now();
         Self {
@@ -374,7 +390,7 @@ impl Task {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+#[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum TaskPayload {
     Search(CreateSearchTaskRequest),
     Gallery(CreateGalleryTaskRequest),
@@ -382,6 +398,7 @@ pub enum TaskPayload {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateSearchTaskRequest {
     pub source_id: Option<SourceId>,
     #[serde(default)]
@@ -394,17 +411,15 @@ pub struct CreateSearchTaskRequest {
     pub limit: u32,
 }
 
-fn is_zero(value: &u32) -> bool {
-    *value == 0
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateGalleryTaskRequest {
     pub source_id: Option<SourceId>,
     pub gallery_url: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CreateRetryFolderTaskRequest {
     pub source_id: Option<SourceId>,
     pub folder: String,
@@ -414,6 +429,7 @@ pub struct CreateRetryFolderTaskRequest {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct UpdateTaskRequest {
     pub status: Option<TaskStatus>,
     pub progress: Option<TaskProgress>,

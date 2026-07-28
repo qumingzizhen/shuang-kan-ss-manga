@@ -12,6 +12,12 @@ from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 from gallery_search_parser import parse_ehentai_compatible_search_results
+from source_bridge_core import (
+    ImageTarget,
+    content_type_from_suffix,
+    inspect_image_payload,
+    save_image_bytes,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -51,7 +57,30 @@ def load_downloader() -> ModuleType:
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    install_validated_download(module)
     return module
+
+
+def install_validated_download(module: ModuleType) -> None:
+    original = getattr(module, "download_one_page", None)
+    if not callable(original) or getattr(original, "_manga_platform_validated", False):
+        return
+
+    async def validated_download_one_page(*args, **kwargs):
+        last_error: Exception | None = None
+        for _attempt in range(3):
+            path = await original(*args, **kwargs)
+            try:
+                body = Path(path).read_bytes()
+                inspect_image_payload(body, content_type_from_suffix(Path(path).suffix))
+                return path
+            except Exception as error:  # The legacy signature controls its own error type.
+                last_error = error
+                Path(path).unlink(missing_ok=True)
+        raise RuntimeError(f"Fangliding image validation failed after 3 attempts: {last_error}")
+
+    validated_download_one_page._manga_platform_validated = True
+    module.download_one_page = validated_download_one_page
 
 
 def build_legacy_args(
@@ -256,20 +285,19 @@ async def run_download_page(module: ModuleType, parsed: argparse.Namespace) -> d
             retries=parsed.retries,
         )
 
-    if not content:
-        raise RuntimeError(f"Fangliding returned an empty image for page {page_index}")
-    extension = module.extension_from(image_url, content_type)
-    if extension not in {".jpg", ".png", ".gif", ".webp", ".bmp"}:
-        raise RuntimeError(f"Unsupported Fangliding image extension: {extension}")
-    output_root.mkdir(parents=True, exist_ok=True)
-    target = output_root / f"{page_index:04d}{extension}"
-    temporary = target.with_suffix(f"{target.suffix}.part")
-    try:
-        temporary.write_bytes(content)
-        temporary.replace(target)
-    except Exception:
-        temporary.unlink(missing_ok=True)
-        raise
+    target_info = ImageTarget(
+        index=page_index,
+        page_url=parsed.page_url,
+        image_url=image_url,
+        referer=parsed.page_url,
+    )
+    target, content_type, _byte_size, _skipped = save_image_bytes(
+        output_root,
+        target_info,
+        content,
+        content_type,
+        max(int(getattr(parsed, "min_image_bytes", 512)), 0),
+    )
     return {
         "source_id": SOURCE_ID,
         "page_url": parsed.page_url,
@@ -343,6 +371,8 @@ async def async_main() -> int:
     parser.add_argument("--page-url")
     parser.add_argument("--page-index", type=int)
     parser.add_argument("--page-output", type=Path)
+    parser.add_argument("--min-image-bytes", type=int, default=512)
+    parser.add_argument("--download-concurrency", type=int)
     parser.add_argument("--folder")
     parser.add_argument("--missing-only", action="store_true")
     parser.add_argument("--start-page", type=int)
@@ -376,6 +406,8 @@ async def async_main() -> int:
         "(KHTML, like Gecko) Chrome/124.0 Safari/537.36",
     )
     parsed = parser.parse_args()
+    if parsed.download_concurrency:
+        parsed.workers = max(1, min(int(parsed.download_concurrency), 16))
 
     module = load_downloader()
     with contextlib.redirect_stdout(sys.stderr):

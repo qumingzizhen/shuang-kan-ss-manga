@@ -195,6 +195,10 @@ impl TaskDispatcher {
                         source_errors,
                         excluded_tags,
                         excluded_count,
+                        next_search_page: Some(2),
+                        has_more: !results.is_empty(),
+                        loading_more: false,
+                        load_more_error: None,
                         results,
                     }),
                 })

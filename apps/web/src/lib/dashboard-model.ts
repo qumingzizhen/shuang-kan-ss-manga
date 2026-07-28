@@ -15,7 +15,8 @@ import type {
 export type Mode = "search" | "gallery" | "retry";
 export type View = "tasks" | "library";
 export type ReaderFit = "width" | "height" | "original";
-export type ReaderMode = "single" | "scroll";
+export type ReaderMode = "single" | "double" | "scroll";
+export type ReaderDirection = "ltr" | "rtl";
 export type LibraryViewMode = "table" | "grid";
 
 export type LibraryReaderState = {
@@ -32,9 +33,11 @@ export const readerFitLabel: Record<ReaderFit, string> = {
 
 export const readerFitStorageKey = "manga-reader-fit";
 export const readerModeStorageKey = "manga-reader-mode";
+export const readerDirectionStorageKey = "manga-reader-direction";
 
 export const readerModeLabel: Record<ReaderMode, string> = {
   single: "单页",
+  double: "双页",
   scroll: "连续",
 };
 
@@ -43,7 +46,11 @@ export function isReaderFit(value: string | null): value is ReaderFit {
 }
 
 export function isReaderMode(value: string | null): value is ReaderMode {
-  return value === "single" || value === "scroll";
+  return value === "single" || value === "double" || value === "scroll";
+}
+
+export function isReaderDirection(value: string | null): value is ReaderDirection {
+  return value === "ltr" || value === "rtl";
 }
 
 export const statusLabel: Record<TaskStatus, string> = {

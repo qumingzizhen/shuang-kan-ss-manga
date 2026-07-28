@@ -39,9 +39,14 @@ async def fetch_text(client, url, delay, *, referer=None, retries=1):
     return f'<img id="img" src="{url}.jpg">'
 
 
+def fixture_jpeg() -> bytes:
+    sof = b"\xff\xc0\x00\x11\x08\x00\x02\x00\x03\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00"
+    return b"\xff\xd8" + sof + b"reader-test-pixels" * 8 + b"\xff\xd9"
+
+
 async def fetch_binary(client, url, delay, *, referer=None, retries=1):
     del client, url, delay, referer, retries
-    return b"\xff\xd8\xffreader-test", "image/jpeg"
+    return fixture_jpeg(), "image/jpeg"
 
 
 def parsed_args(page_output: Path) -> SimpleNamespace:
@@ -82,6 +87,7 @@ def parsed_args(page_output: Path) -> SimpleNamespace:
         curl_ca_bundle=None,
         insecure=False,
         user_agent="reader-test",
+        min_image_bytes=64,
     )
 
 
@@ -110,9 +116,9 @@ async def main() -> None:
         assert artifact["source_id"] == bridge.SOURCE_ID, artifact
         assert artifact["page_url"] == parsed.page_url, artifact
         assert artifact["content_type"] == "image/jpeg", artifact
-        assert artifact["byte_size"] == len(b"\xff\xd8\xffreader-test"), artifact
+        assert artifact["byte_size"] == len(fixture_jpeg()), artifact
         assert artifact_path.name == "0002.jpg", artifact
-        assert artifact_path.read_bytes() == b"\xff\xd8\xffreader-test", artifact
+        assert artifact_path.read_bytes() == fixture_jpeg(), artifact
         assert not artifact_path.with_suffix(".jpg.part").exists(), artifact
 
     print(json.dumps({"ok": True, "pages": 2, "artifact": "0002.jpg"}))

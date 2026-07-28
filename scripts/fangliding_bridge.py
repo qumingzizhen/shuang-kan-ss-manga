@@ -16,6 +16,7 @@ from gallery_search_parser import parse_ehentai_compatible_search_results
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEGACY_SCRIPT = PROJECT_ROOT.parent / "ex_fangliding_downloader.py"
+SOURCE_ID = "fangliding"
 DEFAULT_CURL_CA_FILENAME = "manga-platform-fangliding-ca.pem"
 
 
@@ -150,9 +151,9 @@ async def run_search(module: ModuleType, parsed: argparse.Namespace) -> dict:
             page_results = parse_ehentai_compatible_search_results(
                 html,
                 page_url,
-                source_id="fangliding",
+                source_id=SOURCE_ID,
                 gallery_re=module.GALLERY_RE,
-                fallback_prefix="fangliding",
+                fallback_prefix=SOURCE_ID,
             )
             for result in page_results:
                 gallery_url = str(result.get("url") or "")
@@ -167,17 +168,21 @@ async def run_search(module: ModuleType, parsed: argparse.Namespace) -> dict:
 
     return {"query": final_query, "results": results}
 
+
+async def collect_gallery_meta(module: ModuleType, parsed: argparse.Namespace, client):
+    gallery = gallery_result_from_url(module, parsed.gallery_url)
+    return await module.collect_gallery_meta(
+        client,
+        gallery,
+        parsed.delay,
+        parsed.max_gallery_pages,
+    )
+
+
 async def run_gallery(module: ModuleType, parsed: argparse.Namespace) -> dict:
     args = build_legacy_args(parsed)
-    gallery = gallery_result_from_url(module, parsed.gallery_url)
-
     async with module.make_client(args) as client:
-        meta = await module.collect_gallery_meta(
-            client,
-            gallery,
-            parsed.delay,
-            parsed.max_gallery_pages,
-        )
+        meta = await collect_gallery_meta(module, parsed, client)
 
     page_count = len(meta.image_pages) or meta.length
     return {
@@ -190,18 +195,96 @@ async def run_gallery(module: ModuleType, parsed: argparse.Namespace) -> dict:
     }
 
 
+async def run_list_pages(module: ModuleType, parsed: argparse.Namespace) -> dict:
+    args = build_legacy_args(parsed)
+    async with module.make_client(args) as client:
+        meta = await collect_gallery_meta(module, parsed, client)
+
+    pages = [
+        {
+            "source_id": SOURCE_ID,
+            "gallery_url": meta.url,
+            "page_url": page_url,
+            "index": index,
+        }
+        for index, page_url in enumerate(meta.image_pages, 1)
+        if str(page_url).strip()
+    ]
+    if not pages:
+        raise RuntimeError("Fangliding gallery returned no readable pages")
+    return {
+        "source_id": SOURCE_ID,
+        "title": meta.title,
+        "gallery_url": meta.url,
+        "tags": flatten_tags(meta.tags),
+        "page_count": len(pages) or meta.length or None,
+        "pages": pages,
+    }
+
+
+async def run_download_page(module: ModuleType, parsed: argparse.Namespace) -> dict:
+    if not parsed.gallery_url:
+        raise RuntimeError("--gallery-url is required")
+    if not parsed.page_url:
+        raise RuntimeError("--page-url is required")
+
+    page_index = int(parsed.page_index or parsed.start_page or 1)
+    if page_index < 1:
+        raise RuntimeError("--page-index must be >= 1")
+    args = build_legacy_args(parsed, dry_run=False)
+    gallery = gallery_result_from_url(module, parsed.gallery_url)
+    output_root = (
+        parsed.page_output.expanduser().resolve()
+        if parsed.page_output
+        else (PROJECT_ROOT / ".data" / "reader-pages" / gallery.gid).resolve()
+    )
+
+    async with module.make_client(args) as client:
+        page_html = await module.fetch_text(
+            client,
+            parsed.page_url,
+            parsed.delay,
+            referer=parsed.gallery_url,
+            retries=parsed.retries,
+        )
+        image_url = module.parse_image_url(page_html, parsed.page_url, False)
+        content, content_type = await module.fetch_binary(
+            client,
+            image_url,
+            parsed.delay,
+            referer=parsed.page_url,
+            retries=parsed.retries,
+        )
+
+    if not content:
+        raise RuntimeError(f"Fangliding returned an empty image for page {page_index}")
+    extension = module.extension_from(image_url, content_type)
+    if extension not in {".jpg", ".png", ".gif", ".webp", ".bmp"}:
+        raise RuntimeError(f"Unsupported Fangliding image extension: {extension}")
+    output_root.mkdir(parents=True, exist_ok=True)
+    target = output_root / f"{page_index:04d}{extension}"
+    temporary = target.with_suffix(f"{target.suffix}.part")
+    try:
+        temporary.write_bytes(content)
+        temporary.replace(target)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    return {
+        "source_id": SOURCE_ID,
+        "page_url": parsed.page_url,
+        "storage_key": str(target),
+        "content_type": content_type or None,
+        "byte_size": len(content),
+    }
+
+
 async def run_download_gallery(module: ModuleType, parsed: argparse.Namespace) -> dict:
     args = build_legacy_args(parsed, dry_run=False, no_pdf=parsed.no_pdf)
     args.gallery_url = parsed.gallery_url
-    gallery = gallery_result_from_url(module, parsed.gallery_url)
 
     async with module.make_client(args) as client:
-        meta = await module.collect_gallery_meta(
-            client,
-            gallery,
-            parsed.delay,
-            parsed.max_gallery_pages,
-        )
+        meta = await collect_gallery_meta(module, parsed, client)
         folder = module.gallery_folder(args.output, meta)
         if not meta.image_pages:
             return {
@@ -251,12 +334,15 @@ async def run_retry_plan(module: ModuleType, parsed: argparse.Namespace) -> dict
 
 async def async_main() -> int:
     parser = argparse.ArgumentParser(description="JSON bridge for the legacy Fangliding downloader.")
-    parser.add_argument("command", choices=("search", "gallery", "download-gallery", "retry-plan"))
+    parser.add_argument("command", choices=("search", "gallery", "list-pages", "download-gallery", "download-page", "retry-plan"))
     parser.add_argument("--base-url", default="https://ex.fangliding.eu.org/")
     parser.add_argument("--tags-json", default="[]")
     parser.add_argument("--name")
     parser.add_argument("--query")
     parser.add_argument("--gallery-url")
+    parser.add_argument("--page-url")
+    parser.add_argument("--page-index", type=int)
+    parser.add_argument("--page-output", type=Path)
     parser.add_argument("--folder")
     parser.add_argument("--missing-only", action="store_true")
     parser.add_argument("--start-page", type=int)
@@ -299,10 +385,16 @@ async def async_main() -> int:
             if not parsed.gallery_url:
                 raise RuntimeError("--gallery-url is required")
             payload = await run_gallery(module, parsed)
+        elif parsed.command == "list-pages":
+            if not parsed.gallery_url:
+                raise RuntimeError("--gallery-url is required")
+            payload = await run_list_pages(module, parsed)
         elif parsed.command == "download-gallery":
             if not parsed.gallery_url:
                 raise RuntimeError("--gallery-url is required")
             payload = await run_download_gallery(module, parsed)
+        elif parsed.command == "download-page":
+            payload = await run_download_page(module, parsed)
         else:
             if not parsed.folder:
                 raise RuntimeError("--folder is required")

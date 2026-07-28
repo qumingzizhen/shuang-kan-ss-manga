@@ -5,7 +5,7 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
@@ -14,7 +14,7 @@
     "@tanstack/react-query": "^5.90.0",
     "clsx": "^2.1.1",
     "lucide-react": "^0.561.0",
-    "next": "16.2.9",
+    "next": "16.2.12",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },
@@ -27,11 +27,19 @@
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "6.0.4",
-    "eslint": "^9.39.0",
-    "eslint-config-next": "16.2.9",
     "jsdom": "29.1.1",
     "openapi-typescript": "7.13.0",
     "typescript": "^5.9.0",
     "vitest": "4.1.10"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "8.5.24",
+      "sharp": "0.35.3"
+    },
+    "@redocly/openapi-core": {
+      "js-yaml": "4.3.0",
+      "minimatch": "10.2.6"
+    }
   }
 }

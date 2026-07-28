@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import fangliding_bridge as bridge
@@ -16,6 +17,11 @@ class FakeClientContext:
 
 
 async def main() -> None:
+    ca_bundle = bridge.resolve_curl_ca_bundle(None)
+    assert ca_bundle, ca_bundle
+    assert str(ca_bundle).isascii(), ca_bundle
+    assert Path(ca_bundle).name == bridge.DEFAULT_CURL_CA_FILENAME, ca_bundle
+
     requested_pages: list[int] = []
 
     def search_url(base_url: str, query: str, page: int) -> str:
@@ -51,7 +57,7 @@ async def main() -> None:
 
     assert requested_pages == [2, 3], requested_pages
     assert [item["gid"] for item in output["results"]] == ["2", "3"], output
-    print(json.dumps({"ok": True, "requested_pages": requested_pages}))
+    print(json.dumps({"ok": True, "requested_pages": requested_pages, "ca_bundle": ca_bundle}))
 
 
 if __name__ == "__main__":

@@ -7,12 +7,33 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LEGACY_SCRIPT = PROJECT_ROOT.parent / "ex_fangliding_downloader.py"
+DEFAULT_CURL_CA_FILENAME = "manga-platform-fangliding-ca.pem"
+
+
+def resolve_curl_ca_bundle(configured_path: str | None) -> str:
+    """Return the ASCII CA path required by the legacy curl_cffi client."""
+    if configured_path and configured_path.strip():
+        return str(Path(configured_path).expanduser())
+
+    candidates = (
+        Path.cwd() / ".cache" / "tmp" / DEFAULT_CURL_CA_FILENAME,
+        Path(tempfile.gettempdir()) / DEFAULT_CURL_CA_FILENAME,
+    )
+    for candidate in candidates:
+        if str(candidate).isascii():
+            return str(candidate)
+
+    raise RuntimeError(
+        "Fangliding requires an ASCII-only CA bundle path. "
+        "Set FANGLIDING_CURL_CA_BUNDLE to a writable ASCII path."
+    )
 
 
 def load_downloader() -> ModuleType:
@@ -80,7 +101,7 @@ def build_legacy_args(
         http2=False,
         fetch_backend=parsed.fetch_backend,
         impersonate=parsed.impersonate,
-        curl_ca_bundle=parsed.curl_ca_bundle,
+        curl_ca_bundle=resolve_curl_ca_bundle(parsed.curl_ca_bundle),
         insecure=parsed.insecure,
         user_agent=parsed.user_agent,
     )

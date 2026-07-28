@@ -27,6 +27,8 @@ const results: TaskSearchResult[] = [
     uploader: "上传者",
     category: "Doujinshi",
     uploaded_at: "2026-07-26T10:00:00Z",
+    page_count: 42,
+    rating: 4.5,
   },
 ];
 
@@ -49,6 +51,8 @@ describe("SearchResultsView", () => {
     expect(screen.queryByRole("button", { name: "在线阅读" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "下载" })).not.toBeInTheDocument();
     expect(screen.queryByText("female:big breasts")).not.toBeInTheDocument();
+    expect(screen.getAllByText("42 页").length).toBeGreaterThan(0);
+    expect(screen.getByText("4.5 / 5")).toBeInTheDocument();
   });
 
   it("打开二级详情后按需补齐 Tag，并提供阅读和下载", async () => {
@@ -60,7 +64,7 @@ describe("SearchResultsView", () => {
     expect(await screen.findByText("female:big breasts")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "在线阅读" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "下载" })).toBeEnabled();
-    expect(screen.getByText("42 页")).toBeInTheDocument();
+    expect(screen.getAllByText("42 页").length).toBeGreaterThan(0);
   });
 });
 

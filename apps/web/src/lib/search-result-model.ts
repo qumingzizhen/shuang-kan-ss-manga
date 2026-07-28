@@ -68,7 +68,24 @@ export function sortSearchResults(results: readonly TaskSearchResult[], sort: Se
     return (leftTime - rightTime) * direction || left.index - right.index;
   });
 
-  return [...known.map(({ result }) => result), ...interleaveBySource(unknown.map(({ result }) => result))];
+  return [...interleaveEqualTimestamps(known), ...interleaveBySource(unknown.map(({ result }) => result))];
+}
+
+function interleaveEqualTimestamps(
+  results: ReadonlyArray<{ result: TaskSearchResult; index: number }>,
+) {
+  const interleaved: TaskSearchResult[] = [];
+  let start = 0;
+  while (start < results.length) {
+    const timestamp = searchResultTimestamp(results[start].result.uploaded_at);
+    let end = start + 1;
+    while (end < results.length && searchResultTimestamp(results[end].result.uploaded_at) === timestamp) {
+      end += 1;
+    }
+    interleaved.push(...interleaveBySource(results.slice(start, end).map(({ result }) => result)));
+    start = end;
+  }
+  return interleaved;
 }
 
 function interleaveBySource(results: readonly TaskSearchResult[]) {

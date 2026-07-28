@@ -50,11 +50,11 @@ export type TaskSearchResult = {
   uploader?: string | null;
   uploaded_at?: string | null;
   category?: string | null;
+  page_count?: number | null;
+  rating?: number | null;
 };
 
-export type SearchResultDetail = TaskSearchResult & {
-  page_count?: number | null;
-};
+export type SearchResultDetail = TaskSearchResult;
 
 export type TaskOutput =
   | {

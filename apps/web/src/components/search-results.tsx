@@ -1,7 +1,7 @@
 "use client";
 
 import { Image } from "lucide-react";
-import { ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { MouseEvent as ReactMouseEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiUrl, type TaskSearchResult } from "@/lib/api";
 
 const initialVisibleResults = 10;
@@ -178,11 +178,23 @@ export function SearchResultThumbnail({ result, onOpen }: { result: TaskSearchRe
     status === "missing"
       ? "暂无封面"
       : status === "failed"
-        ? "封面暂不可用"
+        ? "封面暂不可用，点击重试"
         : status === "waiting"
           ? `正在重试 ${attempt + 2}/${thumbnailAttemptLimit}`
           : "封面加载中";
   const imageVisible = Boolean(baseUrl && (status === "loading" || status === "loaded"));
+
+  function handleActivation(event: ReactMouseEvent<HTMLElement>) {
+    if (status === "failed" && baseUrl) {
+      event.preventDefault();
+      event.stopPropagation();
+      clearRetryTimer();
+      setAttempt((current) => current + 1);
+      setStatus("loading");
+      return;
+    }
+    onOpen?.();
+  }
 
   const thumbnailContent = (
     <>
@@ -215,7 +227,7 @@ export function SearchResultThumbnail({ result, onOpen }: { result: TaskSearchRe
         type="button"
         aria-label={`查看详情：${result.title}`}
         aria-busy={status === "loading" || status === "waiting"}
-        onClick={onOpen}
+        onClick={handleActivation}
       >
         {thumbnailContent}
       </button>
@@ -230,6 +242,7 @@ export function SearchResultThumbnail({ result, onOpen }: { result: TaskSearchRe
       rel="noreferrer"
       aria-label={`打开来源：${result.title}`}
       aria-busy={status === "loading" || status === "waiting"}
+      onClick={handleActivation}
     >
       {thumbnailContent}
     </a>

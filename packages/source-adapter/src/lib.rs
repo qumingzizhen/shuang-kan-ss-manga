@@ -31,6 +31,8 @@ pub struct GallerySummary {
     pub uploader: Option<String>,
     pub uploaded_at: Option<String>,
     pub category: Option<String>,
+    pub page_count: Option<u32>,
+    pub rating: Option<f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -400,6 +402,8 @@ impl SourceAdapter for PythonBridgeAdapter {
                     uploader: item.uploader,
                     uploaded_at: item.uploaded_at,
                     category: item.category,
+                    page_count: item.page_count,
+                    rating: item.rating,
                 })
                 .collect())
         })
@@ -716,6 +720,10 @@ struct SearchBridgeItem {
     uploaded_at: Option<String>,
     #[serde(default)]
     category: Option<String>,
+    #[serde(default)]
+    page_count: Option<u32>,
+    #[serde(default)]
+    rating: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]

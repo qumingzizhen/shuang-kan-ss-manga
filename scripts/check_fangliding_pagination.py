@@ -2,34 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import json
-import re
 from pathlib import Path
 from types import SimpleNamespace
 
 import fangliding_bridge as bridge
-
-
-class FakeImage:
-    def __init__(self, page: str):
-        attribute = "src" if page == "2" else "data-src"
-        self.attributes = {attribute: f"//images.example.test/{page}.webp"}
-
-
-class FakeGalleryLink:
-    def __init__(self, page: str):
-        self.page = page
-        self.attributes = {"href": f"/g/{page}/token/"}
-
-    def css(self, selector: str) -> list[FakeImage]:
-        return [FakeImage(self.page)] if selector == "img" else []
-
-
-class FakeSearchTree:
-    def __init__(self, page: str):
-        self.page = page
-
-    def css(self, selector: str) -> list[FakeGalleryLink]:
-        return [FakeGalleryLink(self.page)] if selector == "a[href]" else []
 
 
 class FakeClientContext:
@@ -57,11 +33,7 @@ async def main() -> None:
         make_client=lambda args: FakeClientContext(),
         search_url=search_url,
         fetch_text=lambda client, url, delay: asyncio.sleep(0, result=url),
-        parse_search_results=lambda html, base_url: [
-            SimpleNamespace(title=f"page-{html}", url=f"{base_url}/g/{html}/token/", gid=html)
-        ],
-        LexborHTMLParser=FakeSearchTree,
-        GALLERY_RE=re.compile(r"/g/(\d+)/[a-z]+/?"),
+        GALLERY_RE=None,
     )
     parsed = SimpleNamespace(
         tags_json=json.dumps({}),
@@ -75,11 +47,24 @@ async def main() -> None:
     )
 
     original_build_legacy_args = bridge.build_legacy_args
+    original_parse_search_results = bridge.parse_ehentai_compatible_search_results
     bridge.build_legacy_args = lambda parsed: SimpleNamespace()
+    bridge.parse_ehentai_compatible_search_results = (
+        lambda html, page_url, **kwargs: [
+            {
+                "source_id": "fangliding",
+                "gid": html,
+                "title": f"page-{html}",
+                "url": f"https://example.test/g/{html}/token/",
+                "thumbnail_url": f"https://images.example.test/{html}.webp",
+            }
+        ]
+    )
     try:
         output = await bridge.run_search(fake_module, parsed)
     finally:
         bridge.build_legacy_args = original_build_legacy_args
+        bridge.parse_ehentai_compatible_search_results = original_parse_search_results
 
     assert requested_pages == [2, 3], requested_pages
     assert [item["gid"] for item in output["results"]] == ["2", "3"], output

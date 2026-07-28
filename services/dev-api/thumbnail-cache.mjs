@@ -5,7 +5,7 @@ import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { isPrivateHostname, validateThumbnailUrl } from "./thumbnail-policy.mjs";
 
 const redirectStatuses = new Set([301, 302, 303, 307, 308]);
-const retryableStatuses = new Set([408, 425, 429, 500, 502, 503, 504]);
+const retryableStatuses = new Set([404, 408, 425, 429, 500, 502, 503, 504]);
 const pngSignature = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 const avifBrands = new Set(["avif", "avis"]);
 
@@ -239,7 +239,7 @@ async function fetchAndCacheAttempt(options) {
     const contentType = String(remote.headers.get("content-type") || "").split(";", 1)[0].trim().toLowerCase();
     if (contentType && !contentType.startsWith("image/") && contentType !== "application/octet-stream") {
       await remote.body?.cancel().catch(() => undefined);
-      throw new Error(`thumbnail fetch returned non-image content-type: ${contentType}`);
+      throw new RetryableThumbnailError(`thumbnail fetch returned non-image content-type: ${contentType}`);
     }
 
     let body;

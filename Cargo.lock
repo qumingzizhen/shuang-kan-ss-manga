@@ -251,6 +251,7 @@ name = "comic-platform-task-runtime"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "comic-platform-domain",
  "comic-platform-source-adapter",
  "comic-platform-task-queue",

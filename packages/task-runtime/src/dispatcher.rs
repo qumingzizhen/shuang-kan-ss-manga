@@ -1,5 +1,6 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
+use chrono::{DateTime, NaiveDate, NaiveDateTime};
 use comic_platform_domain::{
     CreateGalleryTaskRequest, SourceCapability, SourceSearchError, Task, TaskOutput, TaskPayload,
     TaskSearchResult,
@@ -104,6 +105,8 @@ impl TaskDispatcher {
                                     uploader: item.uploader,
                                     uploaded_at: item.uploaded_at,
                                     category: item.category,
+                                    page_count: item.page_count,
+                                    rating: item.rating,
                                 })
                             })
                             .collect::<Vec<_>>();
@@ -161,6 +164,7 @@ impl TaskDispatcher {
                     );
                 }
 
+                results = sort_search_results_by_newest(results);
                 let total = results.len() as u32;
                 let failure_suffix = if source_errors.is_empty() {
                     String::new()
@@ -261,6 +265,87 @@ impl TaskDispatcher {
     }
 }
 
+fn sort_search_results_by_newest(results: Vec<TaskSearchResult>) -> Vec<TaskSearchResult> {
+    let mut known = Vec::new();
+    let mut unknown = Vec::new();
+    for (index, result) in results.into_iter().enumerate() {
+        match result
+            .uploaded_at
+            .as_deref()
+            .and_then(uploaded_at_timestamp_millis)
+        {
+            Some(timestamp) => known.push((timestamp, index, result)),
+            None => unknown.push(result),
+        }
+    }
+    known.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+
+    let mut sorted = Vec::with_capacity(known.len() + unknown.len());
+    let mut known = known.into_iter().peekable();
+    while let Some((timestamp, _, result)) = known.next() {
+        let mut same_time = vec![result];
+        while known.peek().is_some_and(|item| item.0 == timestamp) {
+            if let Some((_, _, result)) = known.next() {
+                same_time.push(result);
+            }
+        }
+        sorted.extend(interleave_by_source(same_time));
+    }
+    sorted.extend(interleave_by_source(unknown));
+    sorted
+}
+
+fn interleave_by_source(results: Vec<TaskSearchResult>) -> Vec<TaskSearchResult> {
+    let result_count = results.len();
+    let mut queues: Vec<(String, VecDeque<TaskSearchResult>)> = Vec::new();
+    for result in results {
+        if let Some((_, queue)) = queues
+            .iter_mut()
+            .find(|(source_id, _)| source_id == &result.source_id)
+        {
+            queue.push_back(result);
+        } else {
+            queues.push((result.source_id.clone(), VecDeque::from([result])));
+        }
+    }
+
+    let mut interleaved = Vec::with_capacity(result_count);
+    while interleaved.len() < result_count {
+        for (_, queue) in &mut queues {
+            if let Some(result) = queue.pop_front() {
+                interleaved.push(result);
+            }
+        }
+    }
+    interleaved
+}
+
+fn uploaded_at_timestamp_millis(value: &str) -> Option<i64> {
+    let text = value.trim();
+    if text.is_empty() {
+        return None;
+    }
+    if let Ok(number) = text.parse::<i64>() {
+        return Some(if number < 10_000_000_000 {
+            number.saturating_mul(1000)
+        } else {
+            number
+        });
+    }
+    if let Ok(value) = DateTime::parse_from_rfc3339(text) {
+        return Some(value.timestamp_millis());
+    }
+    for format in ["%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S"] {
+        if let Ok(value) = NaiveDateTime::parse_from_str(text, format) {
+            return Some(value.and_utc().timestamp_millis());
+        }
+    }
+    NaiveDate::parse_from_str(text, "%Y-%m-%d")
+        .ok()
+        .and_then(|value| value.and_hms_opt(0, 0, 0))
+        .map(|value| value.and_utc().timestamp_millis())
+}
+
 struct SourceSearchRun {
     results: Vec<TaskSearchResult>,
     excluded_count: u32,
@@ -312,4 +397,54 @@ fn search_result_matches_excluded_tags(
                 && excluded_value.chars().count() >= 2
                 && normalized_title.contains(&excluded_value))
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{sort_search_results_by_newest, uploaded_at_timestamp_millis};
+    use comic_platform_domain::TaskSearchResult;
+
+    fn result(source_id: &str, title: &str, uploaded_at: Option<&str>) -> TaskSearchResult {
+        TaskSearchResult {
+            source_id: source_id.to_string(),
+            gallery_url: format!("https://{source_id}.test/{title}"),
+            title: title.to_string(),
+            tags: Vec::new(),
+            thumbnail_url: None,
+            uploader: None,
+            uploaded_at: uploaded_at.map(str::to_string),
+            category: None,
+            page_count: None,
+            rating: None,
+        }
+    }
+
+    #[test]
+    fn globally_sorts_and_interleaves_search_results() {
+        let timestamp = Some("2026-07-28 03:45");
+        let sorted = sort_search_results_by_newest(vec![
+            result("fangliding", "fang-1", timestamp),
+            result("fangliding", "fang-2", timestamp),
+            result("e-hentai", "eh-1", timestamp),
+            result("18comic", "jm-1", timestamp),
+            result("e-hentai", "older", Some("2026-07-27 03:45")),
+        ]);
+        assert_eq!(
+            sorted
+                .iter()
+                .map(|item| item.title.as_str())
+                .collect::<Vec<_>>(),
+            vec!["fang-1", "eh-1", "jm-1", "fang-2", "older"]
+        );
+    }
+
+    #[test]
+    fn accepts_bridge_and_iso_timestamp_formats() {
+        assert_eq!(
+            uploaded_at_timestamp_millis("2026-07-28 03:45"),
+            uploaded_at_timestamp_millis("2026-07-28T03:45:00Z")
+        );
+        assert!(uploaded_at_timestamp_millis("").is_none());
+        assert!(uploaded_at_timestamp_millis("not-a-date").is_none());
+    }
 }

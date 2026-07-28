@@ -10,7 +10,8 @@ import sys
 import tempfile
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
-from urllib.parse import urljoin, urlparse
+
+from gallery_search_parser import parse_ehentai_compatible_search_results
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -120,33 +121,6 @@ def flatten_tags(tags: dict[str, list[str]]) -> list[str]:
     return flattened
 
 
-def parse_search_thumbnails(module: ModuleType, html: str, base_url: str) -> dict[str, str]:
-    thumbnails: dict[str, str] = {}
-    tree = module.LexborHTMLParser(html)
-    for link in tree.css("a[href]"):
-        href = str(link.attributes.get("href", "")).strip()
-        if not module.GALLERY_RE.search(href):
-            continue
-        gallery_url = urljoin(base_url, href)
-        for image in link.css("img"):
-            raw_url = next(
-                (
-                    str(image.attributes.get(attribute, "")).strip()
-                    for attribute in ("src", "data-src", "data-original")
-                    if image.attributes.get(attribute)
-                ),
-                "",
-            )
-            if not raw_url:
-                continue
-            thumbnail_url = urljoin(base_url, raw_url)
-            if urlparse(thumbnail_url).scheme not in {"http", "https"}:
-                continue
-            thumbnails.setdefault(gallery_url, thumbnail_url)
-            break
-    return thumbnails
-
-
 def gallery_result_from_url(module: ModuleType, gallery_url: str):
     match = module.GALLERY_RE.search(gallery_url)
     if not match:
@@ -167,39 +141,31 @@ async def run_search(module: ModuleType, parsed: argparse.Namespace) -> dict:
 
     start_page = max(int(parsed.search_start_page or 1), 1) - 1
     page_count = max(int(parsed.max_search_pages or 1), 1)
-    results = []
-    thumbnails: dict[str, str] = {}
+    results: list[dict] = []
     seen_urls: set[str] = set()
     async with module.make_client(args) as client:
         for page in range(start_page, start_page + page_count):
-            url = module.search_url(parsed.base_url, final_query, page)
-            html = await module.fetch_text(client, url, parsed.delay)
-            page_results = module.parse_search_results(html, parsed.base_url)
-            thumbnails.update(parse_search_thumbnails(module, html, parsed.base_url))
+            page_url = module.search_url(parsed.base_url, final_query, page)
+            html = await module.fetch_text(client, page_url, parsed.delay)
+            page_results = parse_ehentai_compatible_search_results(
+                html,
+                page_url,
+                source_id="fangliding",
+                gallery_re=module.GALLERY_RE,
+                fallback_prefix="fangliding",
+            )
             for result in page_results:
-                if result.url in seen_urls:
+                gallery_url = str(result.get("url") or "")
+                if not gallery_url or gallery_url in seen_urls:
                     continue
-                seen_urls.add(result.url)
+                seen_urls.add(gallery_url)
                 results.append(result)
                 if len(results) >= parsed.limit:
                     break
             if len(results) >= parsed.limit or not page_results:
                 break
 
-    return {
-        "query": final_query,
-        "results": [
-            {
-                "title": item.title,
-                "url": item.url,
-                "gid": item.gid,
-                "tags": [],
-                "thumbnail_url": thumbnails.get(item.url),
-            }
-            for item in results
-        ],
-    }
-
+    return {"query": final_query, "results": results}
 
 async def run_gallery(module: ModuleType, parsed: argparse.Namespace) -> dict:
     args = build_legacy_args(parsed)

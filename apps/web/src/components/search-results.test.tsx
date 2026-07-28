@@ -34,7 +34,11 @@ describe("SearchResultThumbnail", () => {
     act(() => vi.advanceTimersByTime(1_800));
     fireEvent.error(container.querySelector("img") as HTMLImageElement);
     expect(link).toHaveAttribute("aria-busy", "false");
-    expect(screen.getByText("封面暂不可用")).toBeInTheDocument();
+    expect(screen.getByText("封面暂不可用，点击重试")).toBeInTheDocument();
+
+    fireEvent.click(link);
+    expect(link).toHaveAttribute("aria-busy", "true");
+    expect(container.querySelector("img")).not.toBeNull();
   });
 
   it("任一尝试加载成功后立即结束等待状态", () => {

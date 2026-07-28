@@ -187,6 +187,12 @@ patterns, search URL generation, selector/parser logic, gallery page inference,
 and command argument defaults. Do not duplicate HTTP/session/retry/file logic in
 every new source.
 
+## 统一搜索结果解析
+
+E-Hentai 兼容站点应复用 `scripts/gallery_search_parser.py`。该模块同时支持表格结果和 `div.gl1t` 缩略图网格，用一个卡片边界索引读取标题、封面、分类、上传时间、页数和明确评分。Fangliding 与 E-Hentai 共用该解析器；新增兼容来源不应再复制搜索结果、封面匹配、全局排序或前端展示链路。
+
+统一搜索结果可选字段为 `thumbnail_url`、`uploader`、`uploaded_at`、`category`、`page_count` 和 `rating`。过滤、按来源和链接去重、全部来源时间排序、同时间来源轮转、分页合并及封面代理均位于公共层。
+
 ## 18comic.vip Adapter
 
 The built-in `18comic` adapter is registered with:

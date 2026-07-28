@@ -138,6 +138,8 @@ function normalizeSearchResult(item, source) {
     uploader: textOrNull(item?.uploader),
     uploaded_at: normalizeUploadedAt(item?.uploaded_at),
     category: textOrNull(item?.category),
+    page_count: positiveIntegerOrNull(item?.page_count),
+    rating: ratingOrNull(item?.rating),
   };
 }
 
@@ -147,14 +149,28 @@ export function sortSearchResultsByNewest(results) {
     index,
     timestamp: uploadedAtTimestamp(result?.uploaded_at),
   }));
-  const known = indexed
+  const knownByTime = indexed
     .filter((item) => item.timestamp !== null)
-    .sort((left, right) => right.timestamp - left.timestamp || left.index - right.index)
-    .map((item) => item.result);
+    .sort((left, right) => right.timestamp - left.timestamp || left.index - right.index);
+  const known = interleaveEqualTimestamps(knownByTime);
   const unknown = interleaveBySource(
     indexed.filter((item) => item.timestamp === null).map((item) => item.result),
   );
   return [...known, ...unknown];
+}
+
+function interleaveEqualTimestamps(indexedResults) {
+  const results = [];
+  let start = 0;
+  while (start < indexedResults.length) {
+    let end = start + 1;
+    while (end < indexedResults.length && indexedResults[end].timestamp === indexedResults[start].timestamp) {
+      end += 1;
+    }
+    results.push(...interleaveBySource(indexedResults.slice(start, end).map((item) => item.result)));
+    start = end;
+  }
+  return results;
 }
 
 function interleaveBySource(results) {
@@ -198,6 +214,16 @@ function uploadedAtTimestamp(value) {
   }
   const timestamp = Date.parse(text);
   return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+function positiveIntegerOrNull(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 10000 ? parsed : null;
+}
+
+function ratingOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
 }
 
 function textOrNull(value) {

@@ -23,12 +23,16 @@ EHENTAI_TAG_NAMESPACES = {
 
 def parse_ehentai_search_metadata(text: str, markers: list[str]) -> dict[str, Any]:
     block = find_enclosing_html_block(text, markers)
+    return parse_ehentai_search_block(block)
+
+
+def parse_ehentai_search_block(block: str) -> dict[str, Any]:
     if not block:
         return {"tags": []}
 
     result: dict[str, Any] = {"tags": []}
     category_match = re.search(
-        r"<[^>]+class=[\"'][^\"']*\bcn\b[^\"']*[\"'][^>]*>(.*?)</[^>]+>",
+        r"<[^>]+class=[\"'][^\"']*\b(?:cn|cs)\b[^\"']*[\"'][^>]*>(.*?)</[^>]+>",
         block,
         re.IGNORECASE | re.DOTALL,
     )
@@ -46,6 +50,22 @@ def parse_ehentai_search_metadata(text: str, markers: list[str]) -> dict[str, An
     uploaded_match = DATE_TIME_RE.search(block)
     if uploaded_match:
         result["uploaded_at"] = uploaded_match.group(1)
+
+    page_count_match = re.search(r"\b(\d{1,5})\s+pages?\b", html_fragment_text(block), re.IGNORECASE)
+    if page_count_match:
+        page_count = int(page_count_match.group(1))
+        if 0 < page_count <= 10000:
+            result["page_count"] = page_count
+
+    rating_match = re.search(
+        r"data-rating\s*=\s*[\"']([0-5](?:\.\d+)?)[\"']"
+        r"|(?:aria-label|title)\s*=\s*[\"'][^\"']*?rating\s*[:：]?\s*([0-5](?:\.\d+)?)"
+        r"(?:\s*(?:/|out of)\s*5)?[^\"']*[\"']",
+        block,
+        re.IGNORECASE,
+    )
+    if rating_match:
+        result["rating"] = float(rating_match.group(1) or rating_match.group(2))
 
     seen_tags: set[str] = set()
     for raw_tag in re.findall(r"title=[\"']([^\"']+:[^\"']+)[\"']", block, re.IGNORECASE):
@@ -88,7 +108,7 @@ def parse_generic_search_metadata(text: str, markers: list[str]) -> dict[str, An
 
 
 def merge_search_metadata(target: dict[str, Any], metadata: dict[str, Any]) -> None:
-    for key in ("category", "uploader", "uploaded_at"):
+    for key in ("category", "uploader", "uploaded_at", "page_count", "rating"):
         if metadata.get(key) and not target.get(key):
             target[key] = metadata[key]
     if metadata.get("tags") and not target.get("tags"):

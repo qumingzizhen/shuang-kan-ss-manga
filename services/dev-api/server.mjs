@@ -1460,7 +1460,8 @@ async function loadSearchResultDetail(body) {
     uploader: textOrNull(report?.uploader) || textOrNull(body?.uploader),
     uploaded_at: textOrNull(report?.uploaded_at) || textOrNull(body?.uploaded_at),
     category: textOrNull(report?.category) || textOrNull(body?.category),
-    page_count: positiveIntegerOrNull(report?.page_count),
+    page_count: positiveIntegerOrNull(report?.page_count) || positiveIntegerOrNull(body?.page_count),
+    rating: ratingOrNull(report?.rating) ?? ratingOrNull(body?.rating),
   };
 }
 
@@ -2991,6 +2992,16 @@ function isPathInside(child, parent) {
   const resolvedChild = resolve(child).toLocaleLowerCase();
   const resolvedParent = resolve(parent).toLocaleLowerCase();
   return resolvedChild === resolvedParent || resolvedChild.startsWith(`${resolvedParent}\\`) || resolvedChild.startsWith(`${resolvedParent}/`);
+}
+
+function positiveIntegerOrNull(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 && parsed <= 10000 ? parsed : null;
+}
+
+function ratingOrNull(value) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 && parsed <= 5 ? parsed : null;
 }
 
 function textOrNull(value) {

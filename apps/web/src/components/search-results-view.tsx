@@ -5,7 +5,9 @@ import {
   CalendarDays,
   Download,
   ExternalLink,
+  Files,
   LoaderCircle,
+  Star,
   Tags,
   UserRound,
   X,
@@ -151,6 +153,18 @@ export function SearchResultsView({
                     {result.uploader}
                   </span>
                 ) : null}
+                {result.page_count ? (
+                  <span>
+                    <Files size={13} aria-hidden />
+                    {result.page_count} 页
+                  </span>
+                ) : null}
+                {typeof result.rating === "number" ? (
+                  <span>
+                    <Star size={13} aria-hidden />
+                    {result.rating.toFixed(1)} / 5
+                  </span>
+                ) : null}
               </div>
             </article>
           );
@@ -190,6 +204,7 @@ export function SearchResultsView({
                   <Fact label="上传人" value={activeDetail.uploader} />
                   <Fact label="上传时间" value={formatSearchResultTime(activeDetail.uploaded_at)} />
                   <Fact label="页数" value={activeDetail.page_count ? `${activeDetail.page_count} 页` : null} />
+                  <Fact label="评分" value={typeof activeDetail.rating === "number" ? `${activeDetail.rating.toFixed(1)} / 5` : null} />
                 </div>
               </div>
 

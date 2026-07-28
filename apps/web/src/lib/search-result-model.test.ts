@@ -33,6 +33,17 @@ describe("sortSearchResults", () => {
     expect(sorted.map((item) => item.title)).toEqual(["one-1", "two-1", "three-1", "one-2", "two-2"]);
   });
 
+  it("相同上传时间也按来源轮转，避免接口返回的来源批次占满首屏", () => {
+    const timestamp = "2026-07-28T03:45:00Z";
+    const sorted = sortSearchResults([
+      result("fangliding", "fang-1", timestamp),
+      result("fangliding", "fang-2", timestamp),
+      result("e-hentai", "eh-1", timestamp),
+      result("18comic", "jm-1", timestamp),
+    ]);
+    expect(sorted.map((item) => item.title)).toEqual(["fang-1", "eh-1", "jm-1", "fang-2"]);
+  });
+
   it("分类使用中文展示名且不丢弃未知分类", () => {
     expect(formatSearchResultCategory("Doujinshi")).toBe("同人志");
     expect(formatSearchResultCategory("Experimental")).toBe("Experimental");

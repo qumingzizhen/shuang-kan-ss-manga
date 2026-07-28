@@ -38,13 +38,15 @@ flowchart LR
 
 ## 3. 兼容数据契约
 
-`TaskSearchResult` 原有字段保持不变，新增三个可选字段：
+`TaskSearchResult` 原有字段保持不变，可选字段统一如下：
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `uploader` | `string \| null` | 上传人；来源未提供时为空 |
 | `uploaded_at` | `string \| null` | 可解析的上传时间；开发 API 规范化为 ISO 时间 |
 | `category` | `string \| null` | `Doujinshi`、`Manga`、`Game CG` 等粗分类 |
+| `page_count` | `number \| null` | 搜索页已提供的有效页数 |
+| `rating` | `number \| null` | 来源明确提供的 0 至 5 数字评分；不从 CSS 猜测 |
 
 二级详情响应沿用全部搜索结果字段，并可额外返回可选的 `page_count`。新增接口：
 
@@ -59,7 +61,7 @@ Content-Type: application/json
 
 默认排序分为两组：
 
-1. 可解析上传时间的结果：严格按时间降序，时间相同时保持原顺序；
+1. 可解析上传时间的结果：严格按时间降序，时间相同时按来源队列轮转；
 2. 缺失或无法解析时间的结果：排在有时间结果之后，并按来源队列轮转。
 
 例如原始无时间序列：
@@ -109,7 +111,8 @@ A1, B1, C1, A2, B2
 | `search-result-model.ts` | 结果键、时间解析、分类中文名、稳定排序 |
 | `search-results-view.tsx` | 一级封面网格、排序控件、二级详情和可访问性 |
 | `search-results.tsx` | 无限加载与封面重试状态机 |
-| `search-result-metadata.py` | 来源搜索结构块的轻量元数据提取 |
+| `gallery_search_parser.py` | E-Hentai 兼容表格/网格卡片边界、标题和封面的共享解析 |
+| `search-result-metadata.py` | 分类、上传人、时间、页数、评分和 Tag 的轻量提取 |
 | `search-pipeline.mjs` | 规范化、去重、默认排序和来源轮转 |
 
 二级详情最初的手动缓存、请求序号、loading 和 error 状态已删除，统一接入项目现有 TanStack Query。这样没有形成第二套请求缓存链路。

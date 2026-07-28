@@ -126,14 +126,14 @@ python .\scripts\check_public_repo.py
 
 1. 校验来源是否启用并支持搜索；
 2. 在限定并发下搜索多个来源；
-3. 保留来源确实返回的分类、上传人和上传时间等可选元数据；
+3. 通过共享结果模型保留来源确实返回的封面、分类、上传人、上传时间、页数和评分等可选元数据；
 4. 按需补全禁用词过滤需要的缺失标签；
 5. 应用全局禁用词条并按“来源 + 漫画链接”去重；
-6. 默认把有时间结果按上传时间由近到远排列，无时间结果按来源交错；
+6. 把全部来源放入同一时间线：有时间结果由近到远，同一时间和无时间结果按来源交错；
 7. 返回合并结果及单个来源的错误信息；
 8. 接近列表底部时请求各来源下一页，合并去重后重新排序。
 
-搜索任务默认每批最多获取 40 条候选结果。任务页使用可折叠的新建任务区和全宽紧凑列表；完整搜索结果从任务详情进入 E-Hentai 风格的自适应封面网格。一级结果在封面上下显示名称、来源、分类、上传人和上传时间，单条在线阅读、下载、来源链接及完整 Tag 位于二级详情。初次只渲染 10 项，继续下滑会先分批显示已获取结果，再通过 `POST /v1/tasks/{id}/search-more` 请求下一搜索页，避免一次渲染大量结果阻塞界面。二级详情按需读取图库元数据并复用前端查询缓存，不会为首屏每条结果额外发起详情请求。
+搜索任务默认每批最多获取 40 条候选结果。任务页使用可折叠的新建任务区和全宽紧凑列表；完整搜索结果从任务详情进入 E-Hentai 风格的自适应封面网格。一级结果在封面上下显示名称、来源、分类、上传人、上传时间、页数和来源明确提供的评分，单条在线阅读、下载、来源链接及完整 Tag 位于二级详情。初次只渲染 10 项，继续下滑会先分批显示已获取结果，再通过 `POST /v1/tasks/{id}/search-more` 请求下一搜索页，避免一次渲染大量结果阻塞界面。二级详情按需读取图库元数据并复用前端查询缓存，不会为首屏每条结果额外发起详情请求。
 
 18comic 默认优先使用 JM 移动 API，公开网页只作为保守兼容回退。用户可以在本地界面中配置自己有权使用的 Cookie 或请求头；认证信息保存在 `.data/source-auth`，不会提交到 GitHub。
 
@@ -177,6 +177,7 @@ python .\scripts\check_public_repo.py
 - [控制台审核与基础设施实施规划](docs/console-feature-plan.md)
 - [搜索结果与封面链路重构说明](docs/search-thumbnail-refactor-2026-07-25.md)
 - [搜索结果信息分层与跨来源排序说明](docs/search-result-hierarchy-and-sorting-2026-07-26.md)
+- [全来源搜索链路与 Fangliding 结果解析重构](docs/unified-search-pipeline-refactor-2026-07-28.md)
 - [任务详情抽屉组件拆分说明](docs/task-detail-drawer-refactor-2026-07-27.md)
 - [最近在线阅读组件拆分说明](docs/remote-reader-history-refactor-2026-07-27.md)
 - [Fangliding 来源恢复记录](docs/fangliding-source-recovery-2026-07-28.md)
@@ -185,6 +186,6 @@ python .\scripts\check_public_repo.py
 
 ## 参与开发
 
-新增来源时，应优先复用 `scripts/source_bridge_core.py` 的 HTTP、重试、文件写入和下载调度能力，并在 `config/source-adapters.json` 中声明来源及能力。源站脚本只负责网站特有的 URL、解析和鉴权规则。
+新增来源时，应优先复用 `scripts/source_bridge_core.py` 的 HTTP、重试、文件写入和下载调度能力；E-Hentai 兼容页面同时复用 `scripts/gallery_search_parser.py` 的结果卡片解析，并在 `config/source-adapters.json` 中声明来源及能力。源站脚本只负责网站特有的 URL、解析和鉴权规则。
 
 提交前请确保 `scripts/check.ps1` 全部通过，并确认工作区中没有本地凭据或下载内容。

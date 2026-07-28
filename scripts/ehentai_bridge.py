@@ -26,7 +26,6 @@ from source_bridge_core import (
     absolute_url,
     append_failed_page,
     clean_text,
-    find_nearby_image_url,
     image_files,
     now_iso,
     parse_html,
@@ -37,7 +36,7 @@ from source_bridge_core import (
     write_json_atomic,
 )
 from source_tag_resolver import resolve_source_tag
-from search_result_metadata import merge_search_metadata, parse_ehentai_search_metadata
+from gallery_search_parser import parse_ehentai_compatible_search_results
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -123,63 +122,13 @@ def search_page_url(base_url: str, query: str, page: int) -> str:
 
 
 def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
-    parser = parse_html(text, page_url)
-    by_url: dict[str, dict[str, Any]] = {}
-    order: list[str] = []
-    for anchor in parser.anchors:
-        href = anchor.get("href", "")
-        match = GALLERY_RE.search(href)
-        if not match:
-            continue
-        url = strip_fragment(absolute_url(href, page_url))
-        title = clean_search_title(anchor.get("title") or anchor.get("text") or "")
-        if not title:
-            title = f"e-hentai-{match.group(1)}"
-        markers = [href, url, f"/g/{match.group(1)}/{match.group(2)}"]
-        thumbnail_url = find_nearby_image_url(text, page_url, markers)
-        metadata = parse_ehentai_search_metadata(text, markers)
-        item = by_url.get(url)
-        if item is None:
-            by_url[url] = {
-                "source_id": SOURCE_ID,
-                "title": title,
-                "url": url,
-                "gid": match.group(1),
-                "token": match.group(2),
-                "tags": metadata.get("tags", []),
-                **{key: value for key, value in metadata.items() if key != "tags"},
-            }
-            if thumbnail_url:
-                by_url[url]["thumbnail_url"] = thumbnail_url
-            order.append(url)
-        elif better_title(title, item["title"]):
-            item["title"] = title
-            if thumbnail_url and not item.get("thumbnail_url"):
-                item["thumbnail_url"] = thumbnail_url
-        elif thumbnail_url and not item.get("thumbnail_url"):
-            item["thumbnail_url"] = thumbnail_url
-        merge_search_metadata(item or by_url[url], metadata)
-
-    return [by_url[url] for url in order]
-
-
-def clean_search_title(value: str) -> str:
-    value = clean_text(value)
-    value = re.sub(r"^image:\s*", "", value, flags=re.IGNORECASE)
-    if value.lower() in {"t", "thumbnail", "image"}:
-        return ""
-    return value
-
-
-def better_title(candidate: str, current: str) -> bool:
-    if not candidate:
-        return False
-    if not current or current.lower() in {"untitled", "t", "thumbnail", "image"}:
-        return True
-    if current.lower().startswith("image:"):
-        return True
-    return len(candidate) > len(current) and not candidate.lower().startswith("image:")
-
+    return parse_ehentai_compatible_search_results(
+        text,
+        page_url,
+        source_id=SOURCE_ID,
+        gallery_re=GALLERY_RE,
+        fallback_prefix="e-hentai",
+    )
 
 def parse_gallery_meta(text: str, url: str) -> GalleryMeta:
     parser = parse_html(text, url)

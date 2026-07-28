@@ -75,3 +75,9 @@ $env:FANGLIDING_CURL_CA_BUNDLE = "E:\MangaDevCache\fangliding-ca.pem"
 离线测试覆盖普通 `src`、懒加载 `data-src` 和跨页映射。真实回归中，桥接器连续返回带封面的搜索结果；隔离开发 API 的封面代理返回 HTTP 200、`image/webp` 和有效 WebP 文件签名。
 
 已经保存的历史搜索任务不会修改原有输出。修复后需要重新运行搜索，新的结果才会携带封面地址。
+
+## 后续重构：统一结果卡片解析
+
+独立封面映射已由 `scripts/gallery_search_parser.py` 取代。Fangliding 与 E-Hentai 现在从同一张搜索结果卡片一次读取标题、封面、分类、上传时间、页数和可访问的评分，不再分别维护标题与封面两条解析链路。全部来源结果在 Node.js 开发 API 和 Rust 正式任务运行时中统一合并、去重、按上传时间排序；时间相同或缺少时间时按来源轮转。
+
+真实公共页面抽样中，Fangliding 新结果的封面、分类、上传时间和页数字段均完整返回。旧任务快照不会联网迁移，缺少 `thumbnail_url` 的历史结果需要重新搜索。

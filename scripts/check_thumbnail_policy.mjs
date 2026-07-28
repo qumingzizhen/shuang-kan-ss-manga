@@ -39,7 +39,7 @@ assert.equal(cleanSearchThumbnailUrl(" https://cdn.example.net/cover.jpg "), "ht
 assert.equal(cleanSearchThumbnailUrl("https://cdn.example.net/loading.gif"), null);
 assert.equal(isBadSearchThumbnailUrl("https://cdn.example.net/cover.jpg"), false);
 assert.equal(isRetryableThumbnailStatus(503), true);
-assert.equal(isRetryableThumbnailStatus(404), false);
+assert.equal(isRetryableThumbnailStatus(404), true);
 assert.equal(normalizeThumbnailInteger("99", 3, 1, 5), 5);
 assert.equal(thumbnailRetryDelayMs(2, 100), 400);
 
@@ -65,7 +65,10 @@ try {
     fetchImpl: async () => {
       fetchCalls += 1;
       if (fetchCalls === 1) {
-        return new Response(null, { status: 503 });
+        return new Response(null, { status: 404 });
+      }
+      if (fetchCalls === 2) {
+        return new Response("warming up", { status: 200, headers: { "content-type": "text/html" } });
       }
       return new Response(jpegFixture(), { status: 200, headers: { "content-type": "image/jpeg" } });
     },
@@ -77,13 +80,13 @@ try {
   ];
   const [firstFile, secondFile] = await Promise.all(requests);
   assert.equal(firstFile, secondFile);
-  assert.equal(fetchCalls, 2, "one retry should be shared by both concurrent callers");
+  assert.equal(fetchCalls, 3, "CDN warm-up retries should be shared by both concurrent callers");
   assert.equal((await readFile(firstFile)).length, 128);
   await writeFile(firstFile, Buffer.alloc(128, 1));
   const repaired = await cache.getEntry(source, "https://cdn.example.net/cover.jpg", "https://example.org/gallery/1");
   assert.equal(repaired.filePath, firstFile);
   assert.equal(repaired.mimeType, "image/jpeg");
-  assert.equal(fetchCalls, 3, "an invalid cached signature should trigger one shared refetch");
+  assert.equal(fetchCalls, 4, "an invalid cached signature should trigger one shared refetch");
   const hit = await cache.getEntry(source, "https://cdn.example.net/cover.jpg", "https://example.org/gallery/1");
   assert.equal(hit.cacheStatus, "hit");
   assert.deepEqual(cache.stats(), {
@@ -92,7 +95,7 @@ try {
     misses: 2,
     shared: 1,
     downloads: 2,
-    retries: 1,
+    retries: 2,
     in_flight: 0,
   });
   assert.equal(singleFlight.has(firstFile), false, "single-flight entry should be released after completion");

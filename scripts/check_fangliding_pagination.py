@@ -2,10 +2,34 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
 from pathlib import Path
 from types import SimpleNamespace
 
 import fangliding_bridge as bridge
+
+
+class FakeImage:
+    def __init__(self, page: str):
+        attribute = "src" if page == "2" else "data-src"
+        self.attributes = {attribute: f"//images.example.test/{page}.webp"}
+
+
+class FakeGalleryLink:
+    def __init__(self, page: str):
+        self.page = page
+        self.attributes = {"href": f"/g/{page}/token/"}
+
+    def css(self, selector: str) -> list[FakeImage]:
+        return [FakeImage(self.page)] if selector == "img" else []
+
+
+class FakeSearchTree:
+    def __init__(self, page: str):
+        self.page = page
+
+    def css(self, selector: str) -> list[FakeGalleryLink]:
+        return [FakeGalleryLink(self.page)] if selector == "a[href]" else []
 
 
 class FakeClientContext:
@@ -34,8 +58,10 @@ async def main() -> None:
         search_url=search_url,
         fetch_text=lambda client, url, delay: asyncio.sleep(0, result=url),
         parse_search_results=lambda html, base_url: [
-            SimpleNamespace(title=f"page-{html}", url=f"{base_url}/gallery/{html}", gid=html)
+            SimpleNamespace(title=f"page-{html}", url=f"{base_url}/g/{html}/token/", gid=html)
         ],
+        LexborHTMLParser=FakeSearchTree,
+        GALLERY_RE=re.compile(r"/g/(\d+)/[a-z]+/?"),
     )
     parsed = SimpleNamespace(
         tags_json=json.dumps({}),
@@ -57,6 +83,10 @@ async def main() -> None:
 
     assert requested_pages == [2, 3], requested_pages
     assert [item["gid"] for item in output["results"]] == ["2", "3"], output
+    assert [item["thumbnail_url"] for item in output["results"]] == [
+        "https://images.example.test/2.webp",
+        "https://images.example.test/3.webp",
+    ], output
     print(json.dumps({"ok": True, "requested_pages": requested_pages, "ca_bundle": ca_bundle}))
 
 

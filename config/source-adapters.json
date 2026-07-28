@@ -5,8 +5,9 @@
     {
       "id": "fangliding",
       "name": "Fangliding",
-      "homepage": null,
-      "version": "0.1.0",
+      "homepage": "https://ex.fangliding.eu.org/",
+      "thumbnail_hosts": ["ehgt.org"],
+      "version": "0.1.1",
       "capabilities": ["search", "gallery", "download", "retry_folder"],
       "enabled": true,
       "notes": "Built-in adapter using the legacy Python Fangliding bridge.",

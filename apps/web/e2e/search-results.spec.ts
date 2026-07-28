@@ -65,6 +65,11 @@ test("搜索结果使用封面网格、按最新上传排列，并把操作与 T
   await expect(page.getByRole("button", { name: "下载", exact: true })).toHaveCount(0);
   const cards = page.locator(".search-result-card");
   await expect(cards).toHaveCount(2);
+  await page.locator(".search-detail-drawer").evaluate(async (element) => {
+    await Promise.all(
+      element.getAnimations({ subtree: true }).map((animation) => animation.finished.catch(() => undefined)),
+    );
+  });
   const firstCard = await cards.nth(0).boundingBox();
   const secondCard = await cards.nth(1).boundingBox();
   expect(firstCard).not.toBeNull();

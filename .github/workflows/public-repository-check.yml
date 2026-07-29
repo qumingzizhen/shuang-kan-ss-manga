@@ -70,6 +70,7 @@ jobs:
           node scripts/check_dev_api_search_merge.mjs
           node scripts/check_thumbnail_policy.mjs
           node scripts/check_tag_system.mjs
+          node scripts/check_reverse_proxy_config.mjs
       - name: Python 下载与来源测试
         run: |
           python -m py_compile scripts/contract_validator.py scripts/source_bridge_core.py scripts/fangliding_bridge.py scripts/18comic_bridge.py scripts/ehentai_bridge.py

@@ -118,3 +118,23 @@ Public-facing deployment needs:
 - Source authentication is isolated from the development server and Dashboard into independently tested modules.
 
 See `docs/抽象复用问题整改与验收-2026-07-29.md` for the file-by-file rationale, compatibility statement, and extension-cost measurement.
+
+## 2026-07-29 Same-Origin Deployment Boundary
+
+Cross-device deployments keep browser traffic same-origin. The web device owns
+the public origin and forwards every `/v1/**` request to either the Python
+development API or the Rust production API. The backend URL is a server-only
+configuration value; source adapters, task contracts, API routes, and frontend
+business code remain unchanged.
+
+```text
+Browser -> Web origin (/ and /v1/**) -> Next.js rewrite or Nginx -> API :8080
+```
+
+Local `scripts/dev.ps1` still starts both processes with no configuration. It
+passes its dynamically selected API port to the Next.js rewrite, while remote
+Python development deployments can opt into `DEV_API_BIND_HOST=0.0.0.0`.
+Production Rust deployments continue to use `API_BIND`.
+
+See `docs/跨设备反向代理部署-2026-07-29.md` for complete configuration,
+verification commands, failure semantics, and the Next.js-versus-Nginx tradeoff.

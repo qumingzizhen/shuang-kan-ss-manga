@@ -182,9 +182,9 @@ function Start-ApiProcess {
   $startInfo.UseShellExecute = $false
   $startInfo.CreateNoWindow = $false
 
-  # DEV_API_PORT and NEXT_PUBLIC_API_BASE are set in the parent process before
-  # this function runs, so the child inherits them without touching the
-  # PowerShell-version-dependent EnvironmentVariables collection.
+  # DEV_API_PORT, DEV_API_BIND_HOST and BACKEND_API_URL are set in the parent
+  # process before this function runs, so the child inherits them without
+  # touching the PowerShell-version-dependent EnvironmentVariables collection.
 
   $process = New-Object System.Diagnostics.Process
   $process.StartInfo = $startInfo
@@ -238,7 +238,11 @@ if ($reuseWeb) {
 }
 
 $env:DEV_API_PORT = [string]$ApiPort
-$env:NEXT_PUBLIC_API_BASE = $apiUrl
+if (-not $env:DEV_API_BIND_HOST) {
+  $env:DEV_API_BIND_HOST = "127.0.0.1"
+}
+$env:BACKEND_API_URL = $apiUrl
+$env:NEXT_PUBLIC_API_BASE = ""
 
 $apiProcess = $null
 

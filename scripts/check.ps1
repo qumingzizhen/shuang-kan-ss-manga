@@ -23,6 +23,9 @@ Invoke-Checked { node -e "const fs=require('fs'); for (const f of ['package.json
 Write-Host "`n[check] Source adapter config"
 Invoke-Checked { python .\scripts\check_source_adapters.py }
 
+Write-Host "`n[check] Reverse proxy configuration"
+Invoke-Checked { node .\scripts\check_reverse_proxy_config.mjs }
+
 Write-Host "`n[check] Public repository privacy"
 Invoke-Checked { python .\scripts\check_public_repo.py }
 

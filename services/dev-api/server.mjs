@@ -28,6 +28,8 @@ import { createSourceAuthManager } from "./source-auth.mjs";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
 const port = Number(process.env.DEV_API_PORT || process.env.PORT || 8080);
+const bindHost =
+  String(process.env.DEV_API_BIND_HOST || "127.0.0.1").trim() || "127.0.0.1";
 const sourceAdapterConfigFile = process.env.SOURCE_ADAPTER_CONFIG || join(projectRoot, "config", "source-adapters.json");
 const sourceAdapterRegistry = loadSourceAdapterRegistry(sourceAdapterConfigFile);
 const defaultSourceId = String(sourceAdapterRegistry.default_source_id || "fangliding").trim() || "fangliding";
@@ -538,8 +540,8 @@ const server = createServer(async (request, response) => {
   }
 });
 
-server.listen(port, "127.0.0.1", () => {
-  console.log(`comic-platform-dev-api listening on http://127.0.0.1:${port}`);
+server.listen(port, bindHost, () => {
+  console.log(`comic-platform-dev-api listening on http://${bindHost}:${port}`);
   console.log(`Source adapter config: ${sourceAdapterConfigFile}`);
   console.log(`Default python: ${defaultPython}`);
   console.log(`Source bridges: ${sourceAdapters.map((adapter) => `${adapter.id}=${adapter.bridgeScript}`).join("; ")}`);

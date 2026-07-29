@@ -150,21 +150,18 @@ and web code should remain source-neutral.
 | `list-pages --gallery-url ...` | Return page descriptors when a source supports page-level work |
 | `download-page --gallery-url ... --page-url ... --page-index ...` | Return one downloaded artifact descriptor |
 
-The current built-in `fangliding` source calls `scripts/fangliding_bridge.py`,
-which imports the existing Python downloader outside `newwork` and returns JSON
-to Rust. The bridge currently covers:
+The built-in `fangliding` source is an E-Hentai-compatible configuration layer:
 
-| Operation | Status |
-|---|---|
-| `search` | Calls the legacy search flow and returns gallery summaries |
-| `read_gallery` | Loads title, tags, and page count metadata |
-| `download_gallery` | Downloads a direct gallery URL through the legacy downloader and returns output/progress stats |
-| `retry_folder` | Reads `metadata.json` and returns a retry page plan |
-| `list_pages` | Pending |
-| `download_page` | Pending |
+```text
+scripts/fangliding_bridge.py
+  -> inject Fangliding identity and FANGLIDING_* environment aliases
+  -> scripts/ehentai_bridge.py
+  -> gallery_search_parser.py + source_bridge_core.py
+```
 
-This bridge lets the web/API/worker architecture use the proven Python crawler while the Rust adapter contract matures. Direct gallery tasks now call `download_gallery`, so API local-worker mode can run the download and mark the task completed or failed. It is not a captcha, login, paywall, or access-control bypass.
+It supports `search`, `gallery`, `download`, `retry_folder`, `page_list`, `page_image`, and `online_read` through the same validated implementation as E-Hentai-compatible pages. It no longer imports a downloader outside this repository and does not monkey-patch download validation at runtime. Source-specific credentials and limits remain under `FANGLIDING_*`; public bridge commands and JSON output stay unchanged.
 
+Adding another compatible source should require only a thin identity/environment wrapper, one registry entry, and source fixtures. API routes, Rust dispatch, the web console, retry rules, image writes, and global search merging must not be copied.
 ## Python Bridge Core
 
 Website bridge scripts should share `scripts/source_bridge_core.py` for common

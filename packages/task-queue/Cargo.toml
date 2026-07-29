@@ -7,4 +7,6 @@ version.workspace = true
 [dependencies]
 comic-platform-domain = { path = "../domain" }
 chrono = { workspace = true, features = ["clock"] }
+serde_json.workspace = true
+sqlx.workspace = true
 tokio.workspace = true

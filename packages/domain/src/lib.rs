@@ -97,6 +97,9 @@ pub enum SourceCapability {
     Gallery,
     Download,
     RetryFolder,
+    PageList,
+    PageImage,
+    OnlineRead,
 }
 
 impl SourceCapability {
@@ -106,6 +109,47 @@ impl SourceCapability {
             Self::Gallery => "gallery",
             Self::Download => "download",
             Self::RetryFolder => "retry_folder",
+            Self::PageList => "page_list",
+            Self::PageImage => "page_image",
+            Self::OnlineRead => "online_read",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
+pub struct BridgeErrorPayload {
+    pub code: String,
+    pub message: String,
+    #[serde(default)]
+    pub retryable: bool,
+    #[serde(default)]
+    pub retry_after_ms: Option<u64>,
+    #[serde(default)]
+    pub source_id: Option<SourceId>,
+}
+#[cfg(test)]
+mod tests {
+    use super::SourceCapability;
+
+    #[test]
+    fn source_capabilities_round_trip_all_configured_values() {
+        for value in [
+            "search",
+            "gallery",
+            "download",
+            "retry_folder",
+            "page_list",
+            "page_image",
+            "online_read",
+        ] {
+            let capability: SourceCapability = serde_json::from_str(&format!("\"{value}\""))
+                .expect("capability should deserialize");
+            assert_eq!(capability.as_str(), value);
+            assert_eq!(
+                serde_json::to_string(&capability).expect("capability should serialize"),
+                format!("\"{value}\"")
+            );
         }
     }
 }

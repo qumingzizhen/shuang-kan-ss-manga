@@ -1,79 +1,63 @@
 from __future__ import annotations
 
-import asyncio
 import json
-from pathlib import Path
+import urllib.parse
 from types import SimpleNamespace
 
 import fangliding_bridge as bridge
 
 
-class FakeClientContext:
-    async def __aenter__(self):
-        return object()
-
-    async def __aexit__(self, exc_type, exc, traceback):
-        return False
-
-
-async def main() -> None:
-    ca_bundle = bridge.resolve_curl_ca_bundle(None)
-    assert ca_bundle, ca_bundle
-    assert str(ca_bundle).isascii(), ca_bundle
-    assert Path(ca_bundle).name == bridge.DEFAULT_CURL_CA_FILENAME, ca_bundle
-
+class FakeClient:
     requested_pages: list[int] = []
 
-    def search_url(base_url: str, query: str, page: int) -> str:
-        requested_pages.append(page)
+    def __init__(self, parsed, *, source_label: str) -> None:
+        del parsed
+        assert source_label == "Fangliding"
+
+    def fetch_text(self, url: str, referer: str | None = None) -> str:
+        del referer
+        page = int(urllib.parse.parse_qs(urllib.parse.urlparse(url).query)["page"][0])
+        self.requested_pages.append(page)
         return str(page)
 
-    fake_module = SimpleNamespace(
-        build_query=lambda tags, name, query: query,
-        make_client=lambda args: FakeClientContext(),
-        search_url=search_url,
-        fetch_text=lambda client, url, delay: asyncio.sleep(0, result=url),
-        GALLERY_RE=None,
-    )
+    def polite_wait(self) -> None:
+        return None
+
+
+def main() -> None:
+    original_client = bridge.HttpClient
+    original_parser = bridge.parse_search_results
+    bridge.HttpClient = FakeClient
+    bridge.parse_search_results = lambda text, page_url: [
+        {
+            "source_id": bridge.SOURCE_ID,
+            "gid": text,
+            "title": f"page-{text}",
+            "url": f"https://ex.fangliding.eu.org/g/{text}/abcdef/",
+            "thumbnail_url": f"https://ehgt.org/{text}.webp",
+            "tags": [],
+        }
+    ]
     parsed = SimpleNamespace(
-        tags_json=json.dumps({}),
+        base_url=bridge.DEFAULT_BASE_URL,
+        tags_json="[]",
         name=None,
         query="test",
-        base_url="https://example.test",
-        limit=10,
-        delay=0,
         search_start_page=3,
         max_search_pages=2,
-    )
-
-    original_build_legacy_args = bridge.build_legacy_args
-    original_parse_search_results = bridge.parse_ehentai_compatible_search_results
-    bridge.build_legacy_args = lambda parsed: SimpleNamespace()
-    bridge.parse_ehentai_compatible_search_results = (
-        lambda html, page_url, **kwargs: [
-            {
-                "source_id": "fangliding",
-                "gid": html,
-                "title": f"page-{html}",
-                "url": f"https://example.test/g/{html}/token/",
-                "thumbnail_url": f"https://images.example.test/{html}.webp",
-            }
-        ]
+        limit=10,
     )
     try:
-        output = await bridge.run_search(fake_module, parsed)
+        output = bridge.run_search(parsed)
     finally:
-        bridge.build_legacy_args = original_build_legacy_args
-        bridge.parse_ehentai_compatible_search_results = original_parse_search_results
+        bridge.HttpClient = original_client
+        bridge.parse_search_results = original_parser
 
-    assert requested_pages == [2, 3], requested_pages
+    assert FakeClient.requested_pages == [2, 3], FakeClient.requested_pages
+    assert output["source_id"] == "fangliding", output
     assert [item["gid"] for item in output["results"]] == ["2", "3"], output
-    assert [item["thumbnail_url"] for item in output["results"]] == [
-        "https://images.example.test/2.webp",
-        "https://images.example.test/3.webp",
-    ], output
-    print(json.dumps({"ok": True, "requested_pages": requested_pages, "ca_bundle": ca_bundle}))
+    print(json.dumps({"ok": True, "requested_pages": FakeClient.requested_pages}))
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()

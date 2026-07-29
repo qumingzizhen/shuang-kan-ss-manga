@@ -1,13 +1,53 @@
-use std::{error::Error, fmt, future::Future, pin::Pin, sync::Arc};
+use std::{error::Error, fmt, future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
 use comic_platform_domain::{Task, TaskId, TaskKind};
 use tokio::sync::{Mutex, mpsc};
 
+mod postgres;
+
+pub use postgres::PostgresTaskQueue;
+
 pub type QueueResult<T> = Result<T, QueueError>;
 pub type QueueFuture<'a, T> = Pin<Box<dyn Future<Output = QueueResult<T>> + Send + 'a>>;
 
 const DEFAULT_IN_MEMORY_CAPACITY: usize = 1024;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TaskQueueBackend {
+    Memory,
+    Postgres,
+}
+
+impl TaskQueueBackend {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Memory => "memory",
+            Self::Postgres => "postgres",
+        }
+    }
+}
+
+pub async fn task_queue_from_env(
+    default_backend: TaskQueueBackend,
+) -> QueueResult<(TaskQueueBackend, Arc<dyn TaskQueue>)> {
+    let configured = std::env::var("TASK_QUEUE_BACKEND")
+        .unwrap_or_else(|_| default_backend.as_str().to_string())
+        .to_ascii_lowercase();
+    match configured.as_str() {
+        "memory" | "in_memory" => Ok((
+            TaskQueueBackend::Memory,
+            Arc::new(InMemoryTaskQueue::default()),
+        )),
+        "postgres" | "postgresql" => Ok((
+            TaskQueueBackend::Postgres,
+            Arc::new(PostgresTaskQueue::connect_from_env().await?),
+        )),
+        other => Err(QueueError::publish_failed(format!(
+            "unknown TASK_QUEUE_BACKEND value: {other}"
+        ))),
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct TaskQueueMessage {
@@ -87,7 +127,12 @@ pub trait TaskQueue: Send + Sync {
 
     fn ack<'a>(&'a self, message: &'a TaskQueueMessage) -> QueueFuture<'a, ()>;
 
-    fn retry<'a>(&'a self, message: TaskQueueMessage, reason: String) -> QueueFuture<'a, ()>;
+    fn retry<'a>(
+        &'a self,
+        message: TaskQueueMessage,
+        reason: String,
+        delay: Duration,
+    ) -> QueueFuture<'a, ()>;
 }
 
 #[derive(Clone)]
@@ -135,9 +180,17 @@ impl TaskQueue for InMemoryTaskQueue {
         Box::pin(async { Ok(()) })
     }
 
-    fn retry<'a>(&'a self, message: TaskQueueMessage, reason: String) -> QueueFuture<'a, ()> {
+    fn retry<'a>(
+        &'a self,
+        message: TaskQueueMessage,
+        reason: String,
+        delay: Duration,
+    ) -> QueueFuture<'a, ()> {
         Box::pin(async move {
             let message = message.next_attempt();
+            if !delay.is_zero() {
+                tokio::time::sleep(delay).await;
+            }
             self.sender
                 .send(message)
                 .await

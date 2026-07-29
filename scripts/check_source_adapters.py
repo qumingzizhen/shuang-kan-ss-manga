@@ -82,6 +82,35 @@ def validate_source(source: dict[str, Any], seen_ids: set[str]) -> None:
     if ("page_list" in capabilities or "page_image" in capabilities) and not page_commands:
         fail(f"{source_id}: page-level capabilities require bridge.page_commands=true")
 
+    self_tests = source.get("self_tests")
+    if not isinstance(self_tests, list) or not self_tests:
+        fail(f"{source_id}: self_tests must be a non-empty list")
+    for test in self_tests:
+        if not isinstance(test, dict) or not text(test.get("script")):
+            fail(f"{source_id}: each self test requires a script")
+        test_path = (PROJECT_ROOT / text(test["script"])).resolve()
+        try:
+            test_path.relative_to(PROJECT_ROOT.resolve())
+        except ValueError:
+            fail(f"{source_id}: self test must stay inside the project")
+        if not test_path.is_file():
+            fail(f"{source_id}: self test script not found: {test_path}")
+        args = test.get("args", [])
+        if not isinstance(args, list) or not all(isinstance(item, str) for item in args):
+            fail(f"{source_id}: self test args must be a string list")
+
+    auth = source.get("auth")
+    if auth is not None:
+        if not isinstance(auth, dict):
+            fail(f"{source_id}: auth must be an object")
+        cookie_env = text(auth.get("cookie_env"))
+        headers_env = text(auth.get("headers_env"))
+        if not cookie_env and not headers_env:
+            fail(f"{source_id}: auth requires cookie_env or headers_env")
+        file_stem = text(auth.get("file_stem")) or source_id
+        if not re.fullmatch(r"[A-Za-z0-9._-]+", file_stem):
+            fail(f"{source_id}: auth.file_stem is invalid")
+
     default_requires_any_env = source.get("default_requires_any_env")
     if default_requires_any_env is not None and (
         not isinstance(default_requires_any_env, list) or not all(text(item) for item in default_requires_any_env)

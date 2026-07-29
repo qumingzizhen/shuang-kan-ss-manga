@@ -6,7 +6,6 @@ import json
 import os
 import re
 import sys
-import threading
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
@@ -19,7 +18,6 @@ from search_result_metadata import parse_generic_search_metadata
 
 from source_bridge_core import (
     BLOCKED_STATUSES,
-    DownloadProgressReporter,
     HttpClient,
     HttpStatusError,
     IMAGE_EXT_RE,
@@ -27,14 +25,14 @@ from source_bridge_core import (
     ImageTarget,
     ParsedHtml,
     absolute_url,
-    append_failed_page,
     clean_text,
+    download_http_targets,
+    emit_bridge_error,
     find_nearby_image_url,
     image_files,
     looks_like_access_challenge,
     now_iso,
     parse_html,
-    run_bounded_downloads,
     save_image_target,
     sanitize_filename,
     status_message,
@@ -491,43 +489,17 @@ def load_metadata(folder: Path) -> GalleryMeta:
     )
 
 
-_download_clients = threading.local()
-
-
-def download_one_target(folder: Path, target: ImageTarget, parsed: argparse.Namespace) -> bool:
-    client = getattr(_download_clients, "client", None)
-    if client is None:
-        client = HttpClient(parsed, source_label="18comic.vip")
-        _download_clients.client = client
-    try:
-        _file_path, _content_type, _byte_size, skipped = save_image_target(
-            client,
-            folder,
-            target,
-            parsed.overwrite,
-            max(parsed.min_image_bytes, 0),
-        )
-        return skipped
-    finally:
-        client.polite_wait()
-
-
 def download_targets(folder: Path, meta: GalleryMeta, targets: list[ImageTarget], parsed: argparse.Namespace):
-    reporter = DownloadProgressReporter(
+    return download_http_targets(
         folder,
+        targets,
+        parsed,
         source_id=SOURCE_ID,
+        source_label="18comic.vip",
         gallery_url=meta.url,
         title=meta.title,
-        prefix=PROGRESS_PREFIX,
-    )
-    return run_bounded_downloads(
-        targets,
+        progress_prefix=PROGRESS_PREFIX,
         concurrency=download_concurrency(parsed),
-        worker=lambda target: download_one_target(folder, target, parsed),
-        on_failure=lambda target, error: append_failed_page(folder, SOURCE_ID, target, str(error)),
-        on_progress=reporter.report,
-        forbidden_stop_after=parsed.forbidden_stop_after,
-        max_failures=parsed.max_failures,
     )
 
 
@@ -965,7 +937,7 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False))
         return 0
     except Exception as exc:  # noqa: BLE001 - keep bridge stderr concise for task errors.
-        print(str(exc), file=sys.stderr)
+        emit_bridge_error(exc, SOURCE_ID)
         return 1
 
 

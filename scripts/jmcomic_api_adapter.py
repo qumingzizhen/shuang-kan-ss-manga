@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 import argparse
-import json
 import re
-import sys
 import urllib.parse
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from source_bridge_core import (
-    DownloadStats,
+    DownloadProgressReporter,
+    ImageTarget,
+    append_failed_page,
     clean_text,
     content_type_from_suffix,
     now_iso,
+    run_bounded_downloads,
     sanitize_filename,
+    save_external_image_target,
     write_json_atomic,
 )
 
@@ -219,15 +220,6 @@ def list_pages(parsed: argparse.Namespace, gallery_url: str, base_url: str) -> d
     }
 
 
-def find_existing_image(folder: Path, index: int) -> Path | None:
-    if not folder.exists():
-        return None
-    stem = f"{index:04d}"
-    for child in folder.iterdir():
-        if child.is_file() and child.stem == stem and child.suffix.lower() in IMAGE_SUFFIXES:
-            return child
-    return None
-
 
 def safe_suffix(image: Any) -> str:
     suffix = str(getattr(image, "img_file_suffix", "") or "").lower()
@@ -242,19 +234,25 @@ def save_page_image(
     overwrite: bool,
     min_image_bytes: int,
 ) -> tuple[Path, bool]:
-    existing = find_existing_image(folder, page.index)
-    if existing and not overwrite and existing.stat().st_size >= min_image_bytes:
-        return existing, True
+    target = ImageTarget(
+        index=page.index,
+        page_url=page.page_url,
+        image_url=str(page.image.download_url),
+        referer=page.page_url,
+    )
 
-    file_path = folder / f"{page.index:04d}{safe_suffix(page.image)}"
-    client.download_by_image_detail(page.image, str(file_path), decode_image=True)
-    byte_size = file_path.stat().st_size
-    if byte_size < min_image_bytes:
-        file_path.unlink(missing_ok=True)
-        raise RuntimeError(
-            f"Image response is too small for page {page.index}: {byte_size} bytes from {page.image.download_url}"
-        )
-    return file_path, False
+    def produce(staging: Path) -> None:
+        client.download_by_image_detail(page.image, str(staging), decode_image=True)
+
+    file_path, _content_type, _byte_size, skipped = save_external_image_target(
+        folder,
+        target,
+        produce,
+        suffix_hint=safe_suffix(page.image),
+        overwrite=overwrite,
+        min_image_bytes=min_image_bytes,
+    )
+    return file_path, skipped
 
 
 def select_pages(pages: list[ApiPage], parsed: argparse.Namespace) -> list[ApiPage]:
@@ -276,36 +274,6 @@ def metadata_payload(meta: dict[str, Any], base_url: str, pages: list[ApiPage]) 
         "updated_at": now_iso(),
     }
 
-
-def write_failure(folder: Path, page: ApiPage, error: Exception) -> None:
-    record = {
-        "timestamp": now_iso(),
-        "source_id": SOURCE_ID,
-        "index": page.index,
-        "page_url": page.page_url,
-        "image_url": str(page.image.download_url),
-        "error": str(error),
-    }
-    with (folder / "failed_pages.jsonl").open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
-
-
-def update_state(folder: Path, meta: dict[str, Any], stats: DownloadStats, total: int, last_index: int | None) -> None:
-    payload = {
-        "source_id": SOURCE_ID,
-        "gallery_url": meta["url"],
-        "title": meta["title"],
-        "total": total,
-        "done": stats.done,
-        "skipped": stats.skipped,
-        "failed": stats.failed,
-        "stopped": stats.stopped,
-        "last_index": last_index,
-        "transport": "jmcomic_api",
-        "updated_at": now_iso(),
-    }
-    write_json_atomic(folder / "download_state.json", payload)
-    print(f"{PROGRESS_PREFIX}{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}", file=sys.stderr, flush=True)
 
 
 def download_gallery(parsed: argparse.Namespace, gallery_url: str, base_url: str) -> dict[str, Any]:
@@ -332,41 +300,45 @@ def download_gallery(parsed: argparse.Namespace, gallery_url: str, base_url: str
 
     folder.mkdir(parents=True, exist_ok=True)
     write_json_atomic(folder / "metadata.json", metadata_payload(meta, base_url, all_pages))
-    stats = DownloadStats()
     min_image_bytes = max(int(parsed.min_image_bytes or 0), 0)
     workers = max(1, min(int(parsed.download_concurrency or 1), 8))
+    pages_by_index = {page.index: page for page in pages}
+    targets = [
+        ImageTarget(
+            index=page.index,
+            page_url=page.page_url,
+            image_url=str(page.image.download_url),
+            referer=meta["url"],
+        )
+        for page in pages
+    ]
+    reporter = DownloadProgressReporter(
+        folder,
+        source_id=SOURCE_ID,
+        gallery_url=meta["url"],
+        title=meta["title"],
+        prefix=PROGRESS_PREFIX,
+    )
 
-    def worker(page: ApiPage) -> tuple[Path, bool]:
-        return save_page_image(
+    def worker(target: ImageTarget) -> bool:
+        _file_path, skipped = save_page_image(
             client,
             folder,
-            page,
+            pages_by_index[target.index],
             overwrite=bool(parsed.overwrite),
             min_image_bytes=min_image_bytes,
         )
+        return skipped
 
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        futures = {executor.submit(worker, page): page for page in pages}
-        for future in as_completed(futures):
-            page = futures[future]
-            if future.cancelled():
-                continue
-            try:
-                _file_path, skipped = future.result()
-                if skipped:
-                    stats.skipped += 1
-                else:
-                    stats.done += 1
-            except Exception as error:  # noqa: BLE001 - report per-page failures.
-                stats.failed += 1
-                write_failure(folder, page, error)
-                if parsed.max_failures and stats.failed >= parsed.max_failures:
-                    stats.stopped = True
-                    for pending in futures:
-                        if not pending.done():
-                            pending.cancel()
-            finally:
-                update_state(folder, meta, stats, len(pages), page.index)
+    stats = run_bounded_downloads(
+        targets,
+        concurrency=workers,
+        worker=worker,
+        on_failure=lambda target, error: append_failed_page(folder, SOURCE_ID, target, str(error)),
+        on_progress=reporter.report,
+        forbidden_stop_after=max(int(getattr(parsed, "forbidden_stop_after", 0) or 0), 0),
+        max_failures=max(int(parsed.max_failures or 0), 0),
+    )
 
     return {
         "source_id": SOURCE_ID,

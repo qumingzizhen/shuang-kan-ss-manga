@@ -12,13 +12,20 @@ export type SourceAdapterDescriptor = {
   available_for_default?: boolean;
   unavailable_reason?: string | null;
   notes?: string | null;
+  auth?: {
+    mode: string;
+    title?: string | null;
+    description?: string | null;
+    fields: Array<"cookie" | "headers">;
+    headers_placeholder?: string | null;
+  } | null;
 };
 
 export type SourceAuthStatus = {
   source_id: string;
   configured: boolean;
-  local_cookie_file: string;
-  local_headers_file: string;
+  local_cookie_file?: string | null;
+  local_headers_file?: string | null;
   has_local_cookie_file: boolean;
   has_local_headers_file: boolean;
   effective_cookie_file?: string | null;

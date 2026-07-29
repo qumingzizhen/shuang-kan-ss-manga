@@ -22,6 +22,7 @@ export function normalizeSearchResult(item, source) {
 export function mergeSearchResults(sourceRuns) {
   const results = [];
   const exactIndexes = new Map();
+  const softDuplicateIndex = new SoftDuplicateIndex();
   let excludedCount = 0;
   const sourceErrors = [];
 
@@ -38,10 +39,11 @@ export function mergeSearchResults(sourceRuns) {
         continue;
       }
 
-      const duplicateIndex = results.findIndex((existing) => isSoftDuplicate(existing, candidate));
+      const duplicateIndex = softDuplicateIndex.find(results, candidate);
       if (duplicateIndex >= 0) {
         const merged = mergeResultMetadata(results[duplicateIndex], candidate);
         results[duplicateIndex] = merged;
+        softDuplicateIndex.add(merged, duplicateIndex);
         exactIndexes.set(exactKey, duplicateIndex);
         exactIndexes.set(
           `${merged.source_id}|${normalizeGalleryUrl(merged.gallery_url)}`,
@@ -50,8 +52,10 @@ export function mergeSearchResults(sourceRuns) {
         continue;
       }
 
-      exactIndexes.set(exactKey, results.length);
+      const resultIndex = results.length;
+      exactIndexes.set(exactKey, resultIndex);
       results.push(candidate);
+      softDuplicateIndex.add(candidate, resultIndex);
     }
   }
 
@@ -105,6 +109,80 @@ export function normalizeGalleryUrl(value) {
   }
 }
 
+class SoftDuplicateIndex {
+  constructor() {
+    this.exactTitles = new Map();
+    this.bigramPostings = new Map();
+    this.titleLengths = new Map();
+  }
+
+  add(result, resultIndex) {
+    const title = normalizedTitle(result?.title);
+    if (title.length < 8) {
+      return;
+    }
+    addPosting(this.exactTitles, title, resultIndex);
+    this.titleLengths.set(resultIndex, title.length);
+    if (title.length < 12) {
+      return;
+    }
+    for (const [pair, count] of bigramCounts(title)) {
+      let postings = this.bigramPostings.get(pair);
+      if (!postings) {
+        postings = new Map();
+        this.bigramPostings.set(pair, postings);
+      }
+      postings.set(resultIndex, count);
+    }
+  }
+
+  find(results, candidate) {
+    const title = normalizedTitle(candidate?.title);
+    if (title.length < 8) {
+      return -1;
+    }
+
+    const candidates = new Set(this.exactTitles.get(title) || []);
+    if (title.length >= 12) {
+      const overlaps = new Map();
+      for (const [pair, candidateCount] of bigramCounts(title)) {
+        for (const [resultIndex, existingCount] of this.bigramPostings.get(pair) || []) {
+          overlaps.set(
+            resultIndex,
+            (overlaps.get(resultIndex) || 0) + Math.min(candidateCount, existingCount),
+          );
+        }
+      }
+      const candidatePairs = title.length - 1;
+      for (const [resultIndex, overlap] of overlaps) {
+        const existingLength = this.titleLengths.get(resultIndex) || 0;
+        if (existingLength < 12) {
+          continue;
+        }
+        const requiredOverlap = Math.ceil((0.94 * (candidatePairs + existingLength - 1)) / 2);
+        if (overlap >= requiredOverlap) {
+          candidates.add(resultIndex);
+        }
+      }
+    }
+
+    for (const resultIndex of Array.from(candidates).sort((left, right) => left - right)) {
+      if (isSoftDuplicate(results[resultIndex], candidate)) {
+        return resultIndex;
+      }
+    }
+    return -1;
+  }
+}
+
+function addPosting(index, key, resultIndex) {
+  const postings = index.get(key);
+  if (postings) {
+    postings.add(resultIndex);
+  } else {
+    index.set(key, new Set([resultIndex]));
+  }
+}
 function isSoftDuplicate(left, right) {
   if (left.source_id === right.source_id) {
     return false;

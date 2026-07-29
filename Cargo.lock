@@ -221,6 +221,8 @@ dependencies = [
  "comic-platform-source-adapter",
  "comic-platform-task-queue",
  "comic-platform-task-runtime",
+ "serde_json",
+ "sqlx",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -242,6 +244,8 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "comic-platform-domain",
+ "serde_json",
+ "sqlx",
  "tokio",
 ]
 
@@ -257,6 +261,8 @@ dependencies = [
  "futures-util",
  "tokio",
  "tracing",
+ "unicode-normalization",
+ "url",
 ]
 
 [[package]]

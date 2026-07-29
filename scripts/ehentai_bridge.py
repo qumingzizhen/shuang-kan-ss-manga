@@ -7,7 +7,6 @@ import math
 import os
 import re
 import sys
-import threading
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass
@@ -16,7 +15,6 @@ from typing import Any
 
 from source_bridge_core import (
     BLOCKED_STATUSES,
-    DownloadProgressReporter,
     HttpClient,
     HttpStatusError,
     IMAGE_EXT_RE,
@@ -24,12 +22,12 @@ from source_bridge_core import (
     ImageTarget,
     ParsedHtml,
     absolute_url,
-    append_failed_page,
     clean_text,
+    download_http_targets,
+    emit_bridge_error,
     image_files,
     now_iso,
     parse_html,
-    run_bounded_downloads,
     save_image_target,
     sanitize_filename,
     strip_fragment,
@@ -41,6 +39,7 @@ from gallery_search_parser import parse_ehentai_compatible_search_results
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_ID = "e-hentai"
+SOURCE_LABEL = "E-Hentai"
 DEFAULT_BASE_URL = "https://e-hentai.org/"
 DEFAULT_OUTPUT = PROJECT_ROOT / ".data" / "downloads"
 PAGE_ARTIFACT_ROOT = PROJECT_ROOT / ".data" / "page-artifacts" / SOURCE_ID
@@ -76,18 +75,18 @@ def ensure_ehentai_gallery_url(url: str, base_url: str) -> str:
     normalized = strip_fragment(absolute_url(url, base_url))
     match = GALLERY_RE.search(normalized)
     if not match:
-        raise RuntimeError(f"Unrecognized E-Hentai gallery URL: {url}")
+        raise RuntimeError(f"Unrecognized {SOURCE_LABEL} gallery URL: {url}")
     base_host = urllib.parse.urlparse(base_url).hostname or ""
     url_host = urllib.parse.urlparse(normalized).hostname or ""
     if base_host and url_host and url_host != base_host and not url_host.endswith(f".{base_host}"):
-        raise RuntimeError(f"Gallery URL host must match configured E-Hentai host: {url}")
+        raise RuntimeError(f"Gallery URL host must match configured {SOURCE_LABEL} host: {url}")
     return urllib.parse.urlunparse(urllib.parse.urlparse(normalized)._replace(query=""))
 
 
 def gallery_parts(url: str) -> tuple[str, str]:
     match = GALLERY_RE.search(url)
     if not match:
-        raise RuntimeError(f"Missing E-Hentai gallery id/token in URL: {url}")
+        raise RuntimeError(f"Missing {SOURCE_LABEL} gallery id/token in URL: {url}")
     return match.group(1), match.group(2)
 
 
@@ -127,7 +126,7 @@ def parse_search_results(text: str, page_url: str) -> list[dict[str, Any]]:
         page_url,
         source_id=SOURCE_ID,
         gallery_re=GALLERY_RE,
-        fallback_prefix="e-hentai",
+        fallback_prefix=SOURCE_ID,
     )
 
 def parse_gallery_meta(text: str, url: str) -> GalleryMeta:
@@ -155,10 +154,10 @@ def pick_title(parser: ParsedHtml, raw_html: str, gid: str) -> str:
                 return title
     for candidate in (parser.meta.get("og:title", ""), parser.title):
         title = clean_text(candidate)
-        title = re.sub(r"\s*[-|]\s*E-Hentai.*$", "", title, flags=re.IGNORECASE)
+        title = re.sub(rf"\s*[-|]\s*{re.escape(SOURCE_LABEL)}.*$", "", title, flags=re.IGNORECASE)
         if title:
             return title
-    return f"e-hentai-{gid}"
+    return f"{SOURCE_ID}-{gid}"
 
 
 def extract_page_count(parser: ParsedHtml, raw_html: str) -> int | None:
@@ -369,7 +368,7 @@ def resolve_image_targets_concurrently(meta: GalleryMeta, parsed: argparse.Names
 
     def worker(entry: tuple[int, str]) -> ImageTarget:
         page_index, page_url = entry
-        worker_client = HttpClient(parsed, source_label="E-Hentai")
+        worker_client = HttpClient(parsed, source_label=SOURCE_LABEL)
         try:
             return resolve_single_image_target(worker_client, page_url, page_index, meta.url)
         finally:
@@ -389,7 +388,7 @@ def resolve_single_image_target(client: HttpClient, page_url: str, index: int, g
     html = client.fetch_text(page_url, referer=gallery_url)
     images = parse_page_images(html, page_url)
     if not images:
-        raise RuntimeError(f"No image URL found on E-Hentai page {page_url}")
+        raise RuntimeError(f"No image URL found on {SOURCE_LABEL} page {page_url}")
     return ImageTarget(index, page_url, images[0], page_url)
 
 
@@ -408,43 +407,17 @@ def load_metadata(folder: Path) -> GalleryMeta:
     )
 
 
-_download_clients = threading.local()
-
-
-def download_one_target(folder: Path, target: ImageTarget, parsed: argparse.Namespace) -> bool:
-    client = getattr(_download_clients, "client", None)
-    if client is None:
-        client = HttpClient(parsed, source_label="E-Hentai")
-        _download_clients.client = client
-    try:
-        _file_path, _content_type, _byte_size, skipped = save_image_target(
-            client,
-            folder,
-            target,
-            parsed.overwrite,
-            max(parsed.min_image_bytes, 0),
-        )
-        return skipped
-    finally:
-        client.polite_wait()
-
-
 def download_targets(folder: Path, meta: GalleryMeta, targets: list[ImageTarget], parsed: argparse.Namespace):
-    reporter = DownloadProgressReporter(
+    return download_http_targets(
         folder,
+        targets,
+        parsed,
         source_id=SOURCE_ID,
+        source_label=SOURCE_LABEL,
         gallery_url=meta.url,
         title=meta.title,
-        prefix=PROGRESS_PREFIX,
-    )
-    return run_bounded_downloads(
-        targets,
+        progress_prefix=PROGRESS_PREFIX,
         concurrency=download_concurrency(parsed),
-        worker=lambda target: download_one_target(folder, target, parsed),
-        on_failure=lambda target, error: append_failed_page(folder, SOURCE_ID, target, str(error)),
-        on_progress=reporter.report,
-        forbidden_stop_after=parsed.forbidden_stop_after,
-        max_failures=parsed.max_failures,
     )
 
 
@@ -463,7 +436,7 @@ def page_descriptors(meta: GalleryMeta) -> list[dict[str, Any]]:
 def fetch_gallery_meta(parsed: argparse.Namespace) -> GalleryMeta:
     base_url = normalize_base_url(parsed.base_url)
     gallery_url = ensure_ehentai_gallery_url(parsed.gallery_url, base_url)
-    client = HttpClient(parsed, source_label="E-Hentai")
+    client = HttpClient(parsed, source_label=SOURCE_LABEL)
     return collect_gallery_meta(client, gallery_url, parsed)
 
 
@@ -473,7 +446,7 @@ def run_search(parsed: argparse.Namespace) -> dict[str, Any]:
     if not query:
         raise RuntimeError("Search requires tags, name, or query")
 
-    client = HttpClient(parsed, source_label="E-Hentai")
+    client = HttpClient(parsed, source_label=SOURCE_LABEL)
     results: list[dict[str, Any]] = []
     seen: set[str] = set()
     blocked_errors: list[HttpStatusError] = []
@@ -504,9 +477,9 @@ def run_search(parsed: argparse.Namespace) -> dict[str, Any]:
     if not results and blocked_errors:
         attempted_urls = ", ".join(error.url for error in blocked_errors[:3])
         raise RuntimeError(
-            f"E-Hentai search was blocked for all attempted public search URLs. "
+            f"{SOURCE_LABEL} search was blocked for all attempted public search URLs. "
             f"Query: {query}. Attempted: {attempted_urls}. "
-            "Provide an authorized EHENTAI_COOKIE_FILE or EHENTAI_HEADERS_FILE for normal access; "
+            f"Provide an authorized session file for normal {SOURCE_LABEL} access; "
             "the adapter will not bypass login, age gates, captchas, bans, or rate limits."
         )
 
@@ -542,7 +515,7 @@ def run_list_pages(parsed: argparse.Namespace) -> dict[str, Any]:
 def run_download_gallery(parsed: argparse.Namespace) -> dict[str, Any]:
     base_url = normalize_base_url(parsed.base_url)
     gallery_url = ensure_ehentai_gallery_url(parsed.gallery_url, base_url)
-    client = HttpClient(parsed, source_label="E-Hentai")
+    client = HttpClient(parsed, source_label=SOURCE_LABEL)
     meta = collect_gallery_meta(client, gallery_url, parsed)
     folder = gallery_folder(parsed.output, meta)
     targets = resolve_image_targets(client, meta, parsed)
@@ -588,7 +561,7 @@ def run_download_page(parsed: argparse.Namespace) -> dict[str, Any]:
     index = parsed.page_index or parsed.start_page or 1
     base_url = normalize_base_url(parsed.base_url)
     gallery_url = ensure_ehentai_gallery_url(parsed.gallery_url, base_url)
-    client = HttpClient(parsed, source_label="E-Hentai")
+    client = HttpClient(parsed, source_label=SOURCE_LABEL)
     target = resolve_single_image_target(client, absolute_url(parsed.page_url, gallery_url), index, gallery_url)
     folder = parsed.page_output.expanduser() if parsed.page_output else PAGE_ARTIFACT_ROOT / gallery_parts(gallery_url)[0]
     folder.mkdir(parents=True, exist_ok=True)
@@ -642,7 +615,7 @@ def run_self_test() -> dict[str, Any]:
     search_html = """
     <table class="itg">
       <tr><td><div class="cn">Doujinshi</div><a href="/g/12345/abcdef1234/" title="Image: Sample EH Book"><img src="https://ehgt.org/g/t.png"><img src="https://ehgt.example.test/thumbs/12345.jpg"></a></td>
-      <td><a class="glink" href="https://e-hentai.org/g/12345/abcdef1234/">Sample EH Book</a><div title="female:big_breasts"></div></td>
+      <td><a class="glink" href="{DEFAULT_BASE_URL}g/12345/abcdef1234/">Sample EH Book</a><div title="female:big_breasts"></div></td>
       <td class="gl4c"><a href="/?f_uploader=sample-user">sample-user</a></td><td>2026-07-26 10:12</td></tr>
     </table>
     """
@@ -691,7 +664,7 @@ def run_self_test() -> dict[str, Any]:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Conservative JSON bridge for public E-Hentai pages.")
+    parser = argparse.ArgumentParser(description=f"Conservative JSON bridge for public {SOURCE_LABEL} pages.")
     parser.add_argument(
         "command",
         choices=("search", "gallery", "list-pages", "download-gallery", "download-page", "retry-plan", "self-test"),
@@ -766,7 +739,7 @@ def main() -> int:
         print(json.dumps(payload, ensure_ascii=False))
         return 0
     except Exception as exc:  # noqa: BLE001 - keep bridge stderr concise for task errors.
-        print(str(exc), file=sys.stderr)
+        emit_bridge_error(exc, SOURCE_ID)
         return 1
 
 

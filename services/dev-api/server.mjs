@@ -9,10 +9,12 @@ import {
   collectPythonEnvKeys,
   loadSourceAdapterRegistry,
   materializeSourceAdapters,
+  materializeSourceAuthSpecs,
   publicSourceDescriptors,
 } from "./source-registry.mjs";
 import { createAsyncLimiter, createSingleFlight, mapWithConcurrency, normalizeConcurrency } from "./async-pool.mjs";
 import { createDownloadQuota, DownloadQuotaCanceledError } from "./download-quota.mjs";
+import { bridgeErrorFromOutput } from "./bridge-protocol.mjs";
 import { buildDiagnosticReport } from "./diagnostics.mjs";
 import { cleanTagList } from "./search-filter.mjs";
 import { executeSearchPipeline, SearchPipelineCanceledError } from "./search-pipeline.mjs";
@@ -21,6 +23,7 @@ import { createDevApiStateStore } from "./state-store.mjs";
 import { compareNaturalPageNames, createLibraryImageInspector } from "./library-index.mjs";
 import { cleanSearchThumbnailUrl } from "./thumbnail-policy.mjs";
 import { createSearchThumbnailCache } from "./thumbnail-cache.mjs";
+import { createSourceAuthManager } from "./source-auth.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const projectRoot = resolve(__dirname, "..", "..");
@@ -93,17 +96,14 @@ const scheduleReaderPageFetch = createAsyncLimiter(readerPageConcurrency);
 let saveChain = Promise.resolve();
 let readerSessionSaveChain = Promise.resolve();
 
-const sourceAuthSpecs = {
-  "18comic": {
-    cookieEnv: "COMIC18_COOKIE_FILE",
-    headersEnv: "COMIC18_HEADERS_FILE",
-    cookieFile: join(sourceAuthDir, "18comic.cookies.txt"),
-    headersFile: join(sourceAuthDir, "18comic.headers.txt"),
-  },
-};
-
 const sourceAdapters = materializeSourceAdapters(sourceAdapterRegistry, projectRoot, resolvePython);
-await refreshManagedSourceAuthEnv();
+const sourceAuthSpecs = materializeSourceAuthSpecs(sourceAdapters, sourceAuthDir);
+const sourceAuthManager = createSourceAuthManager({
+  authDir: sourceAuthDir,
+  specs: sourceAuthSpecs,
+  describeSources: () => publicSourceDescriptors(sourceAdapters),
+});
+await sourceAuthManager.refreshManagedEnv();
 let sources = publicSourceDescriptors(sourceAdapters);
 const sourceById = new Map(sourceAdapters.map((item) => [item.id, item]));
 if (!sourceById.has(defaultSourceId)) {
@@ -159,7 +159,7 @@ const server = createServer(async (request, response) => {
     }
 
     if (request.method === "GET" && path === "/v1/sources") {
-      await refreshManagedSourceAuthEnv();
+      await sourceAuthManager.refreshManagedEnv();
       sources = publicSourceDescriptors(sourceAdapters);
       sendJson(response, 200, sources);
       return;
@@ -167,13 +167,20 @@ const server = createServer(async (request, response) => {
 
     const sourceAuthMatch = path.match(/^\/v1\/source-auth\/([^/]+)$/);
     if (sourceAuthMatch && request.method === "GET") {
-      sendJson(response, 200, await sourceAuthStatus(decodeURIComponent(sourceAuthMatch[1])));
+      const status = await sourceAuthManager.status(decodeURIComponent(sourceAuthMatch[1]));
+      sources = publicSourceDescriptors(sourceAdapters);
+      sendJson(response, 200, status);
       return;
     }
 
     if (sourceAuthMatch && request.method === "PUT") {
       try {
-        sendJson(response, 200, await saveSourceAuth(decodeURIComponent(sourceAuthMatch[1]), await readJson(request)));
+        const status = await sourceAuthManager.save(
+          decodeURIComponent(sourceAuthMatch[1]),
+          await readJson(request),
+        );
+        sources = publicSourceDescriptors(sourceAdapters);
+        sendJson(response, 200, status);
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
       }
@@ -182,7 +189,9 @@ const server = createServer(async (request, response) => {
 
     if (sourceAuthMatch && request.method === "DELETE") {
       try {
-        sendJson(response, 200, await deleteSourceAuth(decodeURIComponent(sourceAuthMatch[1])));
+        const status = await sourceAuthManager.remove(decodeURIComponent(sourceAuthMatch[1]));
+        sources = publicSourceDescriptors(sourceAdapters);
+        sendJson(response, 200, status);
       } catch (error) {
         sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
       }
@@ -542,196 +551,6 @@ server.listen(port, "127.0.0.1", () => {
   startLibraryWatchers();
   resumeRecoveredTasks();
 });
-
-async function sourceAuthStatus(sourceId) {
-  const spec = requireSourceAuthSpec(sourceId);
-  await refreshManagedSourceAuthEnv();
-  sources = publicSourceDescriptors(sourceAdapters);
-  const [localCookieExists, localHeadersExists, effectiveCookieExists, effectiveHeadersExists] = await Promise.all([
-    fileExists(spec.cookieFile),
-    fileExists(spec.headersFile),
-    fileExists(process.env[spec.cookieEnv]),
-    fileExists(process.env[spec.headersEnv]),
-  ]);
-  const source = sources.find((item) => item.id === sourceId);
-  return {
-    source_id: sourceId,
-    configured: effectiveCookieExists || effectiveHeadersExists,
-    local_cookie_file: spec.cookieFile,
-    local_headers_file: spec.headersFile,
-    has_local_cookie_file: localCookieExists,
-    has_local_headers_file: localHeadersExists,
-    effective_cookie_file: process.env[spec.cookieEnv] || null,
-    effective_headers_file: process.env[spec.headersEnv] || null,
-    has_effective_cookie_file: effectiveCookieExists,
-    has_effective_headers_file: effectiveHeadersExists,
-    available_for_default: source?.available_for_default === true,
-    unavailable_reason: source?.unavailable_reason || null,
-  };
-}
-
-async function saveSourceAuth(sourceId, payload) {
-  const spec = requireSourceAuthSpec(sourceId);
-  const { cookie, headers } = normalizeSourceAuthPayload(payload);
-  if (!cookie && !headers) {
-    throw new Error("cookie or headers is required");
-  }
-
-  await mkdir(sourceAuthDir, { recursive: true });
-  if (cookie) {
-    await writeFile(spec.cookieFile, `${cookie}\n`, "utf8");
-  }
-  if (headers) {
-    await writeFile(spec.headersFile, `${headers}\n`, "utf8");
-  }
-  await refreshManagedSourceAuthEnv();
-  sources = publicSourceDescriptors(sourceAdapters);
-  return sourceAuthStatus(sourceId);
-}
-
-async function deleteSourceAuth(sourceId) {
-  const spec = requireSourceAuthSpec(sourceId);
-  await Promise.all([rm(spec.cookieFile, { force: true }), rm(spec.headersFile, { force: true })]);
-  await refreshManagedSourceAuthEnv();
-  sources = publicSourceDescriptors(sourceAdapters);
-  return sourceAuthStatus(sourceId);
-}
-
-function requireSourceAuthSpec(sourceId) {
-  const spec = sourceAuthSpecs[sourceId];
-  if (!spec) {
-    throw new Error(`source auth is not configurable for ${sourceId}`);
-  }
-  return spec;
-}
-
-function normalizeSourceAuthPayload(payload) {
-  const cookieParts = [];
-  const headerLines = [];
-  const rawCookie = textOrNull(payload?.cookie || payload?.cookie_header || payload?.cookies);
-  const rawHeaders = textOrNull(payload?.headers || payload?.headers_text || payload?.request_headers);
-
-  if (rawCookie) {
-    cookieParts.push(cleanCookieHeader(rawCookie));
-  }
-
-  if (rawHeaders) {
-    for (const line of rawHeaders.replace(/\r\n/g, "\n").split("\n")) {
-      const trimmed = cleanHeaderLine(line);
-      if (!trimmed || trimmed.startsWith("#")) {
-        continue;
-      }
-      const separator = trimmed.indexOf(":");
-      if (separator <= 0) {
-        continue;
-      }
-      const key = trimmed.slice(0, separator).trim();
-      const value = trimmed.slice(separator + 1).trim();
-      if (!key || !value) {
-        continue;
-      }
-      if (key.toLowerCase() === "cookie") {
-        cookieParts.push(cleanCookieHeader(value));
-      } else {
-        headerLines.push(`${key}: ${value}`);
-      }
-    }
-  }
-
-  if (payload?.headers_json && typeof payload.headers_json === "object" && !Array.isArray(payload.headers_json)) {
-    for (const [key, value] of Object.entries(payload.headers_json)) {
-      const headerKey = cleanHeaderName(key);
-      const headerValue = cleanHeaderValue(value);
-      if (!headerKey || !headerValue) {
-        continue;
-      }
-      if (headerKey.toLowerCase() === "cookie") {
-        cookieParts.push(cleanCookieHeader(headerValue));
-      } else {
-        headerLines.push(`${headerKey}: ${headerValue}`);
-      }
-    }
-  }
-
-  const cookie = Array.from(new Set(cookieParts.filter(Boolean).flatMap((item) => item.split(";").map((part) => part.trim()).filter(Boolean)))).join("; ");
-  const headers = Array.from(new Set(headerLines)).join("\n");
-  return { cookie, headers };
-}
-
-function cleanCookieHeader(value) {
-  return String(value || "")
-    .replace(/^\s*cookie\s*:/i, "")
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s*;\s*/g, "; ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function cleanHeaderLine(value) {
-  return String(value || "")
-    .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]+/g, "")
-    .trim();
-}
-
-function cleanHeaderName(value) {
-  const text = String(value || "").trim();
-  return /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/.test(text) ? text : "";
-}
-
-function cleanHeaderValue(value) {
-  return String(value || "")
-    .replace(/[\u0000-\u001f\u007f]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-async function refreshManagedSourceAuthEnv() {
-  await Promise.all(
-    Object.values(sourceAuthSpecs).map(async (spec) => {
-      await applyManagedSourceAuthEnv(spec.cookieEnv, spec.cookieFile);
-      await applyManagedSourceAuthEnv(spec.headersEnv, spec.headersFile);
-    }),
-  );
-}
-
-async function applyManagedSourceAuthEnv(envKey, filePath) {
-  if (process.env[envKey] && process.env[envKey] !== filePath) {
-    return;
-  }
-  if (await fileExists(filePath)) {
-    process.env[envKey] = filePath;
-    return;
-  }
-  if (process.env[envKey] === filePath) {
-    delete process.env[envKey];
-  }
-}
-
-function bridgeEnvForSource(sourceAdapter) {
-  const env = { ...process.env, PYTHONIOENCODING: "utf-8" };
-  const spec = sourceAuthSpecs[sourceAdapter?.id];
-  if (spec) {
-    if (!env[spec.cookieEnv] && process.env[spec.cookieEnv]) {
-      env[spec.cookieEnv] = process.env[spec.cookieEnv];
-    }
-    if (!env[spec.headersEnv] && process.env[spec.headersEnv]) {
-      env[spec.headersEnv] = process.env[spec.headersEnv];
-    }
-  }
-  return env;
-}
-
-async function fileExists(filePath) {
-  if (!filePath) {
-    return false;
-  }
-  try {
-    const fileStat = await stat(filePath);
-    return fileStat.isFile();
-  } catch {
-    return false;
-  }
-}
 
 setInterval(sweepOrphanedRunningTasks, 60000);
 
@@ -1295,7 +1114,7 @@ function runSourceBridge(sourceId, args, options = {}) {
     }
     const child = spawn(sourceAdapter.python || defaultPython, [sourceAdapter.bridgeScript, ...args], {
       cwd: projectRoot,
-      env: bridgeEnvForSource(sourceAdapter),
+      env: sourceAuthManager.bridgeEnv(sourceAdapter),
       windowsHide: true,
     });
     registerRunningChild(options.childKey, child);
@@ -1363,7 +1182,7 @@ function runSourceBridge(sourceId, args, options = {}) {
           return;
         }
         if (code !== 0) {
-          rejectPromise(new Error((stderr || stdout || `bridge exited with code ${code}`).trim()));
+          rejectPromise(bridgeErrorFromOutput(stderr || stdout, code));
           return;
         }
         try {

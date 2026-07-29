@@ -13,3 +13,5 @@ chrono.workspace = true
 futures-util.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+unicode-normalization.workspace = true
+url.workspace = true

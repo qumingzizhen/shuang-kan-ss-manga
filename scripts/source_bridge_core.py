@@ -7,6 +7,7 @@ import mimetypes
 import re
 import sys
 import struct
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -59,6 +60,7 @@ BAD_THUMBNAIL_NAME_PARTS = (
     "sprite",
 )
 BLOCKED_STATUSES = {401, 403, 429}
+BRIDGE_ERROR_PREFIX = "__COMIC_PLATFORM_ERROR__"
 TRANSIENT_STATUSES = {408, 425, 500, 502, 503, 504}
 ACCESS_CHALLENGE_RE = re.compile(
     r"(?:<title>\s*just a moment|checking your browser|verify you are human|cf_chl|cf-turnstile|turnstile|captcha|cloudflare)",
@@ -257,6 +259,56 @@ def save_image_target(
     )
 
 
+def save_external_image_target(
+    folder: Path,
+    target: ImageTarget,
+    producer: Callable[[Path], None],
+    *,
+    suffix_hint: str,
+    overwrite: bool,
+    min_image_bytes: int,
+    validation_attempts: int = 3,
+) -> tuple[Path, str | None, int, bool]:
+    """Validate and atomically commit an image produced by a file-based client."""
+    existing = existing_image_for_index(folder, target.index)
+    if existing and not overwrite:
+        try:
+            body = existing.read_bytes()
+            if len(body) >= min_image_bytes:
+                content_type = content_type_from_suffix(existing.suffix)
+                inspect_image_payload(body, content_type)
+                return existing, content_type, len(body), True
+        except (OSError, InvalidImagePayloadError):
+            pass
+
+    normalized_suffix = suffix_hint if suffix_hint.startswith(".") else f".{suffix_hint}"
+    folder.mkdir(parents=True, exist_ok=True)
+    staging = folder / f".{target.index:04d}.download{normalized_suffix}"
+    attempts = max(1, min(int(validation_attempts), 5))
+    last_error: Exception | None = None
+    for attempt in range(attempts):
+        staging.unlink(missing_ok=True)
+        try:
+            producer(staging)
+            body = staging.read_bytes()
+            return save_image_bytes(
+                folder,
+                target,
+                body,
+                content_type_from_suffix(staging.suffix),
+                min_image_bytes,
+            )
+        except Exception as error:  # noqa: BLE001 - external clients expose heterogeneous errors.
+            last_error = error
+            if attempt + 1 < attempts:
+                time.sleep(min(0.25 * (2**attempt), 2.0))
+        finally:
+            staging.unlink(missing_ok=True)
+    raise RuntimeError(
+        f"Image validation failed for page {target.index} after {attempts} attempt(s): {last_error}"
+    )
+
+
 def save_image_bytes(
     folder: Path,
     target: ImageTarget,
@@ -274,7 +326,10 @@ def save_image_bytes(
     temporary = file_path.with_name(f".{file_path.name}.part")
     try:
         temporary.write_bytes(body)
+        stale = existing_image_for_index(folder, target.index)
         temporary.replace(file_path)
+        if stale and stale != file_path:
+            stale.unlink(missing_ok=True)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise
@@ -415,6 +470,56 @@ def run_bounded_downloads(
     return stats
 
 
+def download_http_targets(
+    folder: Path,
+    targets: list[ImageTarget],
+    parsed: argparse.Namespace,
+    *,
+    source_id: str,
+    source_label: str,
+    gallery_url: str,
+    title: str,
+    progress_prefix: str,
+    concurrency: int,
+) -> DownloadStats:
+    """Run the shared HTTP image download workflow for a source driver."""
+    clients = threading.local()
+
+    def worker(target: ImageTarget) -> bool:
+        client = getattr(clients, "client", None)
+        if client is None:
+            client = HttpClient(parsed, source_label=source_label)
+            clients.client = client
+        try:
+            _path, _content_type, _byte_size, skipped = save_image_target(
+                client,
+                folder,
+                target,
+                bool(parsed.overwrite),
+                max(int(parsed.min_image_bytes or 0), 0),
+            )
+            return skipped
+        finally:
+            client.polite_wait()
+
+    reporter = DownloadProgressReporter(
+        folder,
+        source_id=source_id,
+        gallery_url=gallery_url,
+        title=title,
+        prefix=progress_prefix,
+    )
+    return run_bounded_downloads(
+        targets,
+        concurrency=concurrency,
+        worker=worker,
+        on_failure=lambda target, error: append_failed_page(folder, source_id, target, str(error)),
+        on_progress=reporter.report,
+        forbidden_stop_after=max(int(parsed.forbidden_stop_after or 0), 0),
+        max_failures=max(int(parsed.max_failures or 0), 0),
+    )
+
+
 class ParsedHtml(HTMLParser):
     def __init__(self, base_url: str) -> None:
         super().__init__(convert_charrefs=True)
@@ -502,6 +607,55 @@ class HttpStatusError(RuntimeError):
         self.status = status
         self.url = url
         self.kind = kind
+
+
+def bridge_error_payload(error: Exception, source_id: str) -> dict[str, Any]:
+    message = clean_text(str(error)) or error.__class__.__name__
+    lowered = message.lower()
+    code = "execution_failed"
+    retryable = False
+    retry_after_ms: int | None = None
+
+    if isinstance(error, HttpStatusError):
+        if error.status == 401:
+            code = "authentication_required"
+        elif error.status == 429:
+            code = "rate_limited"
+            retryable = True
+            retry_after_ms = 30_000
+        elif error.status in TRANSIENT_STATUSES:
+            code = "temporary_failure"
+            retryable = True
+        elif error.status == 403 or error.kind == "access_challenge":
+            code = "access_blocked"
+        else:
+            code = "http_error"
+    elif isinstance(error, InvalidImagePayloadError):
+        code = "invalid_payload"
+    elif any(marker in lowered for marker in ("captcha", "cloudflare", "verify you are human", "login required")):
+        code = "access_blocked"
+    elif any(marker in lowered for marker in ("timed out", "timeout", "connection reset", "temporarily unavailable")):
+        code = "temporary_failure"
+        retryable = True
+    elif any(marker in lowered for marker in ("is required", "invalid ", "out of range", "missing ")):
+        code = "invalid_input"
+
+    return {
+        "code": code,
+        "message": message,
+        "retryable": retryable,
+        "retry_after_ms": retry_after_ms,
+        "source_id": source_id,
+    }
+
+
+def emit_bridge_error(error: Exception, source_id: str) -> None:
+    payload = bridge_error_payload(error, source_id)
+    print(
+        f"{BRIDGE_ERROR_PREFIX}{json.dumps(payload, ensure_ascii=False, separators=(',', ':'))}",
+        file=sys.stderr,
+        flush=True,
+    )
 
 
 class HttpClient:

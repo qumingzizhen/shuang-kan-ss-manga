@@ -157,10 +157,10 @@ ENTRIES = [
     {
         "date": "2026-06-12",
         "area": "源站适配",
-        "feature": "Fangliding 旧 Python 下载器桥接 adapter",
-        "details": "新增 scripts/fangliding_bridge.py，并让内置 Fangliding adapter 通过该桥调用旧 ex_fangliding_downloader.py。当前桥接覆盖搜索、图库元数据读取和已有目录补缺计划；完整逐页下载与细粒度进度回传仍留作下一阶段。",
-        "status": "部分完成",
-        "verification": "Python 语法检查通过；使用旧 .venv 对已有下载目录执行 retry-plan 只读测试，成功返回 JSON；Rust workspace check 已通过。",
+        "feature": "Fangliding 共享兼容桥接 adapter",
+        "details": "Fangliding 使用 scripts/fangliding_bridge.py 注入来源身份与 FANGLIDING_* 配置，并复用项目内 ehentai_bridge.py、gallery_search_parser.py 和 source_bridge_core.py。搜索、图库、在线阅读、整本下载、失败重试、图片校验和原子写入均走统一实现，不再依赖项目目录外脚本或运行时猴子补丁。",
+        "status": "已完成",
+        "verification": "Fangliding 分页、阅读离线夹具及配置驱动的全部来源自测通过；公开仓库隐私检查通过。",
     },
     {
         "date": "2026-06-12",
@@ -732,6 +732,16 @@ ENTRIES.append(
 )
 
 
+ENTRIES.append(
+    {
+        "date": "2026-07-29",
+        "area": "工程架构",
+        "feature": "抽象边界与复用链路整改",
+        "details": "补齐源站能力模型和结构化 bridge 错误契约；任务仓储改为 TaskStore 抽象门面，任务队列新增 PostgreSQL 租约、确认和延迟重试，独立 Worker 可回写任务状态；Fangliding 改为项目内 E-Hentai 兼容核心的薄配置层；多源搜索使用索引化软去重和全局时间线；来源认证从 Node server 与 Dashboard 中拆为独立模块。原有启动入口、HTTP 路径、入参与输出结构保持不变。",
+        "status": "已完成",
+        "verification": "14 组 Node 回归、Python 共享核心与 4 个来源自测、13 个 Web 测试文件共 40 项、Next.js 生产构建、Rust 格式与 Cargo 清单检查、173 个跟踪文件隐私扫描通过；Rust 完整编译受本机 GNU dlltool CreateProcess 环境限制阻断，已在验收报告中明确记录。",
+    }
+)
 def set_east_asian_font(run, font_name: str = "Microsoft YaHei UI") -> None:
     run.font.name = font_name
     run._element.rPr.rFonts.set(qn("w:eastAsia"), font_name)

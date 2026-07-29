@@ -51,10 +51,8 @@ import {
   createSearchTask,
   createTaskEventsSource,
   createRemoteReaderBookmark,
-  deleteSourceAuth,
   deleteRemoteReaderBookmark,
   deleteRemoteReaderSession,
-  getSourceAuth,
   getRemoteReaderPageStatus,
   getRemoteReaderSession,
   getLibraryDetail,
@@ -65,7 +63,6 @@ import {
   listRemoteReaderPages,
   libraryExportDownloadUrl,
   parseTaskEvent,
-  saveSourceAuth,
   updateRemoteReaderProgress,
   updateLibraryShelf,
   type LibraryCompleteness,
@@ -85,7 +82,6 @@ import {
   type RemoteReaderSessionSummary,
   type RemoteReaderBookmark,
   type SourceAdapterDescriptor,
-  type SourceAuthStatus,
   type Task,
   type TaskKind,
   type TaskSearchResult,
@@ -139,6 +135,7 @@ import { AsyncState } from "@/components/async-state";
 import { RemoteReaderHistory } from "@/components/remote-reader-history";
 import { TagAutocomplete } from "@/components/tag-autocomplete";
 import { TaskDetailDrawer, type TaskDetailSearchState } from "@/components/task-detail-drawer";
+import { SourceAuthPanel } from "@/components/source-auth-panel";
 import {
   canonicalTag,
   expandExcludedTags,
@@ -161,7 +158,7 @@ import { searchResultKey } from "@/lib/search-result-model";
 import { prettyJson } from "@/lib/json";
 
 const allSourcesValue = "__all_sources__";
-const sourceAuthSourceId = "18comic";
+
 const detailDrawerCloseMs = 220;
 const readerScrollSyncDelayMs = 650;
 const readerScrollObserverMargin = "-18% 0px -48% 0px";
@@ -225,11 +222,6 @@ export function Dashboard() {
   const [libraryTagStats, setLibraryTagStats] = useState<LibraryTagStat[]>([]);
   const [sources, setSources] = useState<SourceAdapterDescriptor[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState(allSourcesValue);
-  const [sourceAuthOpen, setSourceAuthOpen] = useState(false);
-  const [sourceAuthStatus, setSourceAuthStatus] = useState<SourceAuthStatus | null>(null);
-  const [sourceAuthCookie, setSourceAuthCookie] = useState("");
-  const [sourceAuthHeaders, setSourceAuthHeaders] = useState("");
-  const [sourceAuthLoading, setSourceAuthLoading] = useState(false);
   const [logLines, setLogLines] = useState<string[]>(["console ready"]);
   const [loading, setLoading] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(false);
@@ -974,10 +966,12 @@ export function Dashboard() {
   }, [selectedLibraryId, libraryItems]);
   const selectedLibraryDetail = selectedLibraryId ? libraryDetails[selectedLibraryId] ?? null : null;
   const enabledSources = useMemo(() => sources.filter((source) => source.enabled), [sources]);
-  const sourceAuthDescriptor = useMemo(() => sources.find((source) => source.id === sourceAuthSourceId) ?? null, [sources]);
-  const shouldShowSourceAuthShortcut = Boolean(
-    sourceAuthDescriptor && sourceAuthDescriptor.enabled && (selectedSourceId === allSourcesValue || selectedSourceId === sourceAuthSourceId),
-  );
+  const sourceAuthDescriptor = useMemo(() => {
+    if (selectedSourceId === allSourcesValue) {
+      return sources.find((source) => source.enabled && source.auth) ?? null;
+    }
+    return sources.find((source) => source.id === selectedSourceId && source.enabled && source.auth) ?? null;
+  }, [selectedSourceId, sources]);
   const defaultSearchSources = useMemo(
     () => enabledSources.filter((source) => source.available_for_default !== false),
     [enabledSources],
@@ -1078,71 +1072,6 @@ export function Dashboard() {
     }
     void refreshTasks();
     void refreshRemoteReaderSessions();
-  }
-
-  async function refreshSourceAuth(sourceId = sourceAuthSourceId) {
-    setSourceAuthLoading(true);
-    setError(null);
-    try {
-      const status = await getSourceAuth(sourceId);
-      const nextSources = await fetchDashboardSources(queryClient, true);
-      setSourceAuthStatus(status);
-      setSources(nextSources);
-      pushLog(`loaded source auth status for ${sourceId}`);
-    } catch (caught) {
-      handleError(caught);
-    } finally {
-      setSourceAuthLoading(false);
-    }
-  }
-
-  async function openSourceAuthPanel(sourceId = sourceAuthSourceId) {
-    setSourceAuthOpen(true);
-    await refreshSourceAuth(sourceId);
-  }
-
-  async function saveSourceAuthSettings() {
-    if (!sourceAuthCookie.trim() && !sourceAuthHeaders.trim()) {
-      setError("请先粘贴 Cookie 或请求头");
-      return;
-    }
-
-    setSourceAuthLoading(true);
-    setError(null);
-    try {
-      const status = await saveSourceAuth(sourceAuthSourceId, {
-        cookie: sourceAuthCookie,
-        headers: sourceAuthHeaders,
-      });
-      const nextSources = await fetchDashboardSources(queryClient, true);
-      setSourceAuthStatus(status);
-      setSources(nextSources);
-      setSourceAuthCookie("");
-      setSourceAuthHeaders("");
-      pushLog("saved 18comic source auth");
-    } catch (caught) {
-      handleError(caught);
-    } finally {
-      setSourceAuthLoading(false);
-    }
-  }
-
-  async function clearSourceAuthSettings() {
-    setSourceAuthLoading(true);
-    setError(null);
-    try {
-      const status = await deleteSourceAuth(sourceAuthSourceId);
-      const nextSources = await fetchDashboardSources(queryClient, true);
-      setSourceAuthStatus(status);
-      setSources(nextSources);
-      setSourceAuthCookie("");
-      setSourceAuthHeaders("");
-      pushLog("cleared 18comic source auth");
-    } catch (caught) {
-      handleError(caught);
-    } finally {
-      setSourceAuthLoading(false);
-    }
   }
 
   function clearTaskFilters() {
@@ -4407,75 +4336,17 @@ export function Dashboard() {
                   ) : null}
                 </label>
 
-                {shouldShowSourceAuthShortcut && sourceAuthDescriptor && (
-                  <div className={sourceAuthStatus?.configured ? "source-auth-box ready" : "source-auth-box"}>
-                    <div className="source-auth-header">
-                      <div>
-                        <strong>18comic 网页备用会话</strong>
-                        <span>{sourceAuthStatus?.configured ? "已配置" : "API 模式无需配置"}</span>
-                      </div>
-                      <button
-                        className="mini-button"
-                        type="button"
-                        disabled={sourceAuthLoading}
-                        onClick={() => {
-                          if (sourceAuthOpen) {
-                            setSourceAuthOpen(false);
-                            return;
-                          }
-                          void openSourceAuthPanel();
-                        }}
-                      >
-                        <ShieldCheck size={13} aria-hidden />
-                        {sourceAuthOpen ? "收起" : "配置"}
-                      </button>
-                    </div>
-                    {sourceAuthOpen && (
-                      <div className="source-auth-body">
-                        <div className="source-auth-status">
-                          <span>{sourceAuthStatus?.configured ? "网页备用会话可用" : "当前使用 API"}</span>
-                          <span>{sourceAuthStatus?.has_effective_cookie_file ? "Cookie 已保存" : "Cookie 未保存"}</span>
-                          <span>{sourceAuthStatus?.has_effective_headers_file ? "Header 已保存" : "Header 未保存"}</span>
-                        </div>
-                        <label className="field">
-                          <span>Cookie</span>
-                          <textarea
-                            className="textarea compact"
-                            value={sourceAuthCookie}
-                            placeholder="name=value; name2=value2"
-                            onChange={(event) => setSourceAuthCookie(event.target.value)}
-                          />
-                        </label>
-                        <label className="field">
-                          <span>请求头</span>
-                          <textarea
-                            className="textarea compact"
-                            value={sourceAuthHeaders}
-                            placeholder={"User-Agent: ...\nReferer: https://18comic.vip/"}
-                            onChange={(event) => setSourceAuthHeaders(event.target.value)}
-                          />
-                        </label>
-                        <div className="source-auth-actions">
-                          <button className="mini-button primary" type="button" disabled={sourceAuthLoading} onClick={saveSourceAuthSettings}>
-                            <Save size={13} aria-hidden />
-                            保存
-                          </button>
-                          <button className="mini-button" type="button" disabled={sourceAuthLoading} onClick={() => void refreshSourceAuth()}>
-                            <RefreshCcw size={13} aria-hidden />
-                            刷新
-                          </button>
-                          <button className="mini-button danger" type="button" disabled={sourceAuthLoading} onClick={clearSourceAuthSettings}>
-                            <XCircle size={13} aria-hidden />
-                            清除
-                          </button>
-                        </div>
-                        <small className="field-hint">移动 API 默认无需 Cookie；这里仅供网页兼容回退。凭据只保存在项目目录 .data/source-auth 内。</small>
-                        {sourceAuthStatus?.unavailable_reason ? <small className="field-hint">{sourceAuthStatus.unavailable_reason}</small> : null}
-                      </div>
-                    )}
-                  </div>
+                {sourceAuthDescriptor && (
+                  <SourceAuthPanel
+                    key={sourceAuthDescriptor.id}
+                    descriptor={sourceAuthDescriptor}
+                    onSourcesChange={setSources}
+                    onLog={pushLog}
+                    onStart={() => setError(null)}
+                    onError={handleError}
+                    onValidationError={setError}
+                  />
                 )}
-
                 {mode === "search" && (
                   <>
                     <div className="field">

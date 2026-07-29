@@ -1,4 +1,4 @@
-use comic_platform_domain::Task;
+use comic_platform_domain::{BridgeErrorPayload, Task};
 use serde_json::{Value, json};
 use std::{env, fs, path::Path, process};
 
@@ -38,8 +38,36 @@ fn run() -> Result<(), String> {
             );
             Ok(())
         }
+        [command] if command == "bridge-error-schema" => {
+            println!("{}", pretty_bridge_error_schema()?);
+            Ok(())
+        }
+        [command, file] if command == "check-bridge-error-schema" => {
+            let expected =
+                normalize_newlines(&fs::read_to_string(file).map_err(|error| error.to_string())?);
+            let actual = format!("{}\n", pretty_bridge_error_schema()?);
+            if expected != actual {
+                return Err(format!(
+                    "bridge error schema is stale: run `cargo run -p comic-platform-domain --bin contract_tool -- write-bridge-error-schema {file}`"
+                ));
+            }
+            Ok(())
+        }
+        [command, file] if command == "write-bridge-error-schema" => fs::write(
+            file,
+            format!("{}\n", pretty_bridge_error_schema()?),
+        )
+        .map_err(|error| error.to_string()),
+        [command, file] if command == "normalize-bridge-error" => {
+            let payload: BridgeErrorPayload = read_json(file)?;
+            println!(
+                "{}",
+                serde_json::to_string(&payload).map_err(|error| error.to_string())?
+            );
+            Ok(())
+        }
         _ => Err(
-            "usage: contract_tool <schema|check-schema FILE|write-schema FILE|normalize-task FILE>"
+            "usage: contract_tool <schema|check-schema FILE|write-schema FILE|normalize-task FILE|bridge-error-schema|check-bridge-error-schema FILE|write-bridge-error-schema FILE|normalize-bridge-error FILE>"
                 .to_string(),
         ),
     }
@@ -52,6 +80,27 @@ fn read_json<T: serde::de::DeserializeOwned>(file: &str) -> Result<T, String> {
 
 fn pretty_schema() -> Result<String, String> {
     serde_json::to_string_pretty(&contract_schema()).map_err(|error| error.to_string())
+}
+fn pretty_bridge_error_schema() -> Result<String, String> {
+    serde_json::to_string_pretty(&bridge_error_schema()).map_err(|error| error.to_string())
+}
+
+fn bridge_error_schema() -> Value {
+    json!({
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "$id": "https://comic-platform.local/contracts/bridge-error.schema.json",
+      "title": "漫画平台源站桥接错误契约",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "message", "retryable", "retry_after_ms", "source_id"],
+      "properties": {
+        "code": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "retryable": { "type": "boolean" },
+        "retry_after_ms": { "type": ["integer", "null"], "minimum": 0 },
+        "source_id": { "type": ["string", "null"] }
+      }
+    })
 }
 
 fn normalize_newlines(value: &str) -> String {

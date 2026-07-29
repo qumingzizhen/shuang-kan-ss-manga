@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { isAbsolute, resolve } from "node:path";
+import { isAbsolute, join, resolve } from "node:path";
 
 export function loadSourceAdapterRegistry(configFile) {
   const registry = JSON.parse(readFileSync(configFile, "utf8"));
@@ -38,6 +38,30 @@ export function collectPythonEnvKeys(registry) {
   return Array.from(new Set(keys.filter(Boolean)));
 }
 
+export function materializeSourceAuthSpecs(sourceAdapters, authDir) {
+  const specs = {};
+  for (const source of sourceAdapters) {
+    const auth = source?.auth;
+    if (!auth || auth.enabled === false) continue;
+    const cookieEnv = textOrNull(auth.cookie_env);
+    const headersEnv = textOrNull(auth.headers_env);
+    if (!cookieEnv && !headersEnv) {
+      throw new Error(`source adapter ${source.id} auth requires cookie_env or headers_env`);
+    }
+    const fileStem = textOrNull(auth.file_stem) || source.id;
+    if (!/^[a-z0-9._-]+$/i.test(fileStem)) {
+      throw new Error(`source adapter ${source.id} auth file_stem is invalid`);
+    }
+    specs[source.id] = {
+      cookieEnv,
+      headersEnv,
+      cookieFile: cookieEnv ? join(authDir, `${fileStem}.cookies.txt`) : null,
+      headersFile: headersEnv ? join(authDir, `${fileStem}.headers.txt`) : null,
+    };
+  }
+  return specs;
+}
+
 export function materializeSourceAdapters(registry, projectRoot, resolvePython) {
   return registry.sources.map((source) => materializeSourceAdapter(source, projectRoot, resolvePython));
 }
@@ -51,15 +75,31 @@ export function publicSourceDescriptors(sourceAdapters) {
       default_requires_any_env: _defaultRequiresAnyEnv,
       default_disabled_reason: _defaultDisabledReason,
       thumbnail_hosts: _thumbnailHosts,
+      auth: _auth,
       ...descriptor
     } = source;
     const availability = sourceDefaultAvailability(source);
     return {
       ...descriptor,
+      auth: publicAuthDescriptor(source.auth),
       available_for_default: availability.available_for_default,
       unavailable_reason: availability.unavailable_reason,
     };
   });
+}
+
+function publicAuthDescriptor(auth) {
+  if (!auth || auth.enabled === false) return null;
+  const fields = [];
+  if (textOrNull(auth.cookie_env)) fields.push("cookie");
+  if (textOrNull(auth.headers_env)) fields.push("headers");
+  return {
+    mode: textOrNull(auth.mode) || "cookie_headers",
+    title: textOrNull(auth.title),
+    description: textOrNull(auth.description),
+    fields,
+    headers_placeholder: textOrNull(auth.headers_placeholder),
+  };
 }
 
 function materializeSourceAdapter(source, projectRoot, resolvePython) {

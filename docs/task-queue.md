@@ -16,11 +16,13 @@ The API should not know whether the queue is in-memory, NATS JetStream, Redis, o
 
 | Implementation | Status | Use |
 |---|---|---|
-| `InMemoryTaskQueue` | Implemented | Local development, API route checks, and API local worker execution |
-| NATS JetStream | Planned | Cross-process and production task transport |
+| `InMemoryTaskQueue` | Implemented | Local development and the API in-process worker |
+| `PostgresTaskQueue` | Implemented | Cross-process API/worker delivery with leases, acknowledgements, and delayed retries |
+| NATS JetStream | Optional future implementation | High-throughput deployments that outgrow the PostgreSQL transport |
 
-`InMemoryTaskQueue` is intentionally not a production transport. It helps keep the API and worker code wired against a stable trait before NATS is installed. The API starts a local in-process worker by default in memory mode; set `API_LOCAL_WORKER=false` to keep tasks queued without local execution.
+The API defaults to the in-memory queue and starts its local worker for a zero-service development workflow. The standalone download worker defaults to PostgreSQL because a process-local queue cannot receive messages created by the API process. Select the backend with `TASK_QUEUE_BACKEND`. Set `API_LOCAL_WORKER=false` when only standalone workers should consume the durable queue; leaving it enabled intentionally allows the API process to join the worker pool.
 
+When `TASK_QUEUE_BACKEND=postgres`, the API also requires `TASK_REPOSITORY=postgres`. This keeps durable messages and durable task state in the same deployment mode. PostgreSQL queue settings are documented in `.env.example`: connection pool size, poll interval, lease duration, consumer id, and worker retry limit.
 ## Message Contract
 
 `TaskQueueMessage` contains:
@@ -33,7 +35,7 @@ The API should not know whether the queue is in-memory, NATS JetStream, Redis, o
 | `attempt` | Delivery attempt number |
 | `queued_at` | Queue enqueue timestamp |
 
-For NATS JetStream, the same contract should be serialized as JSON first. Later it can be moved to a versioned binary format if needed.
+Every queue transport must preserve this logical contract. A transport-specific envelope may be versioned later without changing API routes or dispatcher behavior.
 
 ## Worker Runtime
 
@@ -45,22 +47,12 @@ For NATS JetStream, the same contract should be serialized as JSON first. Later 
 4. calls `TaskReporter::task_completed` or `TaskReporter::task_failed`
 5. acknowledges the message through `TaskQueue::ack`
 
-The standalone download worker currently uses a tracing reporter. The API local worker uses a repository-backed reporter that updates task status and publishes lifecycle SSE events.
+The standalone download worker uses `PostgresTaskReporter` with the PostgreSQL backend so lifecycle state is visible to the API process; memory mode falls back to `TracingTaskReporter`. The API local worker uses a repository-backed reporter that updates task status and publishes lifecycle SSE events.
 
 For direct gallery tasks, `TaskDispatcher` now calls the adapter's `download_gallery` operation. Completion reports can include total, done, and failed page counts, which the API local worker writes into `TaskProgress` before publishing `task_completed`. Dispatch reports can also include `TaskOutput`, so search results, download reports, and retry plans survive beyond the worker log line.
 
 Lifecycle reporting should reuse the event names in `docs/task-lifecycle.md`. Workers should report `task_started` before adapter dispatch, `task_progressed` during page/file work, and one terminal event: `task_completed`, `task_failed`, or `task_canceled`.
 
-## Future NATS Shape
+## Optional NATS Extension
 
-Expected subjects:
-
-```text
-tasks.search.created
-tasks.gallery.created
-tasks.retry_folder.created
-tasks.progress.updated
-tasks.lifecycle.canceled
-```
-
-Workers should acknowledge messages only after the task state has been durably updated. Failed messages should be retried with attempt metadata and moved to a dead-letter stream after policy limits.
+NATS JetStream remains a possible additional `TaskQueue` implementation, not a missing prerequisite. If introduced, it must preserve `TaskQueueMessage`, delayed retry semantics, durable task-state reporting, and acknowledge only after the terminal state is persisted. API routes and `WorkerRuntime` must continue to depend on the `TaskQueue` trait rather than NATS subjects.

@@ -6,10 +6,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from source_bridge_core import (
+    HttpStatusError,
     ImageTarget,
     InvalidImagePayloadError,
+    bridge_error_payload,
     inspect_image_payload,
     run_bounded_downloads,
+    save_external_image_target,
     save_image_target,
 )
 
@@ -89,12 +92,40 @@ def main() -> None:
         assert client.attempts == 2
         assert inspect_image_payload(path.read_bytes(), content_type).width == 3
         assert not list(folder.glob("*.part"))
+        external_attempts = 0
+
+        def produce_external(staging: Path) -> None:
+            nonlocal external_attempts
+            external_attempts += 1
+            staging.write_bytes(b"invalid" if external_attempts == 1 else valid_jpeg(4, 5))
+
+        external_target = ImageTarget(2, "https://page/2", "jmapi://image/2", "https://gallery")
+        external_path, _external_type, _external_size, external_skipped = save_external_image_target(
+            folder,
+            external_target,
+            produce_external,
+            suffix_hint=".jpg",
+            overwrite=False,
+            min_image_bytes=32,
+        )
+        assert external_path.name == "0002.jpg"
+        assert inspect_image_payload(external_path.read_bytes(), "image/jpeg").height == 5
+        assert external_skipped is False
+        assert external_attempts == 2
+        assert not list(folder.glob(".*.download*"))
+
         try:
             inspect_image_payload(b"\x89PNG\r\n\x1a\n" + b"x" * 80, "image/png")
         except InvalidImagePayloadError:
             pass
         else:
             raise AssertionError("truncated PNG must be rejected")
+    rate_limit = bridge_error_payload(HttpStatusError(429, "https://source", "too many requests"), "fixture")
+    assert rate_limit["code"] == "rate_limited"
+    assert rate_limit["retryable"] is True
+    invalid_input = bridge_error_payload(RuntimeError("--gallery-url is required"), "fixture")
+    assert invalid_input["code"] == "invalid_input"
+    assert invalid_input["retryable"] is False
     print({"ok": True, "max_concurrency": max_active, "done": stats.done, "failed": stats.failed})
 
 

@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use anyhow::Context;
 use comic_platform_source_adapter::AdapterError;
@@ -10,6 +10,13 @@ pub type ReporterFuture<'a, T> = Pin<Box<dyn Future<Output = anyhow::Result<T>> 
 
 pub trait TaskReporter: Send + Sync {
     fn task_started<'a>(&'a self, message: &'a TaskQueueMessage) -> ReporterFuture<'a, ()>;
+
+    fn task_retrying<'a>(
+        &'a self,
+        message: &'a TaskQueueMessage,
+        error: &'a AdapterError,
+        next_attempt: u32,
+    ) -> ReporterFuture<'a, ()>;
 
     fn task_completed<'a>(
         &'a self,
@@ -35,6 +42,26 @@ impl TaskReporter for TracingTaskReporter {
                 kind = ?message.kind,
                 attempt = message.attempt,
                 "task dispatch started"
+            );
+            Ok(())
+        })
+    }
+
+    fn task_retrying<'a>(
+        &'a self,
+        message: &'a TaskQueueMessage,
+        error: &'a AdapterError,
+        next_attempt: u32,
+    ) -> ReporterFuture<'a, ()> {
+        Box::pin(async move {
+            tracing::warn!(
+                task_id = %message.task_id,
+                kind = ?message.kind,
+                attempt = message.attempt,
+                next_attempt,
+                error_code = %error.code,
+                error = %error,
+                "task dispatch will retry"
             );
             Ok(())
         })
@@ -78,6 +105,7 @@ pub struct WorkerRuntime {
     queue: Arc<dyn TaskQueue>,
     dispatcher: TaskDispatcher,
     reporter: Arc<dyn TaskReporter>,
+    max_attempts: u32,
 }
 
 impl WorkerRuntime {
@@ -86,10 +114,16 @@ impl WorkerRuntime {
         dispatcher: TaskDispatcher,
         reporter: Arc<dyn TaskReporter>,
     ) -> Self {
+        let max_attempts = std::env::var("WORKER_MAX_ATTEMPTS")
+            .ok()
+            .and_then(|value| value.parse::<u32>().ok())
+            .unwrap_or(3)
+            .max(1);
         Self {
             queue,
             dispatcher,
             reporter,
+            max_attempts,
         }
     }
 
@@ -115,6 +149,9 @@ impl WorkerRuntime {
 
         match self.dispatcher.dispatch(message.task.clone()).await {
             Ok(report) => self.complete_message(&message, &report).await,
+            Err(error) if error.retryable && message.attempt < self.max_attempts => {
+                self.retry_message(message, &error).await
+            }
             Err(error) => self.fail_message(&message, &error).await,
         }
     }
@@ -129,6 +166,26 @@ impl WorkerRuntime {
             .ack(message)
             .await
             .context("failed to ack task")?;
+        Ok(())
+    }
+
+    async fn retry_message(
+        &self,
+        message: TaskQueueMessage,
+        error: &AdapterError,
+    ) -> anyhow::Result<()> {
+        let next_attempt = message.attempt.saturating_add(1);
+        self.reporter
+            .task_retrying(&message, error, next_attempt)
+            .await?;
+        self.queue
+            .retry(
+                message,
+                format!("{}: {}", error.code, error.message),
+                Duration::from_millis(error.retry_after_ms.unwrap_or(0)),
+            )
+            .await
+            .context("failed to retry task")?;
         Ok(())
     }
 

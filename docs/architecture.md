@@ -35,7 +35,7 @@ Browser
 5. Files are stored in object storage and indexed for search.
 6. Browser receives progress through SSE or WebSocket.
 
-The current default scaffold uses an in-memory task repository, in-memory event publisher, and in-memory task queue. PostgreSQL is already implemented behind the API service's `postgres` feature. SSE task events are exposed from the publisher boundary, with explicit lifecycle events such as `task_started`, `task_progressed`, `task_completed`, `task_failed`, and `task_canceled`. The API starts a local in-process worker by default so memory-mode tasks can be consumed before NATS is installed. NATS JetStream will replace the in-memory queue/publisher later without changing route handlers. Source-specific behavior is kept behind `packages/source-adapter` so new websites can be added without changing task routes or the web console.
+The local scaffold defaults to an in-memory task repository, event publisher, and queue, and the API starts an in-process worker. For cross-process deployment, both task state and queue transport can use PostgreSQL: the queue leases messages to independent workers, the worker reporter writes terminal state back to PostgreSQL, and retryable adapter errors are delayed and bounded by policy. NATS is an optional future `TaskQueue` implementation rather than a required missing link. Source-specific behavior remains behind `packages/source-adapter`, so new websites do not change task routes or the web console.
 
 ## Optimized Runtime Flows
 
@@ -95,7 +95,7 @@ download_page(page) -> file artifact
 
 Adapters must respect authentication, access controls, rate limits, and site-specific rules. Do not add captcha, paywall, or login bypass behavior.
 
-The built-in Fangliding adapter currently uses `scripts/fangliding_bridge.py` to call the existing Python downloader for search, gallery metadata, and retry-plan operations. Full page download progress reporting still needs a richer adapter/runtime contract.
+Fangliding now uses `scripts/fangliding_bridge.py` only as an identity and environment wrapper over the shared E-Hentai-compatible bridge. Search, gallery parsing, page reading, retry planning, download scheduling, image validation, and atomic writes are project-internal shared implementations; no project-external downloader or runtime monkey patch is required.
 
 ## Public Deployment Notes
 
@@ -108,3 +108,13 @@ Public-facing deployment needs:
 - abuse detection and suspension controls
 - content complaint and takedown process
 - worker isolation for plugins and untrusted inputs
+
+## 2026-07-29 Boundary Update
+
+- `TaskRepository` is a stable facade over a replaceable `TaskStore` trait.
+- `TaskQueue` has in-memory and PostgreSQL implementations; `WorkerRuntime` owns retry policy while adapters return structured retry metadata.
+- Rust and development API search paths both normalize URLs/titles, merge soft duplicates, preserve partial source errors, and sort the combined source timeline by newest upload time.
+- The bridge error schema is versioned in `config/contracts/bridge-error.schema.json` and validated across Rust, Node.js, and Python.
+- Source authentication is isolated from the development server and Dashboard into independently tested modules.
+
+See `docs/抽象复用问题整改与验收-2026-07-29.md` for the file-by-file rationale, compatibility statement, and extension-cost measurement.

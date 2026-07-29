@@ -9,8 +9,8 @@ use std::{
 };
 
 use comic_platform_domain::{
-    CreateGalleryTaskRequest, CreateRetryFolderTaskRequest, CreateSearchTaskRequest,
-    SourceAdapterDescriptor, SourceCapability, SourceId,
+    BridgeErrorPayload, CreateGalleryTaskRequest, CreateRetryFolderTaskRequest,
+    CreateSearchTaskRequest, SourceAdapterDescriptor, SourceCapability, SourceId,
 };
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tokio::process::Command;
@@ -19,6 +19,7 @@ pub type AdapterResult<T> = Result<T, AdapterError>;
 pub type AdapterFuture<'a, T> = Pin<Box<dyn Future<Output = AdapterResult<T>> + Send + 'a>>;
 
 const DEFAULT_SOURCE_ID: &str = "fangliding";
+const BRIDGE_ERROR_PREFIX: &str = "__COMIC_PLATFORM_ERROR__";
 const BUILTIN_SOURCE_ADAPTER_CONFIG: &str = include_str!("../../../config/source-adapters.json");
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -87,51 +88,89 @@ pub enum AdapterErrorKind {
     UnsupportedCapability,
     NotImplemented,
     InvalidInput,
+    AuthenticationRequired,
+    AccessBlocked,
+    RateLimited,
+    TemporaryFailure,
+    InvalidPayload,
     ExecutionFailed,
 }
 
 #[derive(Debug, Clone)]
 pub struct AdapterError {
     pub kind: AdapterErrorKind,
+    pub code: String,
     pub message: String,
+    pub retryable: bool,
+    pub retry_after_ms: Option<u64>,
 }
 
 impl AdapterError {
-    pub fn unknown_source(source_id: &str) -> Self {
+    fn new(kind: AdapterErrorKind, code: impl Into<String>, message: impl Into<String>) -> Self {
         Self {
-            kind: AdapterErrorKind::UnknownSource,
-            message: format!("unknown source adapter: {source_id}"),
+            kind,
+            code: code.into(),
+            message: message.into(),
+            retryable: false,
+            retry_after_ms: None,
         }
+    }
+
+    pub fn unknown_source(source_id: &str) -> Self {
+        Self::new(
+            AdapterErrorKind::UnknownSource,
+            "unknown_source",
+            format!("unknown source adapter: {source_id}"),
+        )
     }
 
     pub fn unsupported_capability(source_id: &str, capability: SourceCapability) -> Self {
-        Self {
-            kind: AdapterErrorKind::UnsupportedCapability,
-            message: format!(
+        Self::new(
+            AdapterErrorKind::UnsupportedCapability,
+            "unsupported_capability",
+            format!(
                 "source adapter {source_id} does not support {}",
                 capability.as_str()
             ),
-        }
+        )
     }
 
     pub fn not_implemented(operation: &str) -> Self {
-        Self {
-            kind: AdapterErrorKind::NotImplemented,
-            message: format!("source adapter operation is not implemented yet: {operation}"),
-        }
+        Self::new(
+            AdapterErrorKind::NotImplemented,
+            "not_implemented",
+            format!("source adapter operation is not implemented yet: {operation}"),
+        )
     }
 
     pub fn invalid_input(message: impl Into<String>) -> Self {
-        Self {
-            kind: AdapterErrorKind::InvalidInput,
-            message: message.into(),
-        }
+        Self::new(AdapterErrorKind::InvalidInput, "invalid_input", message)
     }
 
     pub fn execution_failed(message: impl Into<String>) -> Self {
+        Self::new(
+            AdapterErrorKind::ExecutionFailed,
+            "execution_failed",
+            message,
+        )
+    }
+
+    fn from_bridge(error: BridgeErrorPayload, source_label: &str) -> Self {
+        let kind = match error.code.as_str() {
+            "authentication_required" => AdapterErrorKind::AuthenticationRequired,
+            "access_blocked" => AdapterErrorKind::AccessBlocked,
+            "rate_limited" => AdapterErrorKind::RateLimited,
+            "temporary_failure" => AdapterErrorKind::TemporaryFailure,
+            "invalid_payload" => AdapterErrorKind::InvalidPayload,
+            "invalid_input" => AdapterErrorKind::InvalidInput,
+            _ => AdapterErrorKind::ExecutionFailed,
+        };
         Self {
-            kind: AdapterErrorKind::ExecutionFailed,
-            message: message.into(),
+            kind,
+            code: error.code,
+            message: format!("{source_label} bridge failed: {}", error.message),
+            retryable: error.retryable,
+            retry_after_ms: error.retry_after_ms,
         }
     }
 }
@@ -187,17 +226,22 @@ impl Default for SourceAdapterRegistry {
 
 impl SourceAdapterRegistry {
     pub fn with_builtin_adapters() -> Self {
-        let config =
-            source_adapter_config().expect("built-in source adapter config should be valid JSON");
+        Self::try_with_builtin_adapters().unwrap_or_else(|error| {
+            panic!("failed to initialize built-in source adapters: {error}")
+        })
+    }
+
+    pub fn try_with_builtin_adapters() -> AdapterResult<Self> {
+        let config = source_adapter_config()?;
         let default_source_id = config.default_source_id.clone();
-        let adapters = config.sources.into_iter().map(|config| {
-            let adapter = PythonBridgeAdapter::from_config(config)
-                .expect("built-in python bridge adapter config should be valid");
-            Arc::new(adapter) as Arc<dyn SourceAdapter>
-        });
+        let adapters = config
+            .sources
+            .into_iter()
+            .map(PythonBridgeAdapter::from_config)
+            .map(|result| result.map(|adapter| Arc::new(adapter) as Arc<dyn SourceAdapter>))
+            .collect::<AdapterResult<Vec<_>>>()?;
 
         Self::with_default_source_id(default_source_id, adapters)
-            .expect("built-in source adapters should be valid")
     }
 
     pub fn new(adapters: impl IntoIterator<Item = Arc<dyn SourceAdapter>>) -> AdapterResult<Self> {
@@ -650,6 +694,9 @@ impl PythonBridge {
             } else {
                 stderr.trim().to_string()
             };
+            if let Some(error) = parse_bridge_error(&message) {
+                return Err(AdapterError::from_bridge(error, &self.label));
+            }
             return Err(AdapterError::execution_failed(format!(
                 "{} bridge failed: {message}",
                 self.label
@@ -696,6 +743,14 @@ fn source_id_or_default(source_id: Option<SourceId>, fallback: &str) -> SourceId
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
         .unwrap_or_else(|| fallback.to_string())
+}
+
+fn parse_bridge_error(output: &str) -> Option<BridgeErrorPayload> {
+    output.lines().rev().find_map(|line| {
+        line.trim()
+            .strip_prefix(BRIDGE_ERROR_PREFIX)
+            .and_then(|json| serde_json::from_str(json).ok())
+    })
 }
 
 #[derive(Debug, Deserialize)]
@@ -775,4 +830,48 @@ struct RetryBridgeOutput {
     source_id: Option<SourceId>,
     folder: String,
     page_indexes: Vec<u32>,
+}
+#[cfg(test)]
+mod tests {
+    use super::{AdapterError, AdapterErrorKind, SourceAdapterRegistry, parse_bridge_error};
+    use comic_platform_domain::SourceCapability;
+
+    #[test]
+    fn built_in_adapter_config_deserializes_with_all_runtime_capabilities() {
+        let registry = SourceAdapterRegistry::try_with_builtin_adapters()
+            .expect("built-in source adapter config should remain compatible with the Rust model");
+        assert_eq!(registry.list().len(), 3);
+
+        for descriptor in registry.list() {
+            for capability in [
+                SourceCapability::Search,
+                SourceCapability::Gallery,
+                SourceCapability::Download,
+                SourceCapability::RetryFolder,
+                SourceCapability::PageList,
+                SourceCapability::PageImage,
+                SourceCapability::OnlineRead,
+            ] {
+                assert!(
+                    descriptor.supports(&capability),
+                    "{} should support {}",
+                    descriptor.id,
+                    capability.as_str()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn structured_bridge_errors_preserve_retry_semantics() {
+        let envelope = parse_bridge_error(
+            "noise\n__COMIC_PLATFORM_ERROR__{\"code\":\"rate_limited\",\"message\":\"slow down\",\"retryable\":true,\"retry_after_ms\":30000,\"source_id\":\"fixture\"}",
+        )
+        .expect("structured bridge error should parse");
+        let error = AdapterError::from_bridge(envelope, "Fixture");
+        assert_eq!(error.kind, AdapterErrorKind::RateLimited);
+        assert_eq!(error.code, "rate_limited");
+        assert!(error.retryable);
+        assert_eq!(error.retry_after_ms, Some(30_000));
+    }
 }

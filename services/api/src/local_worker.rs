@@ -3,7 +3,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use comic_platform_domain::{Task, TaskStatus};
 use comic_platform_source_adapter::AdapterError;
-use comic_platform_task_queue::{TaskQueue, TaskQueueMessage};
+use comic_platform_task_queue::TaskQueueMessage;
 use comic_platform_task_runtime::{
     ReporterFuture, TaskDispatchReport, TaskDispatcher, TaskReporter, WorkerRuntime,
 };
@@ -16,7 +16,8 @@ pub fn start_local_worker_if_enabled(state: AppState) -> bool {
         return false;
     }
 
-    let queue: Arc<dyn TaskQueue> = Arc::new(state.queue.clone());
+    let queue = state.queue.clone();
+    let queue_backend = state.queue_backend;
     let dispatcher = TaskDispatcher::new(state.sources.clone());
     let reporter = Arc::new(RepositoryTaskReporter::new(state));
     let runtime = WorkerRuntime::new(queue, dispatcher, reporter);
@@ -27,7 +28,7 @@ pub fn start_local_worker_if_enabled(state: AppState) -> bool {
         }
     });
 
-    tracing::info!("API local worker started for in-memory task execution");
+    tracing::info!(queue = queue_backend.as_str(), "API local worker started");
     true
 }
 
@@ -85,6 +86,32 @@ impl TaskReporter for RepositoryTaskReporter {
                 .await
                 .context("failed to mark task as running")?;
             reporter.state.publisher.publish_task_started(&task).await;
+            Ok(())
+        })
+    }
+
+    fn task_retrying<'a>(
+        &'a self,
+        message: &'a TaskQueueMessage,
+        error: &'a AdapterError,
+        next_attempt: u32,
+    ) -> ReporterFuture<'a, ()> {
+        let reporter = self.clone();
+        let message = message.clone();
+        let error_code = error.code.clone();
+        Box::pin(async move {
+            let Some(mut task) = reporter.load_mutable_task(&message).await? else {
+                return Ok(());
+            };
+            task.update_status(TaskStatus::Queued);
+            task.progress.message = format!("retrying attempt {next_attempt} after {error_code}");
+            let task = reporter
+                .state
+                .tasks
+                .update(task)
+                .await
+                .context("failed to mark task for retry")?;
+            reporter.state.publisher.publish_task_updated(&task).await;
             Ok(())
         })
     }

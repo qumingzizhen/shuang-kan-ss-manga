@@ -1,6 +1,6 @@
 #[cfg(feature = "postgres")]
 use std::str::FromStr;
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, future::Future, pin::Pin, sync::Arc};
 
 #[cfg(feature = "postgres")]
 use anyhow::Context;
@@ -21,16 +21,25 @@ const CREATE_TASKS_SQL: &str = include_str!("../migrations/0001_create_tasks.sql
 #[cfg(feature = "postgres")]
 const ADD_TASK_OUTPUT_SQL: &str = include_str!("../migrations/0002_add_task_output.sql");
 
+type RepositoryFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T>> + Send + 'a>>;
+
+trait TaskStore: Send + Sync {
+    fn insert(&self, task: Task) -> RepositoryFuture<'_, Task>;
+    fn update(&self, task: Task) -> RepositoryFuture<'_, Task>;
+    fn get<'a>(&'a self, id: &'a TaskId) -> RepositoryFuture<'a, Option<Task>>;
+    fn list(&self) -> RepositoryFuture<'_, Vec<Task>>;
+}
+
 #[derive(Clone)]
-pub enum TaskRepository {
-    Memory(MemoryTaskRepository),
-    #[cfg(feature = "postgres")]
-    Postgres(PostgresTaskRepository),
+pub struct TaskRepository {
+    inner: Arc<dyn TaskStore>,
 }
 
 impl Default for TaskRepository {
     fn default() -> Self {
-        Self::Memory(MemoryTaskRepository::default())
+        Self {
+            inner: Arc::new(MemoryTaskRepository::default()),
+        }
     }
 }
 
@@ -48,43 +57,28 @@ impl TaskRepository {
     }
 
     pub async fn insert(&self, task: Task) -> Result<Task> {
-        match self {
-            Self::Memory(repository) => repository.insert(task).await,
-            #[cfg(feature = "postgres")]
-            Self::Postgres(repository) => repository.insert(task).await,
-        }
+        self.inner.insert(task).await
     }
 
     pub async fn update(&self, task: Task) -> Result<Task> {
-        match self {
-            Self::Memory(repository) => repository.update(task).await,
-            #[cfg(feature = "postgres")]
-            Self::Postgres(repository) => repository.update(task).await,
-        }
+        self.inner.update(task).await
     }
 
     pub async fn get(&self, id: &TaskId) -> Result<Option<Task>> {
-        match self {
-            Self::Memory(repository) => repository.get(id).await,
-            #[cfg(feature = "postgres")]
-            Self::Postgres(repository) => repository.get(id).await,
-        }
+        self.inner.get(id).await
     }
 
     pub async fn list(&self) -> Result<Vec<Task>> {
-        match self {
-            Self::Memory(repository) => repository.list().await,
-            #[cfg(feature = "postgres")]
-            Self::Postgres(repository) => repository.list().await,
-        }
+        self.inner.list().await
     }
 }
-
 #[cfg(feature = "postgres")]
 async fn build_postgres_repository() -> Result<TaskRepository> {
     tracing::info!("using PostgreSQL task repository");
     let repository = PostgresTaskRepository::connect_from_env().await?;
-    Ok(TaskRepository::Postgres(repository))
+    Ok(TaskRepository {
+        inner: Arc::new(repository),
+    })
 }
 
 #[cfg(not(feature = "postgres"))]
@@ -129,6 +123,23 @@ impl MemoryTaskRepository {
     }
 }
 
+impl TaskStore for MemoryTaskRepository {
+    fn insert(&self, task: Task) -> RepositoryFuture<'_, Task> {
+        Box::pin(MemoryTaskRepository::insert(self, task))
+    }
+
+    fn update(&self, task: Task) -> RepositoryFuture<'_, Task> {
+        Box::pin(MemoryTaskRepository::update(self, task))
+    }
+
+    fn get<'a>(&'a self, id: &'a TaskId) -> RepositoryFuture<'a, Option<Task>> {
+        Box::pin(MemoryTaskRepository::get(self, id))
+    }
+
+    fn list(&self) -> RepositoryFuture<'_, Vec<Task>> {
+        Box::pin(MemoryTaskRepository::list(self))
+    }
+}
 #[cfg(feature = "postgres")]
 #[derive(Clone)]
 pub struct PostgresTaskRepository {
@@ -260,6 +271,24 @@ impl PostgresTaskRepository {
 }
 
 #[cfg(feature = "postgres")]
+impl TaskStore for PostgresTaskRepository {
+    fn insert(&self, task: Task) -> RepositoryFuture<'_, Task> {
+        Box::pin(PostgresTaskRepository::insert(self, task))
+    }
+
+    fn update(&self, task: Task) -> RepositoryFuture<'_, Task> {
+        Box::pin(PostgresTaskRepository::update(self, task))
+    }
+
+    fn get<'a>(&'a self, id: &'a TaskId) -> RepositoryFuture<'a, Option<Task>> {
+        Box::pin(PostgresTaskRepository::get(self, id))
+    }
+
+    fn list(&self) -> RepositoryFuture<'_, Vec<Task>> {
+        Box::pin(PostgresTaskRepository::list(self))
+    }
+}
+#[cfg(feature = "postgres")]
 fn row_to_task(row: &sqlx::postgres::PgRow) -> Result<Task> {
     let kind_text: String = row.try_get("kind")?;
     let status_text: String = row.try_get("status")?;
@@ -280,4 +309,44 @@ fn row_to_task(row: &sqlx::postgres::PgRow) -> Result<Task> {
         created_at: row.try_get::<DateTime<Utc>, _>("created_at")?,
         updated_at: row.try_get::<DateTime<Utc>, _>("updated_at")?,
     })
+}
+#[cfg(test)]
+mod tests {
+    use super::TaskRepository;
+    use comic_platform_domain::{CreateSearchTaskRequest, Task, TaskKind, TaskPayload, TaskStatus};
+
+    #[tokio::test]
+    async fn memory_repository_implements_replaceable_store_contract() {
+        let repository = TaskRepository::default();
+        let mut task = Task::new(
+            TaskKind::Search,
+            "fixture",
+            TaskPayload::Search(CreateSearchTaskRequest {
+                source_id: None,
+                source_ids: vec!["fixture".to_string()],
+                tags: Vec::new(),
+                excluded_tags: Vec::new(),
+                name: None,
+                query: Some("fixture".to_string()),
+                limit: 1,
+            }),
+        );
+        let task_id = task.id.clone();
+        repository.insert(task.clone()).await.expect("insert task");
+        assert_eq!(
+            repository
+                .get(&task_id)
+                .await
+                .expect("get task")
+                .unwrap()
+                .id,
+            task_id
+        );
+
+        task.update_status(TaskStatus::Running);
+        repository.update(task).await.expect("update task");
+        let tasks = repository.list().await.expect("list tasks");
+        assert_eq!(tasks.len(), 1);
+        assert_eq!(tasks[0].status, TaskStatus::Running);
+    }
 }

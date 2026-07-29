@@ -10,6 +10,8 @@ comic-platform-source-adapter = { path = "../../packages/source-adapter" }
 comic-platform-task-queue = { path = "../../packages/task-queue" }
 comic-platform-task-runtime = { path = "../../packages/task-runtime" }
 anyhow.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
 tokio.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

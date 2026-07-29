@@ -1,0 +1,40 @@
+{
+  "$id": "https://comic-platform.local/contracts/bridge-error.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "code": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "message": {
+      "minLength": 1,
+      "type": "string"
+    },
+    "retry_after_ms": {
+      "minimum": 0,
+      "type": [
+        "integer",
+        "null"
+      ]
+    },
+    "retryable": {
+      "type": "boolean"
+    },
+    "source_id": {
+      "type": [
+        "string",
+        "null"
+      ]
+    }
+  },
+  "required": [
+    "code",
+    "message",
+    "retryable",
+    "retry_after_ms",
+    "source_id"
+  ],
+  "title": "漫画平台源站桥接错误契约",
+  "type": "object"
+}

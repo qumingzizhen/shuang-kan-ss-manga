@@ -9,11 +9,21 @@ const fixtureFile = join(root, "config", "contracts", "task.fixture.json");
 const invalidFixtureFile = join(root, "config", "contracts", "task.invalid-extra.fixture.json");
 const schema = JSON.parse(readFileSync(schemaFile, "utf8"));
 const fixture = JSON.parse(readFileSync(fixtureFile, "utf8"));
+const bridgeSchemaFile = join(root, "config", "contracts", "bridge-error.schema.json");
+const bridgeFixtureFile = join(root, "config", "contracts", "bridge-error.fixture.json");
+const invalidBridgeFixtureFile = join(root, "config", "contracts", "bridge-error.invalid-extra.fixture.json");
+const bridgeSchema = JSON.parse(readFileSync(bridgeSchemaFile, "utf8"));
+const bridgeFixture = JSON.parse(readFileSync(bridgeFixtureFile, "utf8"));
 
 validate(fixture, schema, schema);
 assert.throws(
   () => validate(JSON.parse(readFileSync(invalidFixtureFile, "utf8")), schema, schema),
   "Node contract validator must reject custom fields",
+);
+validate(bridgeFixture, bridgeSchema, bridgeSchema);
+assert.throws(
+  () => validate(JSON.parse(readFileSync(invalidBridgeFixtureFile, "utf8")), bridgeSchema, bridgeSchema),
+  "Node bridge error contract validator must reject custom fields",
 );
 
 const cargoName = process.platform === "win32" ? "cargo.exe" : "cargo";
@@ -21,7 +31,7 @@ const cargo = process.env.CARGO_HOME ? join(process.env.CARGO_HOME, "bin", cargo
 const rust = run(cargo, [
   "run",
   "--quiet",
-    "--no-default-features",
+  "--no-default-features",
   "-p",
   "comic-platform-domain",
   "--bin",
@@ -42,12 +52,36 @@ const node = JSON.stringify(fixture);
 assert.equal(rust, node, "Rust and Node task serialization differ");
 assert.equal(python, node, "Python and Node task serialization differ");
 
+const bridgeRust = run(cargo, [
+  "run",
+  "--quiet",
+  "--no-default-features",
+  "-p",
+  "comic-platform-domain",
+  "--bin",
+  "contract_tool",
+  "--",
+  "normalize-bridge-error",
+  bridgeFixtureFile,
+]);
+const bridgePython = run("python", [
+  join(root, "scripts", "contract_validator.py"),
+  "--schema",
+  bridgeSchemaFile,
+  "--fixture",
+  bridgeFixtureFile,
+  "--normalize",
+]);
+const bridgeNode = JSON.stringify(bridgeFixture);
+assert.equal(bridgeRust, bridgeNode, "Rust and Node bridge error serialization differ");
+assert.equal(bridgePython, bridgeNode, "Python and Node bridge error serialization differ");
+
 const invalidRust = spawnSync(
   cargo,
   [
     "run",
     "--quiet",
-    "--no-default-features",
+  "--no-default-features",
     "-p",
     "comic-platform-domain",
     "--bin",
@@ -59,7 +93,24 @@ const invalidRust = spawnSync(
   { cwd: root, encoding: "utf8" },
 );
 assert.notEqual(invalidRust.status, 0, "Rust must reject custom contract fields");
-console.log(JSON.stringify({ ok: true, runtimes: ["rust", "node", "python"], byte_equal: true }));
+const invalidBridgeRust = spawnSync(
+  cargo,
+  [
+    "run",
+    "--quiet",
+  "--no-default-features",
+    "-p",
+    "comic-platform-domain",
+    "--bin",
+    "contract_tool",
+    "--",
+    "normalize-bridge-error",
+    invalidBridgeFixtureFile,
+  ],
+  { cwd: root, encoding: "utf8" },
+);
+assert.notEqual(invalidBridgeRust.status, 0, "Rust must reject custom bridge error fields");
+console.log(JSON.stringify({ ok: true, contracts: ["task", "bridge_error"], runtimes: ["rust", "node", "python"], byte_equal: true }));
 
 function run(command, args) {
   const result = spawnSync(command, args, { cwd: root, encoding: "utf8" });

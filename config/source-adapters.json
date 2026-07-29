@@ -7,10 +7,19 @@
       "name": "Fangliding",
       "homepage": "https://ex.fangliding.eu.org/",
       "thumbnail_hosts": ["ehgt.org"],
-      "version": "0.4.0",
+      "version": "0.4.1",
       "capabilities": ["search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"],
       "enabled": true,
       "notes": "Built-in E-Hentai-compatible adapter sharing the validated search, reader, retry, and download core; no project-external script is required.",
+      "auth": {
+        "mode": "cookie_headers",
+        "cookie_env": "FANGLIDING_COOKIE_FILE",
+        "headers_env": "FANGLIDING_HEADERS_FILE",
+        "file_stem": "fangliding",
+        "title": "Fangliding 浏览器会话",
+        "description": "仅在站点要求正常浏览器会话时配置。认证信息只保存在本机 .data/source-auth，不会绕过验证码、封禁或访问限制。",
+        "headers_placeholder": "User-Agent: ...\nReferer: https://ex.fangliding.eu.org/"
+      },
       "self_tests": [
         { "script": "scripts/check_fangliding_pagination.py" },
         { "script": "scripts/check_fangliding_reader.py" }

@@ -82,8 +82,8 @@ export function createSourceAuthManager({ authDir, specs, describeSources, envir
 
     await mkdir(authDir, { recursive: true });
     await Promise.all([
-      cookie ? writeFile(spec.cookieFile, `${cookie}\n`, "utf8") : null,
-      headers ? writeFile(spec.headersFile, `${headers}\n`, "utf8") : null,
+      cookie ? writePrivateText(spec.cookieFile, `${cookie}\n`) : null,
+      headers ? writePrivateText(spec.headersFile, `${headers}\n`) : null,
     ]);
     await refreshManagedEnv();
     return status(sourceId);

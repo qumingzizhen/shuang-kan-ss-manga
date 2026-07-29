@@ -440,6 +440,23 @@ def fetch_gallery_meta(parsed: argparse.Namespace) -> GalleryMeta:
     return collect_gallery_meta(client, gallery_url, parsed)
 
 
+def blocked_search_error(blocked_errors: list[HttpStatusError], query: str) -> HttpStatusError:
+    representative = blocked_errors[-1]
+    attempted_urls = ", ".join(error.url for error in blocked_errors[:3])
+    message = (
+        f"{SOURCE_LABEL} search was blocked for all attempted public search URLs. "
+        f"Query: {query}. Attempted: {attempted_urls}. "
+        f"Provide an authorized session file for normal {SOURCE_LABEL} access; "
+        "the adapter will not bypass login, age gates, captchas, bans, or rate limits."
+    )
+    return HttpStatusError(
+        representative.status,
+        representative.url,
+        message,
+        kind=representative.kind,
+    )
+
+
 def run_search(parsed: argparse.Namespace) -> dict[str, Any]:
     base_url = normalize_base_url(parsed.base_url)
     query = build_query(json.loads(parsed.tags_json), parsed.name, parsed.query)
@@ -475,13 +492,7 @@ def run_search(parsed: argparse.Namespace) -> dict[str, Any]:
             break
 
     if not results and blocked_errors:
-        attempted_urls = ", ".join(error.url for error in blocked_errors[:3])
-        raise RuntimeError(
-            f"{SOURCE_LABEL} search was blocked for all attempted public search URLs. "
-            f"Query: {query}. Attempted: {attempted_urls}. "
-            f"Provide an authorized session file for normal {SOURCE_LABEL} access; "
-            "the adapter will not bypass login, age gates, captchas, bans, or rate limits."
-        )
+        raise blocked_search_error(blocked_errors, query)
 
     return {"source_id": SOURCE_ID, "query": query, "results": results[: parsed.limit]}
 

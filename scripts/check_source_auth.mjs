@@ -1,10 +1,26 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
+import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { createSourceAuthManager } from "../services/dev-api/source-auth.mjs";
+import {
+  loadSourceAdapterRegistry,
+  materializeSourceAuthSpecs,
+  publicSourceDescriptors,
+} from "../services/dev-api/source-registry.mjs";
 
+const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const registry = loadSourceAdapterRegistry(join(projectRoot, "config", "source-adapters.json"));
 const authDir = await mkdtemp(join(tmpdir(), "manga-source-auth-"));
+const configuredSpecs = materializeSourceAuthSpecs(registry.sources, authDir);
+const fanglidingDescriptor = publicSourceDescriptors(registry.sources).find(
+  (source) => source.id === "fangliding",
+);
+assert.equal(configuredSpecs.fangliding.cookieEnv, "FANGLIDING_COOKIE_FILE");
+assert.equal(configuredSpecs.fangliding.headersEnv, "FANGLIDING_HEADERS_FILE");
+assert.deepEqual(fanglidingDescriptor?.auth?.fields, ["cookie", "headers"]);
+
 const environment = {};
 const cookieFile = join(authDir, "fixture.cookies.txt");
 const headersFile = join(authDir, "fixture.headers.txt");
@@ -41,6 +57,7 @@ try {
   assert.equal(environment.FIXTURE_HEADERS_FILE, headersFile);
   assert.equal((await readFile(cookieFile, "utf8")).trim(), "session=one; token=two");
   assert.equal((await readFile(headersFile, "utf8")).trim(), "User-Agent: fixture\nAccept: image/avif");
+  assert.equal((await readdir(authDir)).some((name) => name.endsWith(".tmp")), false);
   assert.equal(manager.bridgeEnv({ id: "fixture" }).PYTHONIOENCODING, "utf-8");
 
   const removed = await manager.remove("fixture");
@@ -53,4 +70,4 @@ try {
   await rm(authDir, { recursive: true, force: true });
 }
 
-console.log(JSON.stringify({ ok: true, atomic_auth_files: true, managed_env: true }));
+console.log(JSON.stringify({ ok: true, atomic_auth_files: true, managed_env: true, fangliding_auth: true }));

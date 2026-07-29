@@ -349,6 +349,29 @@ The adapter includes an offline `self-test` fixture for parser behavior. Live
 smoke testing should still be performed from the user's own network and with
 authorized credentials if the selected galleries require them.
 
+## Fangliding Authorized Session Boundary
+
+Fangliding reuses the E-Hentai-compatible bridge and shared source bridge core;
+it does not introduce a parallel frontend or download chain. When the public
+endpoint responds with an access challenge, the source registry exposes the
+generic `cookie_headers` authentication capability declared in
+`config/source-adapters.json`.
+
+Authorized operators may save their own browser Cookie and request headers
+through the existing source-auth panel. The development API writes these values
+atomically under `.data/source-auth` and injects only the resulting private file
+paths into the selected adapter process:
+
+```text
+FANGLIDING_COOKIE_FILE=...
+FANGLIDING_HEADERS_FILE=...
+```
+
+This recovery path only reuses a session that can already access the site. It
+does not solve or bypass a CAPTCHA, ban, rate limit, or site-wide outage. See
+`docs/Fangliding-403诊断与会话修复-2026-07-29.md` for the incident evidence,
+verification commands, and operator procedure.
+
 ## Adding A New Source
 
 To add another site without breaking the architecture:

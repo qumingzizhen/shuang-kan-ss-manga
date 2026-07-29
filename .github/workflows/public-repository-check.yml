@@ -48,12 +48,17 @@ jobs:
       - name: Node 服务与管线测试
         run: |
           node --check services/dev-api/server.mjs
+          node --check services/dev-api/source-registry.mjs
+          node --check services/dev-api/source-auth.mjs
+          node --check services/dev-api/bridge-protocol.mjs
           node --check services/dev-api/state-store.mjs
           node --check services/dev-api/download-quota.mjs
           node --check services/dev-api/diagnostics.mjs
           node --check services/dev-api/search-results.mjs
           node --check services/dev-api/library-index.mjs
           node scripts/check_async_pool.mjs
+          node scripts/check_bridge_protocol.mjs
+          node scripts/check_source_auth.mjs
           node scripts/check_download_quota.mjs
           node scripts/check_diagnostics.mjs
           node scripts/check_state_store.mjs
@@ -69,18 +74,16 @@ jobs:
         run: |
           python -m py_compile scripts/contract_validator.py scripts/source_bridge_core.py scripts/fangliding_bridge.py scripts/18comic_bridge.py scripts/ehentai_bridge.py
           python scripts/check_download_core.py
-          python scripts/check_fangliding_pagination.py
-          python scripts/check_fangliding_reader.py
           python scripts/check_gallery_search_parser.py
-          python scripts/18comic_bridge.py self-test
-          python scripts/ehentai_bridge.py self-test
+          python scripts/run_source_adapter_self_tests.py
       - name: Rust 格式与工作区检查
         run: |
           cargo fmt --all -- --check
-          cargo check --workspace
+          cargo check --workspace --all-targets --all-features
       - name: 三运行时契约门
         run: |
           cargo run --quiet --no-default-features -p comic-platform-domain --bin contract_tool -- check-schema config/contracts/task.schema.json
+          cargo run --quiet --no-default-features -p comic-platform-domain --bin contract_tool -- check-bridge-error-schema config/contracts/bridge-error.schema.json
           node scripts/check_contracts.mjs
       - name: Web 单元测试与构建
         run: |

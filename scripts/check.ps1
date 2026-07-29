@@ -74,7 +74,7 @@ Write-Host "`n[check] Rust format"
 Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") fmt --all -- --check }
 
 Write-Host "`n[check] Rust workspace"
-Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") check --workspace }
+Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") check --workspace --all-targets --all-features }
 
 Write-Host "`n[check] Cross-runtime contracts"
 Invoke-Checked { & (Join-Path $env:CARGO_HOME "bin\cargo.exe") run --quiet --no-default-features -p comic-platform-domain --bin contract_tool -- check-schema .\config\contracts\task.schema.json }

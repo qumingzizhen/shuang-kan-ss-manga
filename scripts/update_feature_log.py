@@ -739,7 +739,7 @@ ENTRIES.append(
         "feature": "抽象边界与复用链路整改",
         "details": "补齐源站能力模型和结构化 bridge 错误契约；任务仓储改为 TaskStore 抽象门面，任务队列新增 PostgreSQL 租约、确认和延迟重试，独立 Worker 可回写任务状态；Fangliding 改为项目内 E-Hentai 兼容核心的薄配置层；多源搜索使用索引化软去重和全局时间线；来源认证从 Node server 与 Dashboard 中拆为独立模块。原有启动入口、HTTP 路径、入参与输出结构保持不变。",
         "status": "已完成",
-        "verification": "14 组 Node 回归、Python 共享核心与 4 个来源自测、13 个 Web 测试文件共 40 项、Next.js 生产构建、Rust 格式与 Cargo 清单检查、173 个跟踪文件隐私扫描通过；提交 58cef20 的 GitHub Actions 项目质量检查通过，完成 Linux Rust workspace 与三运行时契约验证。质量门已升级为全 target、全 feature 编译。",
+        "verification": "14 组 Node 回归、Python 共享核心与 4 个来源自测、13 个 Web 测试文件共 40 项、Next.js 生产构建、Rust 格式与 Cargo 清单检查、173 个跟踪文件隐私扫描通过；提交 58cef20 的 GitHub Actions 项目质量检查通过，完成 Linux Rust workspace 与三运行时契约验证。质量门已升级为全 target、全 feature 编译；提交 7c777de 的敏感信息扫描与跨语言质量门均通过。",
     }
 )
 def set_east_asian_font(run, font_name: str = "Microsoft YaHei UI") -> None:

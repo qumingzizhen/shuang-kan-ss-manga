@@ -26,6 +26,9 @@ Invoke-Checked { python .\scripts\check_source_adapters.py }
 Write-Host "`n[check] Reverse proxy configuration"
 Invoke-Checked { node .\scripts\check_reverse_proxy_config.mjs }
 
+Write-Host "`n[check] Public access lifecycle"
+Invoke-Checked { & .\scripts\check_public_access.ps1 }
+
 Write-Host "`n[check] Public repository privacy"
 Invoke-Checked { python .\scripts\check_public_repo.py }
 

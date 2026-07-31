@@ -10,6 +10,9 @@ param(
 
   [string]$CloudflaredPath = "E:\Programs\Cloudflared\cloudflared.exe",
 
+  [ValidateSet("http2", "quic", "auto")]
+  [string]$Protocol = "http2",
+
   [Parameter(ParameterSetName = "Stop", Mandatory = $true)]
   [switch]$Stop,
 
@@ -94,11 +97,33 @@ function Remove-StaleState {
   }
 }
 
+function Test-PublicUrlReady {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Url,
+    [int]$TimeoutSeconds = 8
+  )
+
+  try {
+    $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec $TimeoutSeconds
+    return [int]$response.StatusCode -ge 200 -and [int]$response.StatusCode -lt 500
+  }
+  catch {
+    return $false
+  }
+}
+
 if ($Status) {
   $managedProcess = Get-ManagedTunnelProcess
   if ($managedProcess) {
-    Write-Host "Quick Tunnel is running (PID $($managedProcess.Id))."
     $savedUrl = Get-SavedUrl
+    $isReachable = $savedUrl -and (Test-PublicUrlReady -Url $savedUrl)
+    if ($isReachable) {
+      Write-Host "Quick Tunnel is healthy (PID $($managedProcess.Id))."
+    }
+    else {
+      Write-Host "Quick Tunnel process is running but its public URL is unreachable (PID $($managedProcess.Id))." -ForegroundColor Yellow
+    }
     if ($savedUrl) {
       Write-Host "Public URL: $savedUrl"
     }
@@ -154,12 +179,16 @@ if ($existingProcess) {
   if ($savedOriginPort -ne $WebPort) {
     throw "Quick Tunnel is already running for port $savedOriginPort. Stop it before changing the origin port."
   }
-  Write-Host "Quick Tunnel is already running (PID $($existingProcess.Id))."
-  if ($savedUrl) {
+  if ($savedUrl -and (Test-PublicUrlReady -Url $savedUrl)) {
+    Write-Host "Quick Tunnel is already healthy (PID $($existingProcess.Id))."
     Write-Host "Public URL: $savedUrl"
+    Write-Host "Local origin: http://127.0.0.1:$savedOriginPort"
+    return
   }
-  Write-Host "Local origin: http://127.0.0.1:$savedOriginPort"
-  return
+  Write-Host "Replacing unhealthy Quick Tunnel PID $($existingProcess.Id)..." -ForegroundColor Yellow
+  Stop-Process -Id $existingProcess.Id -Force -ErrorAction Stop
+  $existingProcess.WaitForExit(5000) | Out-Null
+  Remove-StaleState
 }
 
 Remove-StaleState
@@ -174,6 +203,7 @@ $argumentList = @(
   "tunnel",
   "--no-autoupdate",
   "--loglevel", "info",
+  "--protocol", $Protocol,
   "--url", "http://127.0.0.1:$WebPort"
 )
 
@@ -237,7 +267,20 @@ if (-not $publicUrl) {
 Set-Content -LiteralPath $UrlFile -Value $publicUrl -Encoding ascii
 
 Write-Host ""
-Write-Host "Quick Tunnel is ready."
+$readinessDeadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
+while ((Get-Date) -lt $readinessDeadline) {
+  if (Test-PublicUrlReady -Url $publicUrl) {
+    break
+  }
+  Start-Sleep -Milliseconds 750
+}
+if (-not (Test-PublicUrlReady -Url $publicUrl)) {
+  Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+  Remove-StaleState
+  throw "Quick Tunnel published $publicUrl but the URL did not become reachable."
+}
+
+Write-Host "Quick Tunnel is ready over $Protocol."
 Write-Host "Public URL: $publicUrl" -ForegroundColor Cyan
 Write-Host "Local origin: http://127.0.0.1:$WebPort"
 Write-Host "Anyone with this URL can open the site while the tunnel is running."

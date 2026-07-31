@@ -1,151 +1,144 @@
 # 无域名临时公网访问：Cloudflare Quick Tunnel
 
 > 日期：2026-07-31
-> 适用场景：本机运行项目，手机不安装客户端，直接通过浏览器访问临时 HTTPS 地址。
+> 适用场景：项目运行在本机，手机无需安装客户端，直接使用浏览器访问临时 HTTPS 地址。
 
 ## 访问链路
 
 ```text
 手机浏览器
   -> https://随机子域名.trycloudflare.com
-  -> Cloudflare Quick Tunnel
-  -> 本机 http://127.0.0.1:3000
+  -> Cloudflare Quick Tunnel（默认 HTTP/2）
+  -> 本机 http://127.0.0.1:3100
   -> Next.js /v1/** 同源反向代理
   -> 本机 http://127.0.0.1:8080
-  -> 本机 VPN
-  -> 漫画源
+  -> 本机网络/VPN
+  -> 漫画源站
 ```
 
-只对外转发 Web 端口 `3000`。开发 API、数据库、Redis、NATS、MinIO
-等端口仍然只在本机使用。
+公网只暴露前端入口。API、状态数据库和下载目录仍仅在本机使用。手机端是否开启 VPN 不决定源站可达性；真正请求源站的是运行后端的电脑，因此需要电脑侧网络能够访问对应源站。
 
-## 当前工具
+## 统一启动
 
-Windows x64 版 `cloudflared` 保存在：
-
-```text
-E:\Programs\Cloudflared\cloudflared.exe
-```
-
-首次配置使用的版本为 `2026.7.3`，下载后已对照 GitHub Release
-提供的 SHA-256：
-
-```text
-8635da433b6df8194746e88ed9d2589566c20e38bfc2a80e431a348b7c765841
-```
-
-该程序是独立可执行文件，不安装服务、驱动或开机启动项。
-
-## 启动
-
-打开第一个 PowerShell 窗口，启动本地开发环境和 API：
-
-```powershell
-cd "<项目目录>"
-.\scripts\dev.ps1 -Fresh
-```
-
-保持该窗口开启。确认 `http://127.0.0.1:8080/health` 可以访问后，再打开第二个
-PowerShell 窗口，启动独立生产前端和隧道：
+在 PowerShell 中执行：
 
 ```powershell
 cd "<项目目录>"
 .\scripts\public-access.ps1
 ```
 
-首次运行会在 `apps/web/.next-public` 创建独立生产构建，然后由 `3100` 端口提供公网源站。
-该目录不会覆盖本地开发使用的 `.next`，也不会提交到 Git。后续代码没有变动时可跳过构建：
+该命令现在统一管理三段服务：
+
+1. `public-api.ps1`：后台启动或复用 `127.0.0.1:8080` API，并通过 `/health` 验证。
+2. `public-web.ps1`：构建并后台启动 `127.0.0.1:3100` 生产前端。
+3. `public-tunnel.ps1`：创建 Cloudflare Quick Tunnel，并验证公网 URL 实际可访问。
+
+不再需要先开一个 `dev.ps1` 窗口来维持 API。API 有独立 PID 和日志，不会因为开发终端关闭而被连带停止。
+
+首次运行会生成 `apps/web/.next-public` 独立生产构建。代码未变化时可以跳过构建：
 
 ```powershell
 .\scripts\public-access.ps1 -SkipBuild
 ```
 
-不要把开发服务器 `3000` 端口直接暴露到公网。开发版包含 Turbopack/HMR 脚本，移动网络下加载慢且可能无法完成客户端水合。
+如果后端部署在另一台设备，可传入远程地址。此时脚本不会启动本机 API：
 
-脚本会输出类似下面的临时地址：
-
-```text
-https://random-words.trycloudflare.com
+```powershell
+.\scripts\public-access.ps1 -BackendApiUrl "http://192.168.1.20:8080"
 ```
 
-手机直接在浏览器打开该地址即可。
-
-## 页面连接状态
-
-页面会分别检测普通 API 与任务实时事件流：
-
-- `实时`：API 与 SSE 事件流均可用；
-- `在线 · 轮询`：API 正常，但当前隧道无法稳定传输 SSE，页面每 4 秒自动刷新任务；
-- `离线`：任务 API 确实不可达，页面每 6 秒自动探测恢复。
-
-因此，手机通过 Quick Tunnel 访问时看到“在线 · 轮询”属于正常降级，搜索、下载、阅读和文件库仍走同源 `/v1/**` 反向代理。浏览器会继续尝试恢复 SSE，成功后自动切回“实时”。
 ## 状态与关闭
 
-查看生产前端、隧道状态和网址：
+查看 API、前端、隧道和当前临时网址：
 
 ```powershell
 .\scripts\public-access.ps1 -Status
 ```
 
-同时关闭生产前端和隧道：
+健康状态必须同时满足：
+
+- `Public API is running`
+- `Public production web is running`
+- `Quick Tunnel is healthy`
+
+关闭三段服务：
 
 ```powershell
 .\scripts\public-access.ps1 -Stop
 ```
 
-`public-web.ps1` 与 `public-tunnel.ps1` 是底层组件脚本，只在单独排查生产前端或隧道时使用。
+停止顺序为隧道、前端、API。脚本会核对 PID 对应的可执行文件和命令行，避免误停其他程序。
 
-关闭后原来的临时网址立即失效。再次启动会生成新的随机网址。
+## 隧道稳定性
 
-运行状态、PID、网址与日志保存在 Git 已忽略的目录：
+Quick Tunnel 默认强制使用 HTTP/2：
+
+```powershell
+.\scripts\public-tunnel.ps1 -WebPort 3100 -Protocol http2
+```
+
+原因是部分 VPN 或网络环境会让 QUIC 进程继续存活，却持续连接超时。状态检查现在会实际请求公网 URL，不再仅凭 PID 判断。再次运行启动命令时，如果发现旧隧道进程存在但公网 URL 不可达，会只替换该隧道进程，并生成新的随机网址。
+
+需要诊断时仍可显式选择：
+
+```powershell
+.\scripts\public-tunnel.ps1 -WebPort 3100 -Protocol auto
+.\scripts\public-tunnel.ps1 -WebPort 3100 -Protocol quic
+```
+
+## 运行状态与日志
+
+运行状态保存在 Git 已忽略的目录：
 
 ```text
+.data\public-api
 .data\public-web
 .data\quick-tunnel
 ```
 
-脚本关闭进程前会校验 PID 对应的可执行文件与启动命令，避免误杀其他程序。
+主要日志：
 
-## 使用边界
-
-- 当前按使用者要求不配置登录。任何拿到临时网址的人都可以访问。
-- 不要把临时网址发布到公开群聊、论坛、GitHub Issue 或 README。
-- 项目、本机 VPN 和 Quick Tunnel 必须同时保持运行。
-- 电脑关机、休眠、断网、切换网络或关闭隧道都会中断访问。
-- Quick Tunnel 用于临时测试，不保证固定域名、长期在线或大文件下载稳定性。
-- 漫画搜索和图片下载仍由本机后端发起，手机的网络或 VPN 不决定源站可达性。
-- 本地 Cookie、请求头、下载内容和隧道运行状态不会提交到 GitHub。
+```text
+.data\public-api\api.stdout.log
+.data\public-api\api.stderr.log
+.data\public-web\next.stdout.log
+.data\public-web\next.stderr.log
+.data\quick-tunnel\cloudflared.stderr.log
+```
 
 ## 常见问题
 
-### 手机打开显示 502
+### 页面显示“离线”
 
-本机 `3000` 端口没有正常运行。检查第一个 PowerShell 窗口，并在本机打开：
+先执行：
 
-```text
-http://127.0.0.1:3000
+```powershell
+.\scripts\public-access.ps1 -Status
 ```
+
+如果 API 停止，重新执行统一启动命令即可。过去只启动前端与隧道、API 随 `dev.ps1` 终端退出，是页面能打开但显示离线的根因；该生命周期缺口现已修复。
+
+### 隧道 PID 存在，但手机打不开
+
+如果状态显示 `public URL is unreachable`，再次执行：
+
+```powershell
+.\scripts\public-access.ps1 -SkipBuild
+```
+
+脚本会保留 API 和前端，只替换失效隧道。新的随机网址与旧网址不同。
 
 ### 页面能打开，但搜索失败
 
-检查本机 API：
-
-```text
-http://127.0.0.1:8080/health
-```
-
-同时确认本机 VPN 节点可以访问对应漫画源。
-
-### 找不到 cloudflared
-
-确认文件存在：
+依次检查：
 
 ```powershell
-Test-Path "E:\Programs\Cloudflared\cloudflared.exe"
+Invoke-RestMethod http://127.0.0.1:8080/health
+Invoke-RestMethod http://127.0.0.1:8080/v1/sources
 ```
 
-也可以在非默认位置运行：
+然后查看 `.data\public-api\api.stderr.log`。源站可达性取决于运行后端的电脑网络，不取决于手机网络。
 
-```powershell
-.\scripts\public-tunnel.ps1 -CloudflaredPath "E:\其他目录\cloudflared.exe"
-```
+### 访问权限
+
+当前按需求不提供登录。任何拿到临时网址的人都可以访问，因此不要把网址提交到 Git、README、Issue 或公开群聊。Quick Tunnel 没有固定域名和可用性保证，电脑关机、休眠、断网或停止脚本都会中断访问。

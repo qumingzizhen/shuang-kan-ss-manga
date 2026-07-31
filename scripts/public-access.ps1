@@ -22,10 +22,24 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+$publicApiScript = Join-Path $PSScriptRoot "public-api.ps1"
 $publicWebScript = Join-Path $PSScriptRoot "public-web.ps1"
 $tunnelScript = Join-Path $PSScriptRoot "public-tunnel.ps1"
 
+function Get-LocalApiPort {
+  param([Parameter(Mandatory = $true)][string]$ApiUrl)
+
+  $uri = [System.Uri]$ApiUrl
+  if ($uri.Host -notin @("127.0.0.1", "localhost", "::1")) {
+    return $null
+  }
+  return $uri.Port
+}
+
 if ($Status) {
+  Write-Host "[public API]"
+  & $publicApiScript -Status
+  Write-Host ""
   Write-Host "[public web]"
   & $publicWebScript -Status
   Write-Host ""
@@ -37,6 +51,7 @@ if ($Status) {
 if ($Stop) {
   & $tunnelScript -Stop -CloudflaredPath $CloudflaredPath
   & $publicWebScript -Stop
+  & $publicApiScript -Stop
   Write-Host "Public access stopped."
   return
 }
@@ -49,6 +64,13 @@ if ($SkipBuild) {
   $webParameters.SkipBuild = $true
 }
 
+$localApiPort = Get-LocalApiPort -ApiUrl $BackendApiUrl
+if ($null -ne $localApiPort) {
+  & $publicApiScript -ApiPort $localApiPort
+}
+else {
+  Write-Host "Using remote backend API: $BackendApiUrl"
+}
 & $publicWebScript @webParameters
 & $tunnelScript -WebPort $WebPort -CloudflaredPath $CloudflaredPath
 

@@ -14,12 +14,17 @@ const projectRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
 const registry = loadSourceAdapterRegistry(join(projectRoot, "config", "source-adapters.json"));
 const authDir = await mkdtemp(join(tmpdir(), "manga-source-auth-"));
 const configuredSpecs = materializeSourceAuthSpecs(registry.sources, authDir);
-const fanglidingDescriptor = publicSourceDescriptors(registry.sources).find(
+const publicDescriptors = publicSourceDescriptors(registry.sources);
+const fanglidingDescriptor = publicDescriptors.find(
   (source) => source.id === "fangliding",
 );
-assert.equal(configuredSpecs.fangliding.cookieEnv, "FANGLIDING_COOKIE_FILE");
-assert.equal(configuredSpecs.fangliding.headersEnv, "FANGLIDING_HEADERS_FILE");
-assert.deepEqual(fanglidingDescriptor?.auth?.fields, ["cookie", "headers"]);
+const comic18Descriptor = publicDescriptors.find((source) => source.id === "18comic");
+assert.equal(configuredSpecs.fangliding, undefined);
+assert.equal(fanglidingDescriptor?.auth, null);
+assert.equal(fanglidingDescriptor?.available_for_default, true);
+assert.equal(configuredSpecs["18comic"].cookieEnv, "COMIC18_COOKIE_FILE");
+assert.equal(configuredSpecs["18comic"].headersEnv, "COMIC18_HEADERS_FILE");
+assert.deepEqual(comic18Descriptor?.auth?.fields, ["cookie", "headers"]);
 
 const environment = {};
 const cookieFile = join(authDir, "fixture.cookies.txt");
@@ -70,4 +75,12 @@ try {
   await rm(authDir, { recursive: true, force: true });
 }
 
-console.log(JSON.stringify({ ok: true, atomic_auth_files: true, managed_env: true, fangliding_auth: true }));
+console.log(
+  JSON.stringify({
+    ok: true,
+    atomic_auth_files: true,
+    managed_env: true,
+    fangliding_public: true,
+    comic18_optional_auth: true,
+  }),
+);

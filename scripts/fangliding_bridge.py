@@ -16,6 +16,8 @@ _ENV_ALIASES = {
     "EHENTAI_PAGE_OUTPUT": "FANGLIDING_PAGE_OUTPUT",
     "EHENTAI_COOKIE_FILE": "FANGLIDING_COOKIE_FILE",
     "EHENTAI_HEADERS_FILE": "FANGLIDING_HEADERS_FILE",
+    "EHENTAI_HTTP_BACKEND": "FANGLIDING_HTTP_BACKEND",
+    "EHENTAI_IMPERSONATE": "FANGLIDING_IMPERSONATE",
     "EHENTAI_DELAY": "FANGLIDING_DELAY",
     "EHENTAI_TIMEOUT": "FANGLIDING_TIMEOUT",
     "EHENTAI_RETRIES": "FANGLIDING_RETRIES",
@@ -34,6 +36,8 @@ for generic_key, source_key in _ENV_ALIASES.items():
     if generic_key not in os.environ and os.environ.get(source_key):
         os.environ[generic_key] = os.environ[source_key]
 os.environ.setdefault("EHENTAI_BASE_URL", DEFAULT_BASE_URL)
+os.environ.setdefault("EHENTAI_HTTP_BACKEND", "auto")
+os.environ.setdefault("EHENTAI_IMPERSONATE", "chrome124")
 
 import ehentai_bridge as _core  # noqa: E402 - configure the generic bridge before import.
 

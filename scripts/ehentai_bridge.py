@@ -286,20 +286,26 @@ def collect_gallery_meta(client: HttpClient, gallery_url: str, parsed: argparse.
 
 def parse_page_images(text: str, page_url: str) -> list[str]:
     parser = parse_html(text, page_url)
-    images: list[str] = []
+    primary_images: list[str] = []
+    fallback_images: list[str] = []
     seen: set[str] = set()
     for image in parser.images:
         url = strip_fragment(absolute_url(image.get("src", ""), page_url))
-        if usable_page_image(url, image) and url not in seen:
-            seen.add(url)
-            images.append(url)
+        if not usable_page_image(url, image) or url in seen:
+            continue
+        seen.add(url)
+        target = primary_images if image.get("id", "").lower() == "img" else fallback_images
+        target.append(url)
+    if primary_images:
+        return primary_images
+
     script_text = "\n".join(parser.scripts).replace("\\/", "/")
     for match in IMAGE_URL_RE.finditer(script_text):
         url = strip_fragment(absolute_url(match.group(0), page_url))
         if url and url not in seen and usable_page_image(url, {}):
             seen.add(url)
-            images.append(url)
-    return images
+            fallback_images.append(url)
+    return fallback_images
 
 
 def usable_page_image(url: str, image: dict[str, str]) -> bool:
@@ -309,6 +315,9 @@ def usable_page_image(url: str, image: dict[str, str]) -> bool:
     if image.get("id", "").lower() == "img":
         return True
     lowered = url.lower()
+    path = urllib.parse.urlparse(url).path.lower()
+    if path in {"/img/b.png", "/img/f.png", "/img/l.png", "/img/mr.gif", "/img/n.png", "/img/p.png"}:
+        return False
     blocked_tokens = ["avatar", "blank", "cover", "favicon", "logo", "sprite", "thumb"]
     if any(token in lowered for token in blocked_tokens):
         return False
@@ -446,8 +455,8 @@ def blocked_search_error(blocked_errors: list[HttpStatusError], query: str) -> H
     message = (
         f"{SOURCE_LABEL} search was blocked for all attempted public search URLs. "
         f"Query: {query}. Attempted: {attempted_urls}. "
-        f"Provide an authorized session file for normal {SOURCE_LABEL} access; "
-        "the adapter will not bypass login, age gates, captchas, bans, or rate limits."
+        "Verify source availability and the current network path; the adapter will not bypass "
+        "login, age gates, captchas, bans, or rate limits."
     )
     return HttpStatusError(
         representative.status,
@@ -643,7 +652,11 @@ def run_self_test() -> dict[str, Any]:
     </body></html>
     """
     page_html = """
-    <html><body><img id="img" src="https://ehgt.example.test/full/00001.jpg"></body></html>
+    <html><body>
+      <img src="/img/f.png">
+      <img id="img" src="https://ehgt.example.test/full/00001.jpg">
+      <img src="/img/n.png">
+    </body></html>
     """
     search_results = parse_search_results(search_html, DEFAULT_BASE_URL)
     gallery = parse_gallery_meta(gallery_html, f"{DEFAULT_BASE_URL}g/12345/abcdef1234/")
@@ -696,6 +709,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--page-output", type=Path, default=Path(os.environ["EHENTAI_PAGE_OUTPUT"]) if os.environ.get("EHENTAI_PAGE_OUTPUT") else None)
     parser.add_argument("--cookies-file", default=os.environ.get("EHENTAI_COOKIE_FILE"))
     parser.add_argument("--headers-file", default=os.environ.get("EHENTAI_HEADERS_FILE"))
+    parser.add_argument("--http-backend", default=os.environ.get("EHENTAI_HTTP_BACKEND", "urllib"))
+    parser.add_argument("--impersonate", default=os.environ.get("EHENTAI_IMPERSONATE", "chrome124"))
     parser.add_argument("--delay", type=float, default=float(os.environ.get("EHENTAI_DELAY", "2.0")))
     parser.add_argument("--timeout", type=float, default=float(os.environ.get("EHENTAI_TIMEOUT", "45")))
     parser.add_argument("--retries", type=int, default=int(os.environ.get("EHENTAI_RETRIES", "2")))

@@ -159,7 +159,7 @@ scripts/fangliding_bridge.py
   -> gallery_search_parser.py + source_bridge_core.py
 ```
 
-It supports `search`, `gallery`, `download`, `retry_folder`, `page_list`, `page_image`, and `online_read` through the same validated implementation as E-Hentai-compatible pages. It no longer imports a downloader outside this repository and does not monkey-patch download validation at runtime. Source-specific credentials and limits remain under `FANGLIDING_*`; public bridge commands and JSON output stay unchanged.
+It supports `search`, `gallery`, `download`, `retry_folder`, `page_list`, `page_image`, and `online_read` through the same validated implementation as E-Hentai-compatible pages. It no longer imports a downloader outside this repository and does not monkey-patch download validation at runtime. Source-specific transport and limits remain under `FANGLIDING_*`; public bridge commands and JSON output stay unchanged.
 
 Adding another compatible source should require only a thin identity/environment wrapper, one registry entry, and source fixtures. API routes, Rust dispatch, the web console, retry rules, image writes, and global search merging must not be copied.
 ## Python Bridge Core
@@ -362,15 +362,26 @@ The bridge retains these optional environment aliases for advanced diagnostics
 or operator-controlled request overrides only:
 
 ```text
+FANGLIDING_HTTP_BACKEND=auto
+FANGLIDING_IMPERSONATE=chrome124
 FANGLIDING_COOKIE_FILE=...
 FANGLIDING_HEADERS_FILE=...
 ```
 
-They are not required for normal search, reading, or download and are not
-managed by the public UI. A temporary 403, timeout, CAPTCHA, ban, rate limit, or
-site-wide outage remains an availability error rather than an authentication
-requirement. See `docs/Fangliding-403诊断与会话修复-2026-07-29.md` for the
-incident evidence and the corrected boundary.
+The anonymous adapter defaults to the shared `curl_cffi` transport because the
+public endpoint may return a Cloudflare challenge to `urllib` while returning
+the public page to a normal browser TLS profile. `auto` uses `curl_cffi` when
+installed and keeps the shared `urllib` fallback; `curl-cffi==0.15.0` is pinned
+in `requirements.txt` so development and deployment environments behave the
+same. This is transport selection, not a login or per-source crawler fork.
+
+Cookie and header overrides are not required for normal search, reading, or
+download and are not managed by the public UI. A temporary 403, timeout,
+CAPTCHA, ban, rate limit, or site-wide outage remains an availability error
+rather than an authentication requirement. Page-image parsing prioritizes the
+E-Hentai-compatible `img#img` element and filters navigation icons before the
+shared image validator runs. See
+`docs/Fangliding-真实访问链路修复-2026-07-31.md` for live verification evidence.
 
 ## Adding A New Source
 

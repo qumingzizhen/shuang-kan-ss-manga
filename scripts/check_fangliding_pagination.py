@@ -44,6 +44,9 @@ class FakeClient:
 
 
 def main() -> None:
+    defaults = bridge.build_parser().parse_args(["search"])
+    assert defaults.http_backend == "auto", defaults.http_backend
+    assert defaults.impersonate == "chrome124", defaults.impersonate
     original_client = bridge.HttpClient
     original_parser = bridge.parse_search_results
     bridge.HttpClient = FakeClient
@@ -88,13 +91,15 @@ def main() -> None:
 
     assert blocked_payload["code"] == "access_blocked", blocked_payload
     assert blocked_payload["retryable"] is False, blocked_payload
-    assert "authorized session file" in blocked_payload["message"], blocked_payload
+    assert "authorized session file" not in blocked_payload["message"], blocked_payload
+    assert "Verify source availability" in blocked_payload["message"], blocked_payload
     print(
         json.dumps(
             {
                 "ok": True,
                 "requested_pages": FakeClient.requested_pages,
                 "blocked_error": blocked_payload["code"],
+                "http_backend": defaults.http_backend,
             }
         )
     )

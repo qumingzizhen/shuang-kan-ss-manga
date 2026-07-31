@@ -18,7 +18,14 @@ def main() -> None:
       <a href="/s/two/123-2">2</a>
     </body></html>
     """
-    page_html = '<html><body><img id="img" src="https://ehgt.org/fixture/00001.jpg"></body></html>'
+    page_html = """
+    <html><body>
+      <img src="https://ex.fangliding.eu.org/img/f.png">
+      <img src="https://ex.fangliding.eu.org/img/p.png">
+      <img id="img" src="https://ehgt.org/fixture/00001.jpg">
+      <img src="https://ex.fangliding.eu.org/img/n.png">
+    </body></html>
+    """
     meta = bridge.parse_gallery_meta(gallery_html, GALLERY_URL)
     pages = bridge.page_descriptors(meta)
     images = bridge.parse_page_images(page_html, pages[0]["page_url"])

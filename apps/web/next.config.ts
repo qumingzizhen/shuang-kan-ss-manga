@@ -2,7 +2,13 @@ import type { NextConfig } from "next";
 
 import { apiRewrite, backendProxyTimeoutMs } from "./proxy-config";
 
+const nextDistDir = process.env.NEXT_DIST_DIR?.trim() || ".next";
+if (![".next", ".next-public"].includes(nextDistDir)) {
+  throw new Error("NEXT_DIST_DIR must be either .next or .next-public");
+}
+
 const nextConfig: NextConfig = {
+  distDir: nextDistDir,
   output: "standalone",
   reactStrictMode: true,
   env: {

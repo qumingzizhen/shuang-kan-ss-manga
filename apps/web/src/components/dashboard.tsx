@@ -95,6 +95,12 @@ import {
   fetchDashboardTasks,
 } from "@/lib/dashboard-queries";
 import {
+  connectionIndicator,
+  taskPollingDelay,
+  type ApiConnectivity,
+  type TaskUpdateTransport,
+} from "@/lib/connectivity-model";
+import {
   cancelableStatuses,
   clampPageNumber,
   compareLibraryItems,
@@ -225,7 +231,8 @@ export function Dashboard() {
   const [logLines, setLogLines] = useState<string[]>(["console ready"]);
   const [loading, setLoading] = useState(false);
   const [libraryLoading, setLibraryLoading] = useState(false);
-  const [eventStreamReady, setEventStreamReady] = useState(false);
+  const [apiConnectivity, setApiConnectivity] = useState<ApiConnectivity>("connecting");
+  const [taskUpdateTransport, setTaskUpdateTransport] = useState<TaskUpdateTransport>("connecting");
   const [error, setError] = useState<string | null>(null);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [selectedLibraryId, setSelectedLibraryId] = useState<string | null>(null);
@@ -303,13 +310,18 @@ export function Dashboard() {
 
   const libraryReaderObservedPageCount = libraryReader ? (libraryPages[libraryReader.item.id]?.length ?? 0) : 0;
   const remoteReaderObservedPageCount = remoteReader ? (remoteReaderPages[remoteReader.session.id]?.length ?? 0) : 0;
+  const hasActiveTasks = tasks.some(
+    (task) => task.status === "queued" || task.status === "running" || task.status === "paused",
+  );
+  const connectionStatus = connectionIndicator(apiConnectivity, taskUpdateTransport);
 
   useEffect(() => {
     let active = true;
     const source = createTaskEventsSource();
+    const tasksRequest = fetchDashboardTasks(queryClient);
 
     Promise.all([
-      fetchDashboardTasks(queryClient),
+      tasksRequest,
       fetchDashboardSources(queryClient),
       fetchDashboardLibrary(queryClient),
       fetchDashboardLibraryTags(queryClient),
@@ -331,6 +343,19 @@ export function Dashboard() {
       })
       .catch(handleError);
 
+    tasksRequest.then(
+      () => {
+        if (active) {
+          setApiConnectivity("online");
+        }
+      },
+      () => {
+        if (active) {
+          setApiConnectivity("offline");
+        }
+      },
+    );
+
     const handleTaskEvent = (message: MessageEvent) => {
       const event = parseTaskEvent(message);
       mergeTask(event.task);
@@ -341,7 +366,8 @@ export function Dashboard() {
       if (!active) {
         return;
       }
-      setEventStreamReady(true);
+      setApiConnectivity("online");
+      setTaskUpdateTransport("realtime");
       pushLog("event stream connected");
     });
     taskEventTypes.forEach((eventType) => {
@@ -351,7 +377,7 @@ export function Dashboard() {
       if (!active) {
         return;
       }
-      setEventStreamReady(false);
+      setTaskUpdateTransport("polling");
     };
 
     return () => {
@@ -361,18 +387,41 @@ export function Dashboard() {
   }, [queryClient]);
 
   useEffect(() => {
-    if (!tasks.some((task) => task.status === "queued" || task.status === "running" || task.status === "paused")) {
+    const delay = taskPollingDelay(apiConnectivity, taskUpdateTransport, hasActiveTasks);
+    if (delay === null) {
       return;
     }
 
+    let active = true;
+    let requestInFlight = false;
     const interval = window.setInterval(() => {
+      if (requestInFlight) {
+        return;
+      }
+      requestInFlight = true;
       fetchDashboardTasks(queryClient, true)
-        .then((nextTasks) => setTasks(nextTasks))
-        .catch(() => undefined);
-    }, 4000);
+        .then((nextTasks) => {
+          if (!active) {
+            return;
+          }
+          setTasks(nextTasks);
+          setApiConnectivity("online");
+        })
+        .catch(() => {
+          if (active) {
+            setApiConnectivity("offline");
+          }
+        })
+        .finally(() => {
+          requestInFlight = false;
+        });
+    }, delay);
 
-    return () => window.clearInterval(interval);
-  }, [queryClient, tasks]);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [apiConnectivity, hasActiveTasks, queryClient, taskUpdateTransport]);
 
   useEffect(() => {
     return () => {
@@ -1028,8 +1077,13 @@ export function Dashboard() {
     setLoading(true);
     setError(null);
     try {
+      const tasksRequest = fetchDashboardTasks(queryClient, true);
+      tasksRequest.then(
+        () => setApiConnectivity("online"),
+        () => setApiConnectivity("offline"),
+      );
       const [nextTasks, nextSources] = await Promise.all([
-        fetchDashboardTasks(queryClient, true),
+        tasksRequest,
         fetchDashboardSources(queryClient, true),
       ]);
       setTasks(nextTasks);
@@ -4258,8 +4312,8 @@ export function Dashboard() {
         </nav>
 
         <div className="sidebar-status">
-          <span>API http://localhost:8080</span>
-          <span>Queue pending integration</span>
+          <span>API 同源网关 /v1</span>
+          <span>任务更新：{connectionStatus.label}</span>
         </div>
       </aside>
 
@@ -4270,9 +4324,18 @@ export function Dashboard() {
             <h1>{view === "tasks" ? "任务控制台" : "文件库"}</h1>
           </div>
           <div className="toolbar">
-            <span className={eventStreamReady ? "stream-state ready" : "stream-state"}>
-              {eventStreamReady ? <Wifi size={15} aria-hidden /> : <WifiOff size={15} aria-hidden />}
-              {eventStreamReady ? "实时" : "离线"}
+            <span
+              className={connectionStatus.className}
+              data-testid="connection-status"
+              role="status"
+              title={connectionStatus.title}
+            >
+              {connectionStatus.icon === "realtime" && <Wifi size={15} aria-hidden />}
+              {(connectionStatus.icon === "connecting" || connectionStatus.icon === "polling") && (
+                <RefreshCcw size={15} aria-hidden />
+              )}
+              {connectionStatus.icon === "offline" && <WifiOff size={15} aria-hidden />}
+              {connectionStatus.label}
             </span>
             <button className="button ghost" type="button" onClick={refreshActiveView} disabled={loading || libraryLoading || remoteReaderSessionsLoading}>
               <RefreshCcw size={16} aria-hidden />

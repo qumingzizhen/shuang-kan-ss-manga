@@ -38,20 +38,29 @@ E:\Programs\Cloudflared\cloudflared.exe
 
 ## 启动
 
-打开第一个 PowerShell 窗口：
+打开第一个 PowerShell 窗口，启动本地开发环境和 API：
 
 ```powershell
 cd "<项目目录>"
 .\scripts\dev.ps1 -Fresh
 ```
 
-保持该窗口开启。确认 `http://127.0.0.1:3000` 可以访问后，再打开第二个
-PowerShell 窗口：
+保持该窗口开启。确认 `http://127.0.0.1:8080/health` 可以访问后，再打开第二个
+PowerShell 窗口，启动独立生产前端和隧道：
 
 ```powershell
 cd "<项目目录>"
-.\scripts\public-tunnel.ps1
+.\scripts\public-access.ps1
 ```
+
+首次运行会在 `apps/web/.next-public` 创建独立生产构建，然后由 `3100` 端口提供公网源站。
+该目录不会覆盖本地开发使用的 `.next`，也不会提交到 Git。后续代码没有变动时可跳过构建：
+
+```powershell
+.\scripts\public-access.ps1 -SkipBuild
+```
+
+不要把开发服务器 `3000` 端口直接暴露到公网。开发版包含 Turbopack/HMR 脚本，移动网络下加载慢且可能无法完成客户端水合。
 
 脚本会输出类似下面的临时地址：
 
@@ -61,29 +70,41 @@ https://random-words.trycloudflare.com
 
 手机直接在浏览器打开该地址即可。
 
+## 页面连接状态
+
+页面会分别检测普通 API 与任务实时事件流：
+
+- `实时`：API 与 SSE 事件流均可用；
+- `在线 · 轮询`：API 正常，但当前隧道无法稳定传输 SSE，页面每 4 秒自动刷新任务；
+- `离线`：任务 API 确实不可达，页面每 6 秒自动探测恢复。
+
+因此，手机通过 Quick Tunnel 访问时看到“在线 · 轮询”属于正常降级，搜索、下载、阅读和文件库仍走同源 `/v1/**` 反向代理。浏览器会继续尝试恢复 SSE，成功后自动切回“实时”。
 ## 状态与关闭
 
-查看当前隧道状态和网址：
+查看生产前端、隧道状态和网址：
 
 ```powershell
-.\scripts\public-tunnel.ps1 -Status
+.\scripts\public-access.ps1 -Status
 ```
 
-关闭隧道：
+同时关闭生产前端和隧道：
 
 ```powershell
-.\scripts\public-tunnel.ps1 -Stop
+.\scripts\public-access.ps1 -Stop
 ```
+
+`public-web.ps1` 与 `public-tunnel.ps1` 是底层组件脚本，只在单独排查生产前端或隧道时使用。
 
 关闭后原来的临时网址立即失效。再次启动会生成新的随机网址。
 
 运行状态、PID、网址与日志保存在 Git 已忽略的目录：
 
 ```text
+.data\public-web
 .data\quick-tunnel
 ```
 
-脚本关闭进程前会校验 PID 对应的可执行文件路径，避免误杀其他程序。
+脚本关闭进程前会校验 PID 对应的可执行文件与启动命令，避免误杀其他程序。
 
 ## 使用边界
 

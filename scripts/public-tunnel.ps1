@@ -23,6 +23,7 @@ $ProjectRoot = Split-Path -Parent $PSScriptRoot
 $StateDirectory = Join-Path $ProjectRoot ".data\quick-tunnel"
 $PidFile = Join-Path $StateDirectory "cloudflared.pid"
 $UrlFile = Join-Path $StateDirectory "public-url.txt"
+$OriginPortFile = Join-Path $StateDirectory "origin-port.txt"
 $StdoutLog = Join-Path $StateDirectory "cloudflared.stdout.log"
 $StderrLog = Join-Path $StateDirectory "cloudflared.stderr.log"
 
@@ -34,6 +35,21 @@ function Get-SavedUrl {
   $value = (Get-Content -LiteralPath $UrlFile -Raw -ErrorAction SilentlyContinue).Trim()
   if ($value -match "^https://[a-z0-9-]+\.trycloudflare\.com/?$") {
     return $value.TrimEnd("/")
+  }
+  return $null
+}
+
+function Get-SavedOriginPort {
+  if (-not (Test-Path -LiteralPath $OriginPortFile)) {
+    return $null
+  }
+
+  $savedPort = 0
+  if ([int]::TryParse(
+    (Get-Content -LiteralPath $OriginPortFile -Raw -ErrorAction SilentlyContinue).Trim(),
+    [ref]$savedPort
+  )) {
+    return $savedPort
   }
   return $null
 }
@@ -71,7 +87,7 @@ function Get-ManagedTunnelProcess {
 }
 
 function Remove-StaleState {
-  foreach ($path in @($PidFile, $UrlFile)) {
+  foreach ($path in @($PidFile, $UrlFile, $OriginPortFile)) {
     if (Test-Path -LiteralPath $path) {
       Remove-Item -LiteralPath $path -Force
     }
@@ -86,12 +102,16 @@ if ($Status) {
     if ($savedUrl) {
       Write-Host "Public URL: $savedUrl"
     }
-    exit 0
+    $savedOriginPort = Get-SavedOriginPort
+    if ($savedOriginPort) {
+      Write-Host "Local origin: http://127.0.0.1:$savedOriginPort"
+    }
+    return
   }
 
   Remove-StaleState
   Write-Host "Quick Tunnel is not running."
-  exit 1
+  return
 }
 
 if ($Stop) {
@@ -107,7 +127,7 @@ if ($Stop) {
 
   Remove-StaleState
   Write-Host "Quick Tunnel stopped. The previous public URL is no longer valid."
-  exit 0
+  return
 }
 
 if (-not (Test-Path -LiteralPath $CloudflaredPath -PathType Leaf)) {
@@ -130,11 +150,16 @@ catch {
 $existingProcess = Get-ManagedTunnelProcess
 if ($existingProcess) {
   $savedUrl = Get-SavedUrl
+  $savedOriginPort = Get-SavedOriginPort
+  if ($savedOriginPort -ne $WebPort) {
+    throw "Quick Tunnel is already running for port $savedOriginPort. Stop it before changing the origin port."
+  }
   Write-Host "Quick Tunnel is already running (PID $($existingProcess.Id))."
   if ($savedUrl) {
     Write-Host "Public URL: $savedUrl"
   }
-  exit 0
+  Write-Host "Local origin: http://127.0.0.1:$savedOriginPort"
+  return
 }
 
 Remove-StaleState
@@ -162,6 +187,7 @@ $process = Start-Process `
   -PassThru
 
 Set-Content -LiteralPath $PidFile -Value $process.Id -Encoding ascii
+Set-Content -LiteralPath $OriginPortFile -Value $WebPort -Encoding ascii
 
 $deadline = (Get-Date).AddSeconds($StartupTimeoutSeconds)
 $publicUrl = $null
@@ -213,6 +239,7 @@ Set-Content -LiteralPath $UrlFile -Value $publicUrl -Encoding ascii
 Write-Host ""
 Write-Host "Quick Tunnel is ready."
 Write-Host "Public URL: $publicUrl" -ForegroundColor Cyan
+Write-Host "Local origin: http://127.0.0.1:$WebPort"
 Write-Host "Anyone with this URL can open the site while the tunnel is running."
 Write-Host "Keep the project, VPN, and this tunnel process running."
 Write-Host "Stop it with: .\scripts\public-tunnel.ps1 -Stop"

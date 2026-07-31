@@ -32,3 +32,20 @@ test("任务与文件库视图可以往返切换", async ({ page }) => {
   await page.getByRole("button", { name: "任务控制台", exact: true }).click();
   await expect(page.getByRole("heading", { name: "任务控制台", level: 1 })).toBeVisible();
 });
+
+test("实时通道不可用时自动降级为轮询且不误报离线", async ({ page }) => {
+  await page.route("**/v1/tasks/events", (route) =>
+    route.fulfill({
+      status: 503,
+      contentType: "text/plain",
+      body: "event stream unavailable",
+    }),
+  );
+
+  await page.goto("/");
+
+  const connectionStatus = page.getByTestId("connection-status");
+  await expect(connectionStatus).toHaveText("在线 · 轮询");
+  await expect(connectionStatus).toHaveAttribute("title", /每 4 秒自动更新/);
+  await expect(connectionStatus).not.toHaveText("离线");
+});

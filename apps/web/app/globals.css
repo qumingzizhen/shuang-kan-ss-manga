@@ -453,6 +453,35 @@ h2 {
   box-shadow: 0 0 0 3px rgba(33, 192, 139, 0.12);
 }
 
+.stream-state.connecting {
+  border-color: rgba(77, 123, 255, 0.45);
+  color: var(--blue);
+  background: var(--blue-soft);
+}
+
+.stream-state.degraded {
+  border-color: rgba(255, 157, 46, 0.5);
+  color: var(--amber);
+  background: var(--amber-soft);
+}
+
+.stream-state.offline {
+  border-color: rgba(255, 77, 109, 0.45);
+  color: var(--red);
+  background: var(--red-soft);
+}
+
+.stream-state.connecting svg,
+.stream-state.degraded svg {
+  animation: stream-state-spin 1.2s linear infinite;
+}
+
+@keyframes stream-state-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ============================ 布局容器 ============================ */
 
 .content-grid {

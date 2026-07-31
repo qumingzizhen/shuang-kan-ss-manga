@@ -63,8 +63,13 @@ def git_bytes(*args: str) -> bytes:
     return process.stdout
 
 
-def tracked_files() -> list[str]:
-    return [item.decode("utf-8", errors="strict") for item in git_bytes("ls-files", "-z").split(b"\0") if item]
+def repository_files() -> list[str]:
+    """Return tracked files plus non-ignored new files that could be committed."""
+    return [
+        item.decode("utf-8", errors="strict")
+        for item in git_bytes("ls-files", "-z", "--cached", "--others", "--exclude-standard").split(b"\0")
+        if item
+    ]
 
 
 def blocked_path_reason(relative: str) -> str | None:
@@ -153,7 +158,7 @@ def main() -> None:
 
     issues: list[str] = []
     warnings: list[str] = []
-    files = tracked_files()
+    files = repository_files()
     for relative in files:
         reason = blocked_path_reason(relative)
         if reason:
@@ -186,7 +191,7 @@ def main() -> None:
             print(f"privacy error: {issue}", file=sys.stderr)
         raise SystemExit(1)
 
-    print(f"public repository check passed ({len(files)} tracked files)")
+    print(f"public repository check passed ({len(files)} tracked or non-ignored files)")
 
 
 if __name__ == "__main__":

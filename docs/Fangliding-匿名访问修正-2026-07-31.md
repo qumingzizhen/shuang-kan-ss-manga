@@ -12,6 +12,7 @@ Fangliding 公共页面无需登录。控制台曾显示“浏览器会话”配
 - 通用认证管理器和 `SourceAuthPanel` 保留，继续服务确实声明可选认证能力的来源；不增加 Fangliding 专用判断。
 - `scripts/fangliding_bridge.py` 保留 Cookie/请求头环境别名作为运维级覆盖能力，但它们不参与默认搜索，也不会暴露在普通用户界面。
 - `scripts/check_source_auth.mjs` 固化契约：Fangliding 必须是 `auth: null`、`available_for_default: true`，同时验证 18comic 的可选认证声明仍然有效。
+- `scripts/check_public_repo.py` 同时扫描已跟踪文件与未被 Git 忽略的新文件，防止新文档在首次提交前绕过本机隐私检查。
 
 ## 用户行为
 
@@ -22,7 +23,7 @@ Fangliding 公共页面无需登录。控制台曾显示“浏览器会话”配
 源站注册表由 API 进程启动时加载。修改后执行：
 
 ```powershell
-cd "D:\漫画\newwork"
+cd "<项目目录>"
 .\scripts\dev.ps1 -Fresh
 ```
 

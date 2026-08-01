@@ -383,6 +383,15 @@ E-Hentai-compatible `img#img` element and filters navigation icons before the
 shared image validator runs. See
 `docs/fangliding-真实访问链路修复-2026-07-31.md` for live verification evidence.
 
+## ExHentai（授权访问）
+
+`exhentai` 是复用同一 E-Hentai 兼容桥接核心（`scripts/exhentai_bridge.py`）的薄包装源，
+通过 `EXHENTAI_BASE_URL` 指向 https://exhentai.org/。
+ExHentai 的公开页面受会员访问控制保护：匿名请求会被 302 重定向到登录流程，
+因此搜索、阅读与下载只在配置了用户自己的合法 Cookie/请求头后可用
+（本地 `source-auth` 面板，或 `EXHENTAI_COOKIE_FILE`/`EXHENTAI_HEADERS_FILE`）。
+适配器不绕过登录、验证码、封禁或限流边界；未授权访问返回 `access_blocked` 错误。
+建议保持低并发读取（`EXHENTAI_DELAY` 默认 2 秒）。
 ## Adding A New Source
 
 To add another site without breaking the architecture:

@@ -71,6 +71,35 @@
         "python_env": ["EHENTAI_PYTHON", "MANGA_BRIDGE_PYTHON"],
         "page_commands": true
       }
+    },
+    {
+      "id": "exhentai",
+      "name": "ExHentai",
+      "homepage": "https://exhentai.org/",
+      "thumbnail_hosts": ["ehgt.org"],
+      "version": "0.1.0",
+      "capabilities": ["search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"],
+      "enabled": true,
+      "notes": "E-Hentai-compatible adapter gated by ExHentai membership access control. Anonymous requests are redirected to the login flow, so search, reading, and download only work with the user's own authorized cookie or headers configured locally. The bridge never bypasses login, captcha, ban, or rate-limit boundaries.",
+      "self_tests": [
+        { "script": "scripts/exhentai_bridge.py", "args": ["self-test"] }
+      ],
+      "auth": {
+        "mode": "cookie_headers",
+        "cookie_env": "EXHENTAI_COOKIE_FILE",
+        "headers_env": "EXHENTAI_HEADERS_FILE",
+        "file_stem": "exhentai",
+        "title": "ExHentai 授权会话",
+        "description": "ExHentai 需要登录授权。请配置你自己的合法会话 Cookie 或请求头；未配置时搜索/阅读会返回访问受限错误。",
+        "headers_placeholder": "User-Agent: ...\nReferer: https://exhentai.org/"
+      },
+      "bridge": {
+        "kind": "python",
+        "script": "scripts/exhentai_bridge.py",
+        "script_env": "EXHENTAI_BRIDGE_SCRIPT",
+        "python_env": ["EXHENTAI_PYTHON", "MANGA_BRIDGE_PYTHON"],
+        "page_commands": true
+      }
     }
   ]
 }

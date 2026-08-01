@@ -146,6 +146,21 @@ if (Test-Path $RustGnuSelfContainedBin) {
   $env:Path = "$RustGnuSelfContainedBin;$env:Path"
 }
 
+# The rustup GNU toolchain's self-contained dlltool.exe creates Windows
+# import libraries through an assembler next to itself. Rustup does not ship
+# as.exe, so the project-local w64devkit tool provides it and dev-env keeps a
+# copy inside the toolchain when it is missing.
+$W64DevkitBin = Join-Path $ProjectRoot ".tools\w64devkit\w64devkit\bin"
+if (Test-Path (Join-Path $W64DevkitBin "as.exe")) {
+  if (Test-Path $RustGnuSelfContainedBin) {
+    $SelfContainedAs = Join-Path $RustGnuSelfContainedBin "as.exe"
+    if (-not (Test-Path $SelfContainedAs)) {
+      Copy-Item -LiteralPath (Join-Path $W64DevkitBin "as.exe") -Destination $SelfContainedAs -Force
+      Write-Host "Installed missing GNU assembler into Rust toolchain: $SelfContainedAs"
+    }
+  }
+  $env:Path = "$W64DevkitBin;$env:Path"
+}
 Write-Host "Project cache root: $CacheRoot"
 Write-Host "NPM_CONFIG_CACHE=$env:NPM_CONFIG_CACHE"
 Write-Host "CARGO_HOME=$env:CARGO_HOME"

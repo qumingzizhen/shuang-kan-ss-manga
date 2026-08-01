@@ -11,7 +11,6 @@ use comic_platform_domain::{
     HealthResponse, SourceAdapterDescriptor, SourceCapability, Task, TaskEvent, TaskEventKind,
     TaskId, TaskKind, TaskPayload, TaskProgress, TaskStatus, UpdateTaskRequest,
 };
-use comic_platform_task_queue::TaskQueue;
 use futures_util::{
     Stream, StreamExt,
     stream::{self},

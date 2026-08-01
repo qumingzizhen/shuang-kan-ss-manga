@@ -3500,6 +3500,9 @@ h2 {
 .reader-scroll-page .reader-image-frame {
   width: 100%;
   max-height: none;
+  /* 与占位符等高：图片尚未加载时保持滚动高度稳定，
+     避免占位符被替换成 0 高度图片时滚动栈塌缩、阅读位置瞬间跳到顶部 */
+  min-height: 220px;
 }
 
 .reader-scroll-page-button .reader-image.fit-width {

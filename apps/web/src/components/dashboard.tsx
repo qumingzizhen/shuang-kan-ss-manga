@@ -1732,7 +1732,7 @@ export function Dashboard() {
     });
   }
 
-  function syncLibraryVisibleScrollPage(pageNumber: number) {
+  function syncLibraryVisibleScrollPage(pageNumber: number, updatePage = true) {
     if (!libraryReader || readerMode !== "scroll") {
       return;
     }
@@ -1744,7 +1744,7 @@ export function Dashboard() {
 
     const item = libraryReader.item;
     const total = Math.max(libraryReader.total, libraryPageTotal(item));
-    if (page.index !== libraryReader.page.index) {
+    if (updatePage && page.index !== libraryReader.page.index) {
       setLibraryReader((current) => (current?.item.id === item.id ? { ...current, page, total: Math.max(current.total, total) } : current));
       setLibraryReaderPageInput(String(page.index));
     }
@@ -1762,7 +1762,7 @@ export function Dashboard() {
     }, readerScrollSyncDelayMs);
   }
 
-  function syncRemoteVisibleScrollPage(pageNumber: number) {
+  function syncRemoteVisibleScrollPage(pageNumber: number, updatePage = true) {
     if (!remoteReader || readerMode !== "scroll") {
       return;
     }
@@ -1773,7 +1773,7 @@ export function Dashboard() {
     }
 
     const sessionId = remoteReader.session.id;
-    if (page.index !== remoteReader.page.index) {
+    if (updatePage && page.index !== remoteReader.page.index) {
       setRemoteReader((current) =>
         current?.session.id === sessionId ? { ...current, page, total: Math.max(current.total, page.index) } : current,
       );
@@ -3494,7 +3494,7 @@ export function Dashboard() {
             <div
               ref={libraryReaderStageRef}
               className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}
-              onScroll={() => readerMode === "scroll" && syncLibraryVisibleScrollPage(currentPage)}
+              onScroll={() => readerMode === "scroll" && syncLibraryVisibleScrollPage(currentPage, false)}
             >
               {libraryReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (
@@ -3711,7 +3711,7 @@ export function Dashboard() {
             <div
               ref={remoteReaderStageRef}
               className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}
-              onScroll={() => readerMode === "scroll" && syncRemoteVisibleScrollPage(currentPage)}
+              onScroll={() => readerMode === "scroll" && syncRemoteVisibleScrollPage(currentPage, false)}
             >
               {remoteReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (

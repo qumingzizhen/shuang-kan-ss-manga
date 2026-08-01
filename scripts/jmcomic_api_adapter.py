@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 import urllib.parse
 from dataclasses import dataclass
 from pathlib import Path
@@ -124,8 +125,12 @@ def search(parsed: argparse.Namespace, query: str, base_url: str) -> dict[str, A
             item.update({key: value for key, value in optional_metadata.items() if value})
             try:
                 item["thumbnail_url"] = JmcomicText.get_album_cover_url(album_id)
-            except Exception:
-                pass
+            except Exception as error:  # noqa: BLE001 - thumbnail is optional enrichment; search results must stay usable.
+                print(
+                    f"[{SOURCE_ID}] thumbnail lookup skipped for album {album_id}: {error}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             results.append(item)
             if len(results) >= parsed.limit:
                 break

@@ -166,25 +166,55 @@ python .\scripts\check_public_repo.py
 
 ## 相关文档
 
+完整索引与维护约定见 [docs/README.md](docs/README.md)。常用文档按主题分类如下。
+
+### 架构与总体设计
+
 - [系统架构](docs/architecture.md)
-- [源站适配器](docs/source-adapters.md)
-- [开发 API 说明](docs/dev-api-shim.md)
-- [文件库设计](docs/file-library.md)
-- [标签中文映射](docs/tag-translations.md)
+- [项目架构与数据库设计](docs/项目架构与数据库设计.md)
+- [技术栈](docs/stack.md)
+- [架构决策记录](docs/decisions.md)
+- [客户端策略](docs/client-strategy.md)
+- [路线图](docs/roadmap.md)
+- [持久化设计](docs/persistence.md)
+- [任务队列](docs/task-queue.md)
 - [任务生命周期](docs/task-lifecycle.md)
 - [任务输出契约](docs/task-output.md)
+- [开发 API 说明](docs/dev-api-shim.md)
 - [公开发布与隐私边界](docs/public-release.md)
-- [控制台审核与基础设施实施规划](docs/console-feature-plan.md)
+
+### 功能模块
+
+- [源站适配器](docs/source-adapters.md)
+- [文件库设计](docs/file-library.md)
+- [标签中文映射](docs/tag-translations.md)
+- [控制台功能实施规划](docs/console-feature-plan.md)
+- [连接状态与任务更新降级设计](docs/连接状态与任务更新降级设计-2026-07-31.md)
+
+### 重构与优化记录
+
+- [工程化优化实施计划与性能基线](docs/engineering-optimization-plan-2026-07-26.md)
+- [文档优化执行矩阵](docs/文档优化执行矩阵-2026-07-28.md)
+- [优化实施与验收报告](docs/优化实施与验收报告-2026-07-28.md)
+- [代码结构与可复用性审查](docs/代码结构与可复用性审查.md)
+- [抽象复用问题整改与验收](docs/抽象复用问题整改与验收-2026-07-29.md)
 - [搜索结果与封面链路重构说明](docs/search-thumbnail-refactor-2026-07-25.md)
 - [搜索结果信息分层与跨来源排序说明](docs/search-result-hierarchy-and-sorting-2026-07-26.md)
 - [全来源搜索链路与 Fangliding 结果解析重构](docs/unified-search-pipeline-refactor-2026-07-28.md)
 - [任务详情抽屉组件拆分说明](docs/task-detail-drawer-refactor-2026-07-27.md)
 - [最近在线阅读组件拆分说明](docs/remote-reader-history-refactor-2026-07-27.md)
-- [Fangliding 来源恢复记录](docs/fangliding-source-recovery-2026-07-28.md)
-- [工程化优化实施计划与性能基线](docs/engineering-optimization-plan-2026-07-26.md)
-- [项目架构与数据库设计](docs/项目架构与数据库设计.md)
-- [抽象复用问题整改与验收（2026-07-29）](docs/抽象复用问题整改与验收-2026-07-29.md)
 
+### 来源恢复与故障记录
+
+- [Fangliding 来源恢复记录](docs/fangliding-source-recovery-2026-07-28.md)
+- [Fangliding 公开访问 403 诊断与会话修复](docs/fangliding-403诊断与会话修复-2026-07-29.md)
+- [Fangliding 匿名访问契约修正](docs/fangliding-匿名访问修正-2026-07-31.md)
+- [Fangliding 真实访问链路修复](docs/fangliding-真实访问链路修复-2026-07-31.md)
+
+### 部署与运维
+
+- [跨设备同源反向代理部署指南](docs/跨设备反向代理部署-2026-07-29.md)
+- [无域名临时公网访问：Cloudflare Quick Tunnel](docs/临时公网访问-Cloudflare-Quick-Tunnel-2026-07-31.md)
 ## 参与开发
 
 新增来源时，应优先复用 `scripts/source_bridge_core.py` 的 HTTP、重试、文件写入和下载调度能力；E-Hentai 兼容页面同时复用 `scripts/gallery_search_parser.py` 的结果卡片解析，并在 `config/source-adapters.json` 中声明来源及能力。源站脚本只负责网站特有的 URL、解析和鉴权规则。

@@ -381,7 +381,7 @@ CAPTCHA, ban, rate limit, or site-wide outage remains an availability error
 rather than an authentication requirement. Page-image parsing prioritizes the
 E-Hentai-compatible `img#img` element and filters navigation icons before the
 shared image validator runs. See
-`docs/Fangliding-真实访问链路修复-2026-07-31.md` for live verification evidence.
+`docs/fangliding-真实访问链路修复-2026-07-31.md` for live verification evidence.
 
 ## Adding A New Source
 

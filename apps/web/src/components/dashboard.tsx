@@ -162,6 +162,13 @@ import {
 import { browserImagePreloadLoader, ReaderPreloadQueue } from "@/lib/reader-preload-queue";
 import { searchResultKey } from "@/lib/search-result-model";
 import { prettyJson } from "@/lib/json";
+import {
+  readerScrollPageNumbers,
+  readerScrollSyncDelayMs,
+  type ReaderPageUiStatus,
+} from "@/lib/reader-scroll";
+import { ReaderScrollStack } from "@/components/reader-scroll-stack";
+import { scheduleDebounced, useReaderPageObserver, useReaderScrollRestore } from "@/lib/use-reader-scroll";
 
 const allSourcesValue = "__all_sources__";
 
@@ -169,10 +176,9 @@ const allSourcesValue = "__all_sources__";
 const defaultSearchTags = process.env.NEXT_PUBLIC_DEFAULT_SEARCH_TAGS?.trim() || "language:chinese female:big breasts";
 
 const detailDrawerCloseMs = 220;
-const readerScrollSyncDelayMs = 650;
-const readerScrollObserverMargin = "-18% 0px -48% 0px";
-const readerScrollObserverThresholds = [0, 0.1, 0.25, 0.45, 0.65];
 const readerControlsCollapsedStorageKey = "manga-platform.reader-controls-collapsed";
+
+type ReaderImageStatus = "loading" | "loaded" | "failed";
 
 type RemoteReaderState = {
   session: RemoteReaderSession;
@@ -189,38 +195,6 @@ type RemoteReaderPreloadState = {
   status: "loading" | "ready" | "failed";
 };
 
-type ReaderVisiblePageCandidate = {
-  page: number;
-  ratio: number;
-  area: number;
-};
-
-type ReaderImageStatus = "loading" | "loaded" | "failed";
-type ReaderPageUiStatus = "loading" | "ready" | "failed" | "unknown";
-
-function visibleReaderPageFromEntries(entries: IntersectionObserverEntry[]) {
-  let best: ReaderVisiblePageCandidate | null = null;
-
-  for (const entry of entries) {
-    if (!entry.isIntersecting) {
-      continue;
-    }
-
-    const element = entry.target as HTMLElement;
-    const page = Number(element.dataset.readerPage);
-    if (!Number.isFinite(page)) {
-      continue;
-    }
-
-    const area = entry.intersectionRect.width * entry.intersectionRect.height;
-    const candidate = { page, ratio: entry.intersectionRatio, area };
-    if (!best || candidate.ratio > best.ratio || (candidate.ratio === best.ratio && candidate.area > best.area)) {
-      best = candidate;
-    }
-  }
-
-  return best ? best.page : null;
-}
 
 export function Dashboard() {
   const queryClient = useQueryClient();
@@ -788,65 +762,44 @@ export function Dashboard() {
     };
   }, [remoteReader?.session.id, remoteReader?.page.index, remoteReader?.total, readerMode]);
 
-  useEffect(() => {
-    if (
-      !libraryReader ||
-      readerMode !== "scroll" ||
-      !libraryReaderStageRef.current ||
-      typeof window === "undefined" ||
-      !window.IntersectionObserver
-    ) {
-      return;
-    }
+  useReaderPageObserver({
+    enabled: Boolean(libraryReader) && readerMode === "scroll",
+    stageRef: libraryReaderStageRef,
+    resetKey: libraryReader?.item.id ?? "",
+    currentPage: libraryReader?.page.index ?? 0,
+    observedPageCount: libraryReaderObservedPageCount,
+    onVisiblePage: (visiblePage) => syncLibraryVisibleScrollPage(visiblePage),
+  });
 
-    const stage = libraryReaderStageRef.current;
-    const observer = new window.IntersectionObserver(
-      (entries) => {
-        const visiblePage = visibleReaderPageFromEntries(entries);
-        if (visiblePage !== null) {
-          syncLibraryVisibleScrollPage(visiblePage);
-        }
-      },
-      {
-        root: stage,
-        rootMargin: readerScrollObserverMargin,
-        threshold: readerScrollObserverThresholds,
-      },
-    );
+  useReaderPageObserver({
+    enabled: Boolean(remoteReader) && readerMode === "scroll",
+    stageRef: remoteReaderStageRef,
+    resetKey: remoteReader?.session.id ?? "",
+    currentPage: remoteReader?.page.index ?? 0,
+    observedPageCount: remoteReaderObservedPageCount,
+    onVisiblePage: (visiblePage) => syncRemoteVisibleScrollPage(visiblePage),
+  });
 
-    stage.querySelectorAll<HTMLElement>("[data-reader-page]").forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [readerMode, libraryReader?.item.id, libraryReader?.page.index, libraryReaderObservedPageCount]);
+  useReaderScrollRestore({
+    enabled: Boolean(libraryReader) && readerMode === "scroll",
+    stageRef: libraryReaderStageRef,
+    key: libraryReader ? `library:${libraryReader.item.id}` : "",
+    pageCount: libraryReaderObservedPageCount,
+    offset: libraryReader?.item.shelf.scroll_offset,
+    ratio: libraryReader?.item.shelf.scroll_ratio,
+    restoredKeyRef: readerScrollRestoredKey,
+  });
 
-  useEffect(() => {
-    if (
-      !remoteReader ||
-      readerMode !== "scroll" ||
-      !remoteReaderStageRef.current ||
-      typeof window === "undefined" ||
-      !window.IntersectionObserver
-    ) {
-      return;
-    }
+  useReaderScrollRestore({
+    enabled: Boolean(remoteReader) && readerMode === "scroll",
+    stageRef: remoteReaderStageRef,
+    key: remoteReader ? `remote:${remoteReader.session.id}` : "",
+    pageCount: remoteReaderObservedPageCount,
+    offset: remoteReader?.session.scroll_offset,
+    ratio: remoteReader?.session.scroll_ratio,
+    restoredKeyRef: readerScrollRestoredKey,
+  });
 
-    const stage = remoteReaderStageRef.current;
-    const observer = new window.IntersectionObserver(
-      (entries) => {
-        const visiblePage = visibleReaderPageFromEntries(entries);
-        if (visiblePage !== null) {
-          syncRemoteVisibleScrollPage(visiblePage);
-        }
-      },
-      {
-        root: stage,
-        rootMargin: readerScrollObserverMargin,
-        threshold: readerScrollObserverThresholds,
-      },
-    );
-
-    stage.querySelectorAll<HTMLElement>("[data-reader-page]").forEach((element) => observer.observe(element));
-    return () => observer.disconnect();
-  }, [readerMode, remoteReader?.session.id, remoteReader?.page.index, remoteReaderObservedPageCount]);
 
   useEffect(() => {
     if (!libraryReader || readerMode !== "scroll" || !libraryReaderStageRef.current) {
@@ -1752,17 +1705,13 @@ export function Dashboard() {
       setLibraryReaderPageInput(String(page.index));
     }
 
-    if (libraryVisiblePageSaveTimer.current !== null) {
-      window.clearTimeout(libraryVisiblePageSaveTimer.current);
-    }
-    libraryVisiblePageSaveTimer.current = window.setTimeout(() => {
-      libraryVisiblePageSaveTimer.current = null;
+    scheduleDebounced(libraryVisiblePageSaveTimer, readerScrollSyncDelayMs, () => {
       const readingStatus: LibraryReadingStatus = page.index >= total ? "finished" : "reading";
       void updateShelfForItem(item, {
         ...readerProgressPatch(page.index, total, libraryReaderStageRef.current),
         reading_status: readingStatus,
       });
-    }, readerScrollSyncDelayMs);
+    });
   }
 
   function syncRemoteVisibleScrollPage(pageNumber: number, updatePage = true) {
@@ -1783,11 +1732,7 @@ export function Dashboard() {
       setRemoteReaderPageInput(String(page.index));
     }
 
-    if (remoteVisiblePageSaveTimer.current !== null) {
-      window.clearTimeout(remoteVisiblePageSaveTimer.current);
-    }
-    remoteVisiblePageSaveTimer.current = window.setTimeout(() => {
-      remoteVisiblePageSaveTimer.current = null;
+    scheduleDebounced(remoteVisiblePageSaveTimer, readerScrollSyncDelayMs, () => {
       void updateRemoteReaderProgress(sessionId, readerProgressPatch(page.index, remoteReader.total, remoteReaderStageRef.current))
         .then((summary) => {
           mergeRemoteReaderSessionSummary(summary);
@@ -1808,7 +1753,7 @@ export function Dashboard() {
         .catch((caught) => {
           pushLog(`remote reader progress skipped: ${caught instanceof Error ? caught.message : String(caught)}`);
         });
-    }, readerScrollSyncDelayMs);
+    });
   }
 
   async function openLibraryReadingPage(item: LibraryItem) {
@@ -2449,10 +2394,6 @@ export function Dashboard() {
     return preload.requested ? `已预载 ${preload.loaded} 页` : "临近页已就绪";
   }
 
-  function readerScrollPageNumbers(currentPage: number, totalPages: number) {
-    return readerLoadPlan(currentPage, totalPages, "scroll").pageNumbers;
-  }
-
   function markReaderImageStatus(url: string, status: ReaderImageStatus) {
     setReaderImageStates((current) => (current[url] === status ? current : { ...current, [url]: status }));
     if (status === "loaded") {
@@ -2746,71 +2687,6 @@ export function Dashboard() {
     );
   }
 
-  function renderReaderScrollStack<TPage extends { index: number; url: string }>(options: {
-    title: string;
-    pages: Map<number, TPage>;
-    pageNumbers: number[];
-    currentPage: number;
-    disabled: boolean;
-    getKey: (page: TPage) => string;
-    getCaption: (page: TPage) => string;
-    getStatus?: (page: TPage) => ReaderPageUiStatus;
-    jumpToPage: (page: number) => void | Promise<void>;
-  }) {
-    return (
-      <div className="reader-scroll-stack" aria-label="连续阅读页">
-        {options.pageNumbers.map((pageNumber) => {
-          const page = options.pages.get(pageNumber);
-          if (!page) {
-            return (
-              <div className="reader-scroll-placeholder" key={`placeholder-${pageNumber}`}>
-                <strong>p{pageNumber}</strong>
-                <span>等待预载</span>
-              </div>
-            );
-          }
-
-          const pageStatus = options.getStatus?.(page) ?? "unknown";
-          return (
-            <figure
-              className={page.index === options.currentPage ? `reader-scroll-page active ${pageStatus}` : `reader-scroll-page ${pageStatus}`}
-              data-reader-page={page.index}
-              key={options.getKey(page)}
-            >
-              <div
-                className="reader-scroll-page-button"
-                role="button"
-                tabIndex={options.disabled ? -1 : 0}
-                aria-disabled={options.disabled}
-                aria-current={page.index === options.currentPage ? "page" : undefined}
-                onClick={() => {
-                  if (!options.disabled) {
-                    void options.jumpToPage(page.index);
-                  }
-                }}
-                onKeyDown={(event) => {
-                  if (options.disabled || (event.key !== "Enter" && event.key !== " ")) {
-                    return;
-                  }
-                  event.preventDefault();
-                  void options.jumpToPage(page.index);
-                }}
-              >
-                <span className="reader-scroll-page-index">p{page.index}</span>
-                {renderReaderImage({
-                  title: options.title,
-                  page: page.index,
-                  url: page.url,
-                  loading: page.index === options.currentPage ? "eager" : "lazy",
-                })}
-              </div>
-              <figcaption>{options.getCaption(page)}</figcaption>
-            </figure>
-          );
-        })}
-      </div>
-    );
-  }
 
   function summarizeTaskResult(task: Task): { primary: string; detail?: string } {
     const output = task.output;
@@ -3501,16 +3377,18 @@ export function Dashboard() {
             >
               {libraryReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (
-                renderReaderScrollStack({
-                  title: reader.item.title,
-                  pages: pageMap,
-                  pageNumbers: scrollPageNumbers,
-                  currentPage,
-                  disabled: libraryReaderLoading,
-                  getKey: (page) => page.filename,
-                  getCaption: (page) => page.filename,
-                  jumpToPage: jumpLibraryReaderToPage,
-                })
+                <ReaderScrollStack
+                  pages={pageMap}
+                  pageNumbers={scrollPageNumbers}
+                  currentPage={currentPage}
+                  disabled={libraryReaderLoading}
+                  getKey={(page) => page.filename}
+                  getCaption={(page) => page.filename}
+                  jumpToPage={jumpLibraryReaderToPage}
+                  renderPage={(page, loading) =>
+                    renderReaderImage({ title: reader.item.title, page: page.index, url: page.url, loading })
+                  }
+                />
               ) : readerMode === "double" ? (
                 renderReaderSpread({ title: reader.item.title, pages: pageMap, currentPage, totalPages })
               ) : (
@@ -3718,17 +3596,19 @@ export function Dashboard() {
             >
               {remoteReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (
-                renderReaderScrollStack({
-                  title: reader.session.title,
-                  pages: pageMap,
-                  pageNumbers: scrollPageNumbers,
-                  currentPage,
-                  disabled: remoteReaderLoading,
-                  getKey: (page) => `${page.index}:${page.page_url}`,
-                  getCaption: (page) => page.page_url,
-                  getStatus: (page) => remoteReaderPageVisualStatus(page, statusMap),
-                  jumpToPage: jumpRemoteReaderToPage,
-                })
+                <ReaderScrollStack
+                  pages={pageMap}
+                  pageNumbers={scrollPageNumbers}
+                  currentPage={currentPage}
+                  disabled={remoteReaderLoading}
+                  getKey={(page) => `${page.index}:${page.page_url}`}
+                  getCaption={(page) => page.page_url}
+                  getStatus={(page) => remoteReaderPageVisualStatus(page, statusMap)}
+                  jumpToPage={jumpRemoteReaderToPage}
+                  renderPage={(page, loading) =>
+                    renderReaderImage({ title: reader.session.title, page: page.index, url: page.url, loading })
+                  }
+                />
               ) : readerMode === "double" ? (
                 renderReaderSpread({ title: reader.session.title, pages: pageMap, currentPage, totalPages })
               ) : (

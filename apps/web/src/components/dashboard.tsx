@@ -165,6 +165,9 @@ import { prettyJson } from "@/lib/json";
 
 const allSourcesValue = "__all_sources__";
 
+// Default search box query; configurable through NEXT_PUBLIC_DEFAULT_SEARCH_TAGS.
+const defaultSearchTags = process.env.NEXT_PUBLIC_DEFAULT_SEARCH_TAGS?.trim() || "language:chinese female:big breasts";
+
 const detailDrawerCloseMs = 220;
 const readerScrollSyncDelayMs = 650;
 const readerScrollObserverMargin = "-18% 0px -48% 0px";
@@ -278,7 +281,7 @@ export function Dashboard() {
   const [rerunningTaskId, setRerunningTaskId] = useState<string | null>(null);
   const [searchResultsLoadingTaskId, setSearchResultsLoadingTaskId] = useState<string | null>(null);
 
-  const [tags, setTags] = useState("language:chinese female:big breasts");
+  const [tags, setTags] = useState(defaultSearchTags);
   const [globalExcludedTags, setGlobalExcludedTags] = useState<string[]>([]);
   const [excludedTagDraft, setExcludedTagDraft] = useState("");
   const [name, setName] = useState("");

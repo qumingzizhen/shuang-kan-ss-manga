@@ -522,6 +522,22 @@ def run_gallery(parsed: argparse.Namespace) -> dict[str, Any]:
 
 
 def run_list_pages(parsed: argparse.Namespace) -> dict[str, Any]:
+    if parsed.gallery_index_page and parsed.gallery_index_page >= 1:
+        base_url = normalize_base_url(parsed.base_url)
+        gallery_url = ensure_ehentai_gallery_url(parsed.gallery_url, base_url)
+        client = HttpClient(parsed, source_label=SOURCE_LABEL)
+        index_url = gallery_index_url(gallery_url, parsed.gallery_index_page - 1)
+        html = client.fetch_text(index_url, referer=gallery_url)
+        meta = parse_gallery_meta(html, index_url)
+        pages = page_descriptors(meta)
+        return {
+            "source_id": SOURCE_ID,
+            "title": meta.title,
+            "gallery_url": meta.url or gallery_url,
+            "tags": flatten_tags(meta.tags),
+            "page_count": meta.length or len(pages) or None,
+            "pages": pages,
+        }
     meta = fetch_gallery_meta(parsed)
     pages = page_descriptors(meta)
     return {
@@ -713,6 +729,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--page-url")
     parser.add_argument("--page-index", type=int)
     parser.add_argument("--variant-specs")
+    parser.add_argument("--gallery-index-page", type=int)
     parser.add_argument("--folder")
     parser.add_argument("--missing-only", action="store_true")
     parser.add_argument("--start-page", type=int)

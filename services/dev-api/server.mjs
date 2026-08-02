@@ -94,6 +94,7 @@ const readerCacheTtlMs = Math.max(Number(process.env.DEV_API_READER_CACHE_TTL_MS
 const readerCacheMaxBytes = Math.max(Number(process.env.DEV_API_READER_CACHE_MAX_BYTES || 4 * 1024 * 1024 * 1024), 0);
 const readerCacheSweepIntervalMs = Math.max(Number(process.env.DEV_API_READER_CACHE_SWEEP_INTERVAL_MS || 24 * 60 * 60 * 1000), 1000);
 const readerCacheGraceMs = Math.max(Number(process.env.DEV_API_READER_CACHE_GRACE_MS || 10 * 60 * 1000), 0);
+const readerListExpansionPaceMs = Math.max(Number(process.env.DEV_API_READER_LIST_PACE_MS || 2500), 100);
 
 const tasks = new Map();
 const libraryShelf = new Map();
@@ -107,6 +108,7 @@ const subscribers = new Set();
 const runningChildren = new Map();
 const readerPageFetches = createSingleFlight();
 const readerPageListFetches = createSingleFlight();
+const readerListExpansionTimers = new Map();
 const searchThumbnailFetches = createSingleFlight();
 const searchMoreTasks = new Set();
 const recoveredTaskIds = [];
@@ -266,6 +268,9 @@ const server = createServer(async (request, response) => {
     if (readerSessionMatch && request.method === "GET") {
       const session = readerSessions.get(readerSessionMatch[1]);
       sendJson(response, session ? 200 : 404, session ? readerSessionResponse(session, 0, 24) : { error: "reader session not found" });
+      if (session) {
+        startReaderListExpansion(session);
+      }
       return;
     }
 
@@ -1622,6 +1627,7 @@ async function createReaderSession(payload) {
   readerSessions.set(session.id, session);
   persistReaderSessionsSoon();
   preheatReaderPages(session.id, readerPreheatPages);
+  startReaderListExpansion(session);
 
   return readerSessionResponse(session, 0, 24);
 }
@@ -1814,17 +1820,31 @@ async function getReaderSessionPageBatch(sessionId, searchParams) {
   return readerPageBatch(session, offset, limit);
 }
 
+function readerIndexPageForPage(pageNumber, pageSize) {
+  return Math.max(Math.ceil(Number(pageNumber) / pageSize), 1);
+}
+
 async function ensureReaderPages(session, requiredCount) {
-  const required = Math.min(Math.max(Number(requiredCount) || 0, 0), Number.MAX_SAFE_INTEGER);
+  const knownTotal = Math.max(Number(session.page_count || 0), session.pages.length);
+  const required = Math.min(Math.max(Number(requiredCount) || 0, 0), knownTotal);
   const source = sourceById.get(session.source_id);
-  if (session.pages.length >= required || sourceGalleryIndexPageSize(source) === null) {
+  const pageSize = sourceGalleryIndexPageSize(source);
+  if (session.pages.length >= required || pageSize === null) {
     return;
   }
   await readerPageListFetches.run(`reader-pages:${session.id}`, async () => {
     if (session.pages.length >= required) {
       return;
     }
-    const report = await runSourceBridge(session.source_id, ["list-pages", "--gallery-url", session.gallery_url]);
+    const knownTotal = Math.max(Number(session.page_count || 0), session.pages.length);
+    const neededIndexPage = readerIndexPageForPage(Math.min(required, knownTotal), pageSize);
+    const report = await runSourceBridge(session.source_id, [
+      "list-pages",
+      "--gallery-url",
+      session.gallery_url,
+      "--gallery-index-page",
+      String(neededIndexPage),
+    ]);
     const pages = normalizeReaderPages(report.pages || [], report.gallery_url || session.gallery_url);
     if (!pages.length) {
       throw new Error(
@@ -1846,6 +1866,51 @@ function mergeReaderSessionPages(session, pages) {
     merged.set(page.index, page);
   }
   session.pages = Array.from(merged.values()).sort((left, right) => left.index - right.index);
+}
+
+function startReaderListExpansion(session) {
+  if (sourceGalleryIndexPageSize(sourceById.get(session.source_id)) === null) {
+    return;
+  }
+  stopReaderListExpansion(session.id);
+  scheduleReaderListExpansionStep(session.id);
+}
+
+function stopReaderListExpansion(sessionId) {
+  const existing = readerListExpansionTimers.get(sessionId);
+  if (existing) {
+    clearTimeout(existing);
+    readerListExpansionTimers.delete(sessionId);
+  }
+}
+
+function scheduleReaderListExpansionStep(sessionId) {
+  const session = readerSessions.get(sessionId);
+  if (!session) {
+    readerListExpansionTimers.delete(sessionId);
+    return;
+  }
+  const pageSize = sourceGalleryIndexPageSize(sourceById.get(session.source_id));
+  const knownTotal = Math.max(Number(session.page_count || 0), session.pages.length);
+  if (pageSize === null || session.pages.length >= knownTotal) {
+    readerListExpansionTimers.delete(sessionId);
+    return;
+  }
+  const timer = setTimeout(() => {
+    readerListExpansionTimers.delete(sessionId);
+    void ensureReaderPages(session, session.pages.length + 1)
+      .then(() => {
+        if (readerSessions.get(sessionId)) {
+          scheduleReaderListExpansionStep(sessionId);
+        }
+      })
+      .catch((error) => {
+        console.error(
+          `reader page list expansion stopped for session ${sessionId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      });
+  }, readerListExpansionPaceMs);
+  readerListExpansionTimers.set(sessionId, timer);
 }
 
 function readerPageBatch(session, offset, limit) {
@@ -2361,6 +2426,7 @@ async function deleteReaderSession(sessionId) {
   }
 
   readerSessions.delete(sessionId);
+  stopReaderListExpansion(sessionId);
   clearReaderSessionFailures(sessionId);
   const cacheResult = await clearReaderSessionCacheFiles(session);
   persistReaderSessionsSoon();

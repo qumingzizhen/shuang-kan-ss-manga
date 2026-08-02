@@ -38,4 +38,10 @@ describe("reader scroll slot height stability", () => {
     expect(maxWidth).not.toBeNull();
     expect(Number.parseFloat(maxWidth ?? "0")).toBeGreaterThanOrEqual(1500);
   });
+
+  it("scroll-mode top bar is hidden until the hover zone is used", () => {
+    expect(css).toContain(".reader-header-hover-zone");
+    expect(css).toMatch(/\.reader-header-hover-zone:hover\s*~\s*\.reader-header/);
+    expect(css).toMatch(/\.reader-shell\.scroll-mode \.reader-header\s*\{[^}]*opacity:\s*0/);
+  });
 });

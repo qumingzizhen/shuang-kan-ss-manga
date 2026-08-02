@@ -3216,13 +3216,27 @@ h2 {
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.1);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  /* Hidden by default; revealed by hovering the top hover zone or the bar. */
+  transform: translateY(-110%);
+  opacity: 0;
+  pointer-events: none;
   transition: transform 0.22s ease, opacity 0.22s ease;
 }
 
-.reader-shell.scroll-mode.header-hidden .reader-header {
-  transform: translateY(-115%);
-  opacity: 0;
-  pointer-events: none;
+.reader-shell.scroll-mode .reader-header-hover-zone {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 36px;
+  z-index: 6;
+}
+
+.reader-shell.scroll-mode .reader-header-hover-zone:hover ~ .reader-header,
+.reader-shell.scroll-mode .reader-header:hover {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .reader-title-block {

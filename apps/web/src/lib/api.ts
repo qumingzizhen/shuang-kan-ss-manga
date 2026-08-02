@@ -233,6 +233,8 @@ export type RemoteReaderPage = {
   size_bytes: number;
   updated_at: string;
   url: string;
+  width?: number;
+  height?: number;
 };
 
 export type RemoteReaderPageBatch = {

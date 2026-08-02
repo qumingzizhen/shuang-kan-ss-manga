@@ -73,6 +73,23 @@ const readerPreheatPages = Number.isFinite(configuredReaderPreheatPages)
   ? Math.max(Math.min(Math.trunc(configuredReaderPreheatPages), 8), 0)
   : 3;
 const readerInitialIndexPageCount = 1;
+const readerDisplayVariantSpec = {
+  name: "display",
+  format: "webp",
+  max_width: Math.max(Math.trunc(Number(process.env.DEV_API_READER_DISPLAY_MAX_WIDTH || 1600)) || 1600, 1),
+  quality: Math.min(Math.max(Math.trunc(Number(process.env.DEV_API_READER_DISPLAY_QUALITY || 80)) || 80, 1), 100),
+};
+const readerBlurVariantSpec = {
+  name: "blur",
+  format: "webp",
+  max_width: Math.max(Math.trunc(Number(process.env.DEV_API_READER_BLUR_MAX_WIDTH || 480)) || 480, 1),
+  quality: Math.min(Math.max(Math.trunc(Number(process.env.DEV_API_READER_BLUR_QUALITY || 60)) || 60, 1), 100),
+};
+const readerVariantSpecs = [readerDisplayVariantSpec, readerBlurVariantSpec];
+const readerVariantHelperTimeoutMs = Number(process.env.DEV_API_READER_VARIANT_TIMEOUT_MS || 60 * 1000);
+const scheduleReaderVariantGeneration = createAsyncLimiter(
+  normalizeConcurrency(process.env.DEV_API_READER_VARIANT_CONCURRENCY, 2, 8),
+);
 
 const tasks = new Map();
 const libraryShelf = new Map();
@@ -315,8 +332,9 @@ const server = createServer(async (request, response) => {
       const sessionId = readerSessionPageMatch[1];
       const pageIndex = Number(readerSessionPageMatch[2]);
       const forceRefresh = url.searchParams.has("reader_retry") || url.searchParams.get("refresh") === "1";
+      const variant = url.searchParams.get("variant");
       try {
-        const page = await resolveReaderPageFile(sessionId, pageIndex, { forceRefresh });
+        const page = await resolveReaderPageFile(sessionId, pageIndex, { forceRefresh, variant });
         if (!page) {
           recordReaderPageFailure(sessionId, pageIndex, "reader page not found");
           sendJson(response, 404, { error: "reader page not found" });
@@ -686,6 +704,10 @@ function sourceSupportsOnlineRead(source) {
 function sourceGalleryIndexPageSize(source) {
   const value = Number(source?.gallery_index_page_size || 0);
   return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function sourceSupportsReaderVariants(source) {
+  return Boolean(source?.reader_variants === true);
 }
 
 function shouldReuseReaderSession(session) {
@@ -1740,10 +1762,15 @@ function normalizeReaderPages(rawPages, galleryUrl) {
       continue;
     }
     seenIndexes.add(index);
+    const width = Number(rawPage.width);
+    const height = Number(rawPage.height);
     pages.push({
       index: Math.floor(index),
       page_url: pageUrl,
       gallery_url: textOrNull(rawPage.gallery_url) || galleryUrl,
+      ...(Number.isFinite(width) && width > 0 && Number.isFinite(height) && height > 0
+        ? { width, height }
+        : {}),
     });
   }
   return pages.sort((left, right) => left.index - right.index);
@@ -1825,6 +1852,12 @@ function publicReaderPage(session, page) {
     size_bytes: 0,
     updated_at: session.updated_at,
     url: `/v1/reader/sessions/${encodeURIComponent(session.id)}/pages/${page.index}`,
+    ...(Number.isFinite(Number(page.width)) &&
+    Number(page.width) > 0 &&
+    Number.isFinite(Number(page.height)) &&
+    Number(page.height) > 0
+      ? { width: Number(page.width), height: Number(page.height) }
+      : {}),
   };
 }
 
@@ -1843,17 +1876,37 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
   }
 
   const cacheRoot = resolve(readerPageCacheDir, session.source_id, session.id);
+  const variantName = options.variant === "display" || options.variant === "blur" ? options.variant : null;
   if (options.forceRefresh) {
     const currentFetch = readerPageFetches.get(readerPageFetchKey(sessionId, page.index));
     if (currentFetch) {
       await currentFetch.catch(() => undefined);
     }
     await removeCachedReaderPages(cacheRoot, page.index);
-  } else {
-    const cached = await findCachedReaderPage(cacheRoot, page.index);
-    if (cached) {
-      return cached;
+  }
+
+  if (variantName) {
+    const cachedVariant = await findCachedReaderVariant(cacheRoot, page.index, variantName);
+    if (cachedVariant) {
+      return cachedVariant;
     }
+    const original = await resolveReaderPageFile(sessionId, pageIndex, { forceRefresh: false });
+    if (!original) {
+      return null;
+    }
+    const freshVariant = await findCachedReaderVariant(cacheRoot, page.index, variantName);
+    if (freshVariant) {
+      return freshVariant;
+    }
+    if (sourceSupportsReaderVariants(sourceById.get(session.source_id))) {
+      backfillReaderVariants(session, page, cacheRoot);
+    }
+    return original;
+  }
+
+  const cached = await findCachedReaderPage(cacheRoot, page.index);
+  if (cached) {
+    return cached;
   }
 
   const fetchKey = readerPageFetchKey(sessionId, page.index);
@@ -1864,7 +1917,7 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
 
 async function fetchReaderPageFile(session, page, cacheRoot) {
   await mkdir(cacheRoot, { recursive: true });
-  const report = await runSourceBridge(session.source_id, [
+  const bridgeArgs = [
     "download-page",
     "--gallery-url",
     session.gallery_url,
@@ -1874,10 +1927,33 @@ async function fetchReaderPageFile(session, page, cacheRoot) {
     String(page.index),
     "--page-output",
     cacheRoot,
-  ]);
+  ];
+  if (sourceSupportsReaderVariants(sourceById.get(session.source_id))) {
+    bridgeArgs.push("--variant-specs", JSON.stringify(readerVariantSpecs));
+  }
+  const report = await runSourceBridge(session.source_id, bridgeArgs);
   const filePath = resolve(String(report.storage_key || ""));
   if (!isPathInside(filePath, cacheRoot) || !isImageFile(basename(filePath))) {
     throw new Error("source adapter returned an unsafe reader cache path");
+  }
+
+  if (Array.isArray(report.variants)) {
+    for (const variant of report.variants) {
+      const variantPath = resolve(String(variant.file || ""));
+      if (!isPathInside(variantPath, cacheRoot)) {
+        throw new Error("source adapter returned an unsafe reader variant path");
+      }
+    }
+    const display = report.variants.find((variant) => variant.name === "display");
+    if (display && Number.isFinite(Number(display.width)) && Number.isFinite(Number(display.height))) {
+      page.width = Number(display.width);
+      page.height = Number(display.height);
+    }
+  }
+  if (Array.isArray(report.variant_errors) && report.variant_errors.length) {
+    console.error(
+      `reader variant generation reported errors for session ${session.id} page ${page.index}: ${report.variant_errors.join("; ")}`,
+    );
   }
 
   const fileStat = await stat(filePath);
@@ -1895,6 +1971,108 @@ async function fetchReaderPageFile(session, page, cacheRoot) {
 
 function readerPageFetchKey(sessionId, pageIndex) {
   return `${sessionId}\0${pageIndex}`;
+}
+
+function runReaderVariantHelper(pythonPath, args) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const helperScript =
+      process.env.DEV_API_READER_VARIANT_SCRIPT || join(projectRoot, "scripts", "make_image_variants.py");
+    const child = spawn(pythonPath, [helperScript, ...args], {
+      cwd: projectRoot,
+      windowsHide: true,
+    });
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    const timeout = setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      withIgnoredProcessError(child, () => child.kill("SIGTERM"));
+      rejectPromise(new Error(`reader variant helper timed out: ${args.join(" ")}`));
+    }, readerVariantHelperTimeoutMs);
+    const finish = (callback) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      clearTimeout(timeout);
+      callback();
+    };
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    child.on("error", (error) => finish(() => rejectPromise(error)));
+    child.on("close", (code) =>
+      finish(() => {
+        if (code !== 0) {
+          rejectPromise(new Error(`reader variant helper exited ${code}: ${stderr || stdout}`));
+          return;
+        }
+        try {
+          resolvePromise(JSON.parse(stdout));
+        } catch (error) {
+          rejectPromise(new Error(`failed to parse reader variant helper output: ${error.message}`));
+        }
+      }),
+    );
+  });
+}
+
+function backfillReaderVariants(session, page, cacheRoot) {
+  const source = sourceById.get(session.source_id);
+  if (!sourceSupportsReaderVariants(source) || !readerVariantSpecs.length) {
+    return;
+  }
+  void scheduleReaderVariantGeneration(async () => {
+    const original = await findCachedReaderPage(cacheRoot, page.index);
+    if (!original) {
+      return;
+    }
+    const display = await findCachedReaderVariant(cacheRoot, page.index, "display");
+    if (display) {
+      return;
+    }
+    const report = await runReaderVariantHelper(source.python || defaultPython, [
+      "--input",
+      original.filePath,
+      "--output-dir",
+      cacheRoot,
+      "--index",
+      String(page.index),
+      "--variant-specs",
+      JSON.stringify(readerVariantSpecs),
+    ]);
+    const variants = Array.isArray(report.variants) ? report.variants : [];
+    for (const variant of variants) {
+      const variantPath = resolve(String(variant.file || ""));
+      if (!isPathInside(variantPath, cacheRoot)) {
+        throw new Error("reader variant helper returned an unsafe variant path");
+      }
+    }
+    const errors = Array.isArray(report.errors) ? report.errors : [];
+    if (errors.length) {
+      console.error(
+        `reader variant backfill reported errors for session ${session.id} page ${page.index}: ${errors.join("; ")}`,
+      );
+    }
+    const displayVariant = variants.find((variant) => variant.name === "display");
+    if (displayVariant && Number.isFinite(Number(displayVariant.width)) && Number.isFinite(Number(displayVariant.height))) {
+      page.width = Number(displayVariant.width);
+      page.height = Number(displayVariant.height);
+      persistReaderSessionsSoon();
+    }
+  }).catch((error) => {
+    console.error(
+      `reader variant backfill failed for session ${session.id} page ${page.index}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  });
 }
 
 async function removeCachedReaderPages(cacheRoot, pageIndex) {
@@ -1921,7 +2099,12 @@ async function removeCachedReaderPages(cacheRoot, pageIndex) {
 
 async function findCachedReaderPage(cacheRoot, pageIndex) {
   const pages = await listCachedReaderPages(cacheRoot, [pageIndex]);
-  return pages.get(pageIndex) || null;
+  return pages.get(pageIndex)?.original || null;
+}
+
+async function findCachedReaderVariant(cacheRoot, pageIndex, variantName) {
+  const pages = await listCachedReaderPages(cacheRoot, [pageIndex]);
+  return pages.get(pageIndex)?.variants.get(String(variantName || "").toLowerCase()) || null;
 }
 
 async function listCachedReaderPages(cacheRoot, pageIndexes = []) {
@@ -1937,9 +2120,14 @@ async function listCachedReaderPages(cacheRoot, pageIndexes = []) {
   const pages = new Map();
   await Promise.all(
     candidates.map(async (entry) => {
-      const match = entry.name.match(/^(\d+)/);
-      const pageIndex = Number(match?.[1]);
-      if (!Number.isFinite(pageIndex) || pages.has(pageIndex)) {
+      const originalMatch = entry.name.match(/^(\d+)\.(avif|gif|jpe?g|png|webp)$/i);
+      const variantMatch = entry.name.match(/^(\d+)\.([a-z0-9_-]+)\.(avif|gif|jpe?g|png|webp)$/i);
+      const match = originalMatch || variantMatch;
+      if (!match) {
+        return;
+      }
+      const pageIndex = Number(match[1]);
+      if (!Number.isFinite(pageIndex) || (requested.size && !requested.has(pageIndex))) {
         return;
       }
       const filePath = resolve(cacheRoot, entry.name);
@@ -1947,12 +2135,25 @@ async function listCachedReaderPages(cacheRoot, pageIndexes = []) {
         return;
       }
       const fileStat = await stat(filePath);
-      if (fileStat.isFile()) {
-        pages.set(pageIndex, {
-          filePath,
-          fileStat,
-          mimeType: mimeTypeForImage(entry.name),
-        });
+      if (!fileStat.isFile()) {
+        return;
+      }
+      let record = pages.get(pageIndex);
+      if (!record) {
+        record = { original: null, variants: new Map() };
+        pages.set(pageIndex, record);
+      }
+      const cachedEntry = {
+        filePath,
+        fileStat,
+        mimeType: mimeTypeForImage(entry.name),
+      };
+      if (originalMatch) {
+        if (!record.original) {
+          record.original = cachedEntry;
+        }
+      } else {
+        record.variants.set(variantMatch[2].toLowerCase(), cachedEntry);
       }
     }),
   );

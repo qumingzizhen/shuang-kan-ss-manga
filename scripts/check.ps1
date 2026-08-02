@@ -60,6 +60,7 @@ Invoke-Checked { node .\scripts\check_async_pool.mjs }
 Invoke-Checked { node .\scripts\check_state_store.mjs }
 Invoke-Checked { node .\scripts\check_reader_progress.mjs }
 Invoke-Checked { node .\scripts\check_reader_first_page.mjs }
+Invoke-Checked { node .\scripts\check_reader_variants.mjs }
 Invoke-Checked { node .\scripts\check_library_index.mjs }
 Invoke-Checked { node .\scripts\check_performance_baseline.mjs }
 Invoke-Checked { node .\scripts\check_thumbnail_policy.mjs }
@@ -68,7 +69,7 @@ Invoke-Checked { python .\scripts\audit_tag_alignment.py --minimum-coverage 0.90
 
 Write-Host "`n[check] Python bridges"
 Invoke-Checked { python -c "import jmcomic; print('ok jmcomic', jmcomic.__version__ if hasattr(jmcomic, '__version__') else 'installed')" }
-Invoke-Checked { python -m py_compile .\scripts\contract_validator.py .\scripts\source_bridge_core.py .\scripts\search_result_metadata.py .\scripts\gallery_search_parser.py .\scripts\source_tag_resolver.py .\scripts\jmcomic_api_adapter.py .\scripts\fangliding_bridge.py .\scripts\check_fangliding_pagination.py .\scripts\check_fangliding_reader.py .\scripts\check_gallery_search_parser.py .\scripts\run_source_adapter_self_tests.py .\scripts\18comic_bridge.py .\scripts\ehentai_bridge.py }
+Invoke-Checked { python -m py_compile .\scripts\contract_validator.py .\scripts\source_bridge_core.py .\scripts\search_result_metadata.py .\scripts\gallery_search_parser.py .\scripts\source_tag_resolver.py .\scripts\jmcomic_api_adapter.py .\scripts\fangliding_bridge.py .\scripts\check_fangliding_pagination.py .\scripts\check_fangliding_reader.py .\scripts\check_gallery_search_parser.py .\scripts\run_source_adapter_self_tests.py .\scripts\18comic_bridge.py .\scripts\ehentai_bridge.py .\scripts\make_image_variants.py }
 Invoke-Checked { python .\scripts\check_download_core.py }
 
 

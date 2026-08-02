@@ -140,6 +140,10 @@ def validate_source(source: dict[str, Any], seen_ids: set[str]) -> None:
         ):
             fail(f"{source_id}: gallery_index_page_size must be a positive integer when set")
 
+    reader_variants = source.get("reader_variants")
+    if reader_variants is not None and not isinstance(reader_variants, bool):
+        fail(f"{source_id}: reader_variants must be boolean when set")
+
 
 def text(value: object) -> str:
     return str(value).strip() if value is not None else ""

@@ -2491,10 +2491,13 @@ export function Dashboard() {
 
   function readerImageSrcWithReload(url: string, reloadKey: number) {
     const source = apiUrl(url);
+    const variant = libraryReaderFit === "original" ? "original" : "display";
+    const separator = source.includes("?") ? "&" : "?";
+    const variantQuery = `variant=${variant}`;
     if (!reloadKey) {
-      return source;
+      return `${source}${separator}${variantQuery}`;
     }
-    return `${source}${source.includes("?") ? "&" : "?"}reader_retry=${reloadKey}`;
+    return `${source}${separator}${variantQuery}&reader_retry=${reloadKey}`;
   }
 
   function remoteReaderPageVisualStatus(page: RemoteReaderPage, statusMap: Record<number, RemoteReaderPageStatus>): ReaderPageUiStatus {
@@ -3637,7 +3640,15 @@ export function Dashboard() {
                   getStatus={(page) => remoteReaderPageVisualStatus(page, statusMap)}
                   jumpToPage={jumpRemoteReaderToPage}
                   renderPage={(page, loading) =>
-                    renderReaderImage({ title: reader.session.title, page: page.index, url: page.url, loading, ratio: readerImageRatios[page.url] })
+                    renderReaderImage({
+                      title: reader.session.title,
+                      page: page.index,
+                      url: page.url,
+                      loading,
+                      ratio:
+                        readerImageRatios[page.url] ??
+                        (page.width && page.height ? `${page.width}/${page.height}` : undefined),
+                    })
                   }
                 />
               ) : readerMode === "double" ? (

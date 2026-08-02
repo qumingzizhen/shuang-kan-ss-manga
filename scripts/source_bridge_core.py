@@ -335,6 +335,94 @@ def save_image_bytes(
         raise
     return file_path, content_type, len(body), False
 
+
+def parse_variant_specs(value: str | None) -> list[dict[str, Any]]:
+    """Parse an optional --variant-specs JSON array into validated variant specs."""
+    if not value:
+        return []
+    try:
+        raw_specs = json.loads(value)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"invalid --variant-specs JSON: {exc}") from exc
+    if not isinstance(raw_specs, list):
+        raise RuntimeError("--variant-specs must be a JSON array")
+    specs: list[dict[str, Any]] = []
+    for raw in raw_specs:
+        if not isinstance(raw, dict):
+            raise RuntimeError("--variant-specs entries must be objects")
+        name = str(raw.get("name") or "").strip()
+        variant_format = str(raw.get("format") or "webp").strip().lower()
+        max_width = int(raw.get("max_width") or 0)
+        quality = int(raw.get("quality") or 0)
+        if not re.fullmatch(r"[a-z0-9_-]{1,32}", name):
+            raise RuntimeError(f"invalid variant name: {name!r}")
+        if variant_format not in {"webp", "jpeg"}:
+            raise RuntimeError(f"unsupported variant format: {variant_format}")
+        if max_width <= 0 or max_width > 100000:
+            raise RuntimeError(f"invalid variant max_width: {max_width}")
+        if quality <= 0 or quality > 100:
+            raise RuntimeError(f"invalid variant quality: {quality}")
+        specs.append({"name": name, "format": variant_format, "max_width": max_width, "quality": quality})
+    return specs
+
+
+def write_image_variants(
+    source_path: Path,
+    specs: list[dict[str, Any]],
+    out_dir: Path,
+    index: int,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Create display/blur variants of a saved page image with Pillow.
+
+    Returns (variants, errors). Variant failures never raise so the original
+    page download stays usable.
+    """
+    variants: list[dict[str, Any]] = []
+    errors: list[str] = []
+    if not specs:
+        return variants, errors
+    try:
+        from PIL import Image
+    except Exception as exc:  # noqa: BLE001 - environment may lack Pillow.
+        return variants, [f"Pillow unavailable: {exc}"]
+    try:
+        with Image.open(source_path) as image:
+            for spec in specs:
+                name = spec["name"]
+                variant_format = spec["format"]
+                max_width = spec["max_width"]
+                quality = spec["quality"]
+                working = image
+                if working.mode != "RGB":
+                    working = working.convert("RGB")
+                width, height = working.size
+                if width > max_width:
+                    scale = max_width / width
+                    working = working.resize(
+                        (max_width, max(1, round(height * scale))),
+                        Image.Resampling.LANCZOS,
+                    )
+                    width, height = working.size
+                suffix = ".webp" if variant_format == "webp" else ".jpg"
+                out_path = out_dir / f"{index:04d}.{name}{suffix}"
+                working.save(
+                    out_path,
+                    format="WEBP" if variant_format == "webp" else "JPEG",
+                    quality=quality,
+                )
+                variants.append({
+                    "name": name,
+                    "file": str(out_path.resolve()),
+                    "content_type": "image/webp" if variant_format == "webp" else "image/jpeg",
+                    "width": width,
+                    "height": height,
+                    "byte_size": out_path.stat().st_size,
+                })
+    except Exception as exc:  # noqa: BLE001 - variant generation must not fail the page.
+        errors.append(f"variant generation failed for page {index}: {exc}")
+    return variants, errors
+
+
 def append_failed_page(folder: Path, source_id: str, target: ImageTarget, error: str) -> None:
     record = {
         "timestamp": now_iso(),

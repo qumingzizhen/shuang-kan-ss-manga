@@ -27,7 +27,9 @@ from source_bridge_core import (
     emit_bridge_error,
     image_files,
     now_iso,
+    parse_variant_specs,
     parse_html,
+    write_image_variants,
     save_image_target,
     sanitize_filename,
     strip_fragment,
@@ -592,13 +594,23 @@ def run_download_page(parsed: argparse.Namespace) -> dict[str, Any]:
         parsed.overwrite,
         max(parsed.min_image_bytes, 0),
     )
-    return {
+    report = {
         "source_id": SOURCE_ID,
         "page_url": target.page_url,
         "storage_key": str(file_path),
         "content_type": content_type,
         "byte_size": byte_size,
     }
+    if parsed.variant_specs:
+        variants, variant_errors = write_image_variants(
+            Path(file_path),
+            parse_variant_specs(parsed.variant_specs),
+            folder,
+            index,
+        )
+        report["variants"] = variants
+        report["variant_errors"] = variant_errors
+    return report
 
 
 def run_retry_plan(parsed: argparse.Namespace) -> dict[str, Any]:
@@ -700,6 +712,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--gallery-url")
     parser.add_argument("--page-url")
     parser.add_argument("--page-index", type=int)
+    parser.add_argument("--variant-specs")
     parser.add_argument("--folder")
     parser.add_argument("--missing-only", action="store_true")
     parser.add_argument("--start-page", type=int)

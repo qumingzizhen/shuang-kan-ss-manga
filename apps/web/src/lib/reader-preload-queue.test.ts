@@ -1,6 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   ReaderPreloadQueue,
+  browserImagePreloadLoader,
+  type ReaderImageDimensions,
   type ReaderPreloadHandle,
   type ReaderPreloadOutcome,
 } from "@/lib/reader-preload-queue";
@@ -59,5 +61,33 @@ describe("ReaderPreloadQueue", () => {
     expect(handles).toHaveLength(2);
     handles[1].finish("loaded");
     await expect(retained).resolves.toBe("loaded");
+  });
+});
+
+describe("browserImagePreloadLoader", () => {
+  it("reports natural dimensions when the image loads", async () => {
+    class FakeImage {
+      naturalWidth = 0;
+      naturalHeight = 0;
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      set src(_value: string) {
+        this.naturalWidth = 1600;
+        this.naturalHeight = 2200;
+        queueMicrotask(() => this.onload?.());
+      }
+    }
+    // The loader resolves window.Image at call time; the suite runs in a node environment.
+    vi.stubGlobal("window", { Image: FakeImage });
+    try {
+      let received: ReaderImageDimensions | null = null;
+      const handle = browserImagePreloadLoader("/reader/page.png", (dimensions) => {
+        received = dimensions;
+      });
+      await expect(handle.promise).resolves.toBe("loaded");
+      expect(received).toEqual({ width: 1600, height: 2200 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

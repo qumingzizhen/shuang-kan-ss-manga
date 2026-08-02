@@ -15,7 +15,7 @@ describe("readerLoadPlan", () => {
     expect(plan.endPage).toBe(58);
     expect(plan.count).toBe(11);
     expect(plan.pageNumbers).toEqual([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
-    expect(plan.eagerPageIndexes).toEqual([51, 52, 53, 49]);
+    expect(plan.eagerPageIndexes).toEqual([51, 52, 53, 54, 49]);
   });
 
   it("单页模式在首尾正确收窄并去除越界预加载", () => {

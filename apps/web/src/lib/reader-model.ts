@@ -31,7 +31,7 @@ export function readerLoadPlan(currentPage: number, totalPages: number, mode: Re
   const startPage = Math.max(1, current - leadingPages);
   const endPage = Math.min(total, current + trailingPages);
   const pageNumbers = Array.from({ length: endPage - startPage + 1 }, (_, index) => startPage + index);
-  const priorityOffsets = mode === "scroll" ? [1, 2, 3, -1] : [1, -1, 2, -2, 3, -3, 4, -4];
+  const priorityOffsets = mode === "scroll" ? [1, 2, 3, 4, -1] : [1, -1, 2, -2, 3, -3, 4, -4];
   const eagerPageIndexes = priorityOffsets
     .map((offset) => current + offset)
     .filter((page, index, pages) => page >= startPage && page <= endPage && pages.indexOf(page) === index);

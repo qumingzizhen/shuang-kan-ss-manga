@@ -44,4 +44,9 @@ describe("reader scroll slot height stability", () => {
     expect(css).toMatch(/\.reader-header-hover-zone:hover\s*~\s*\.reader-header/);
     expect(css).toMatch(/\.reader-shell\.scroll-mode \.reader-header\s*\{[^}]*opacity:\s*0/);
   });
+
+  it("scroll-mode images reserve an aspect ratio before loading", () => {
+    const rule = css.match(/\.reader-scroll-page-button \.reader-image\.fit-width\s*\{([^}]*)\}/);
+    expect(rule?.[1]).toMatch(/aspect-ratio:\s*[^;]+;/);
+  });
 });

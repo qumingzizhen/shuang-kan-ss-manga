@@ -1,15 +1,21 @@
 export type ReaderPreloadOutcome = "loaded" | "failed" | "canceled";
 
+export type ReaderImageDimensions = {
+  width: number;
+  height: number;
+};
+
 export type ReaderPreloadHandle = {
   promise: Promise<ReaderPreloadOutcome>;
   cancel: () => void;
 };
 
-export type ReaderPreloadLoader = (url: string) => ReaderPreloadHandle;
+export type ReaderPreloadLoader = (url: string, onDimensions?: (dimensions: ReaderImageDimensions) => void) => ReaderPreloadHandle;
 
 type QueueEntry = {
   key: string;
   url: string;
+  onDimensions?: (dimensions: ReaderImageDimensions) => void;
   promise: Promise<ReaderPreloadOutcome>;
   resolve: (outcome: ReaderPreloadOutcome) => void;
   handle?: ReaderPreloadHandle;
@@ -35,7 +41,7 @@ export class ReaderPreloadQueue {
     this.#limit = Math.min(Math.max(Math.floor(concurrency) || 1, 1), 8);
   }
 
-  enqueue(key: string, url: string): Promise<ReaderPreloadOutcome> {
+  enqueue(key: string, url: string, onDimensions?: (dimensions: ReaderImageDimensions) => void): Promise<ReaderPreloadOutcome> {
     const normalizedKey = key.trim();
     if (!normalizedKey) {
       return Promise.resolve("canceled");
@@ -50,7 +56,7 @@ export class ReaderPreloadQueue {
     const promise = new Promise<ReaderPreloadOutcome>((done) => {
       resolve = done;
     });
-    const entry: QueueEntry = { key: normalizedKey, url, promise, resolve, canceled: false };
+    const entry: QueueEntry = { key: normalizedKey, url, promise, resolve, canceled: false, onDimensions };
     this.#entries.set(normalizedKey, entry);
     this.#pending.push(entry);
     this.#drain();
@@ -91,7 +97,7 @@ export class ReaderPreloadQueue {
       }
 
       this.#active += 1;
-      const handle = this.#loader(entry.url);
+      const handle = this.#loader(entry.url, entry.onDimensions);
       entry.handle = handle;
       handle.promise
         .then((outcome) => entry.resolve(entry.canceled ? "canceled" : outcome))
@@ -105,7 +111,10 @@ export class ReaderPreloadQueue {
   }
 }
 
-export function browserImagePreloadLoader(url: string): ReaderPreloadHandle {
+export function browserImagePreloadLoader(
+  url: string,
+  onDimensions?: (dimensions: ReaderImageDimensions) => void,
+): ReaderPreloadHandle {
   const image = new window.Image();
   let settled = false;
   let settle: (outcome: ReaderPreloadOutcome) => void = () => undefined;
@@ -122,7 +131,12 @@ export function browserImagePreloadLoader(url: string): ReaderPreloadHandle {
     settle(outcome);
   };
 
-  image.onload = () => finish("loaded");
+  image.onload = () => {
+    if (onDimensions && image.naturalWidth > 0 && image.naturalHeight > 0) {
+      onDimensions({ width: image.naturalWidth, height: image.naturalHeight });
+    }
+    finish("loaded");
+  };
   image.onerror = () => finish("failed");
   image.src = url;
 

@@ -248,6 +248,7 @@ export function Dashboard() {
   const [readerImageStates, setReaderImageStates] = useState<Record<string, ReaderImageStatus>>({});
   const [readerImageErrors, setReaderImageErrors] = useState<Record<string, string>>({});
   const [readerImageReloadKeys, setReaderImageReloadKeys] = useState<Record<string, number>>({});
+  const [readerImageRatios, setReaderImageRatios] = useState<Record<string, string>>({});
   const [selectedResults, setSelectedResults] = useState<Record<string, string[]>>({});
   const [taskQuery, setTaskQuery] = useState("");
   const [taskKindFilter, setTaskKindFilter] = useState<TaskKind | "all">("all");
@@ -597,7 +598,9 @@ export function Dashboard() {
           queue.cancelExcept(keys);
           targets.forEach((page) => {
             const key = `library:${libraryReader.item.id}:${page.index}`;
-            void queue.enqueue(key, apiUrl(page.url)).then((outcome) => {
+            void queue
+              .enqueue(key, apiUrl(page.url), (dimensions) => markReaderImageRatio(page.url, dimensions.width, dimensions.height))
+              .then((outcome) => {
               if (outcome === "loaded") {
                 markReaderImageStatus(page.url, "loaded");
               }
@@ -731,7 +734,9 @@ export function Dashboard() {
         queue.cancelExcept(keys);
         pagesToPreload.forEach((page) => {
           const key = `remote:${remoteReader.session.id}:${page.index}`;
-          void queue.enqueue(key, readerImageSrc(page.url)).then((outcome) => {
+          void queue
+            .enqueue(key, readerImageSrc(page.url), (dimensions) => markReaderImageRatio(page.url, dimensions.width, dimensions.height))
+            .then((outcome) => {
             if (!active || outcome === "canceled") {
               return;
             }
@@ -2411,6 +2416,14 @@ export function Dashboard() {
     }
   }
 
+  function markReaderImageRatio(url: string, width: number, height: number) {
+    if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) {
+      return;
+    }
+    const ratio = `${width}/${height}`;
+    setReaderImageRatios((current) => (current[url] === ratio ? current : { ...current, [url]: ratio }));
+  }
+
   function retryReaderImage(url: string) {
     const reloadKey = Math.max(Date.now(), (readerImageReloadKeys[url] ?? 0) + 1);
     clearReaderImageError(url);
@@ -2585,7 +2598,7 @@ export function Dashboard() {
     }
   }
 
-  function renderReaderImage(options: { title: string; page: number; url: string; loading?: "eager" | "lazy" }) {
+  function renderReaderImage(options: { title: string; page: number; url: string; loading?: "eager" | "lazy"; ratio?: string }) {
     const status = readerImageStates[options.url] ?? "loading";
     const failureMessage = readerImageErrors[options.url] ?? "源站或本地缓存暂时没有返回这一页。";
     const loading = status === "loading";
@@ -2599,6 +2612,8 @@ export function Dashboard() {
           alt={`${options.title} p${options.page}`}
           draggable={false}
           loading={options.loading}
+          decoding="async"
+          style={options.ratio && libraryReaderFit === "width" ? { aspectRatio: options.ratio } : undefined}
           onLoad={(event) => {
             markReaderImageStatus(options.url, "loaded");
             const image = event.currentTarget;
@@ -2606,6 +2621,7 @@ export function Dashboard() {
             setReaderPageOrientations((current) =>
               current[options.url] === orientation ? current : { ...current, [options.url]: orientation },
             );
+            markReaderImageRatio(options.url, image.naturalWidth, image.naturalHeight);
           }}
           onError={() => handleReaderImageError(options.url)}
         />
@@ -3399,7 +3415,7 @@ export function Dashboard() {
                   getCaption={(page) => page.filename}
                   jumpToPage={jumpLibraryReaderToPage}
                   renderPage={(page, loading) =>
-                    renderReaderImage({ title: reader.item.title, page: page.index, url: page.url, loading })
+                    renderReaderImage({ title: reader.item.title, page: page.index, url: page.url, loading, ratio: readerImageRatios[page.url] })
                   }
                 />
               ) : readerMode === "double" ? (
@@ -3621,7 +3637,7 @@ export function Dashboard() {
                   getStatus={(page) => remoteReaderPageVisualStatus(page, statusMap)}
                   jumpToPage={jumpRemoteReaderToPage}
                   renderPage={(page, loading) =>
-                    renderReaderImage({ title: reader.session.title, page: page.index, url: page.url, loading })
+                    renderReaderImage({ title: reader.session.title, page: page.index, url: page.url, loading, ratio: readerImageRatios[page.url] })
                   }
                 />
               ) : readerMode === "double" ? (

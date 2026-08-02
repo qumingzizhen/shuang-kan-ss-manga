@@ -3552,9 +3552,17 @@ h2 {
   min-height: 220px;
 }
 
+.reader-scroll-page .reader-image {
+  /* Cheaper to paint while scrolling than the generic 40px blur shadow. */
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+}
+
 .reader-scroll-page-button .reader-image.fit-width {
   width: 100%;
   height: auto;
+  /* Reserves the typical portrait page ratio before the image loads so the
+     scroll height does not jump when each page finishes decoding. */
+  aspect-ratio: 3 / 4;
 }
 
 .reader-scroll-page-button .reader-image.fit-height {

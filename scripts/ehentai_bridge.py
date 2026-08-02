@@ -444,6 +444,27 @@ def page_descriptors(meta: GalleryMeta) -> list[dict[str, Any]]:
     ]
 
 
+def real_indexed_page_descriptors(meta: GalleryMeta, fallback_gallery_url: str) -> list[dict[str, Any]]:
+    """Describe pages of one gallery index page using the real page numbers.
+
+    A single index page contains positional thumbnails; the actual page number is
+    encoded in the page URL token, so merging by position would corrupt the list.
+    """
+    pages: list[dict[str, Any]] = []
+    for page_url in meta.image_pages or []:
+        match = PAGE_RE.search(page_url)
+        index = int(match.group(3)) if match else len(pages) + 1
+        pages.append(
+            {
+                "source_id": SOURCE_ID,
+                "gallery_url": meta.url or fallback_gallery_url,
+                "page_url": page_url,
+                "index": index,
+            }
+        )
+    return pages
+
+
 def fetch_gallery_meta(parsed: argparse.Namespace) -> GalleryMeta:
     base_url = normalize_base_url(parsed.base_url)
     gallery_url = ensure_ehentai_gallery_url(parsed.gallery_url, base_url)
@@ -529,7 +550,7 @@ def run_list_pages(parsed: argparse.Namespace) -> dict[str, Any]:
         index_url = gallery_index_url(gallery_url, parsed.gallery_index_page - 1)
         html = client.fetch_text(index_url, referer=gallery_url)
         meta = parse_gallery_meta(html, index_url)
-        pages = page_descriptors(meta)
+        pages = real_indexed_page_descriptors(meta, gallery_url)
         return {
             "source_id": SOURCE_ID,
             "title": meta.title,

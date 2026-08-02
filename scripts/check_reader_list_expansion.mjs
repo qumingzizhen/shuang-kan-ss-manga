@@ -36,15 +36,26 @@ def record():
 
 if args.command == "list-pages":
     record()
-    count = 80
-    if args.gallery_index_page and args.gallery_index_page >= 1:
-        start = (args.gallery_index_page - 1) * 40 + 1
-        end = min(count, args.gallery_index_page * 40)
-        pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(start, end + 1)]
-    elif args.max_gallery_index_pages and args.max_gallery_index_pages >= 1:
-        pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(1, 41)]
+    if "short" in (args.gallery_url or ""):
+        count = 100
+        if args.gallery_index_page and args.gallery_index_page >= 1:
+            start = (args.gallery_index_page - 1) * 40 + 1
+            end = min(40, args.gallery_index_page * 40)
+            pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(start, end + 1)] if end >= start else []
+        elif args.max_gallery_index_pages and args.max_gallery_index_pages >= 1:
+            pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(1, 41)]
+        else:
+            pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(1, 41)]
     else:
-        pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(1, count + 1)]
+        count = 80
+        if args.gallery_index_page and args.gallery_index_page >= 1:
+            start = (args.gallery_index_page - 1) * 40 + 1
+            end = min(count, args.gallery_index_page * 40)
+            pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(start, end + 1)]
+        elif args.max_gallery_index_pages and args.max_gallery_index_pages >= 1:
+            pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(1, 41)]
+        else:
+            pages = [{"index": index, "page_url": f"https://expand.test/page/{index}"} for index in range(1, count + 1)]
     print(json.dumps({
         "source_id": "expand-fixture",
         "gallery_url": args.gallery_url,
@@ -157,6 +168,26 @@ else:
     await bridgeCallCount(counterFile, "list-pages", "https://expand.test/gallery/deepjump"),
     2,
     "completed sessions must not keep expanding",
+  );
+
+  // Claimed page counts can exceed reality; an empty index page must stop the scheduler.
+  const shortSession = await jsonRequest(`${baseUrl}/v1/reader/sessions`, {
+    method: "POST",
+    body: JSON.stringify({
+      source_id: "expand-fixture",
+      gallery_url: "https://expand.test/gallery/short",
+    }),
+  });
+  assert.equal(shortSession.page_count, 100);
+  await delay(1_000);
+  const shortCalls = await bridgeCalls(counterFile, "list-pages", "https://expand.test/gallery/short");
+  assert.equal(shortCalls.length, 2, "initial list plus one empty index page, then stop");
+  assert.deepEqual(argValue(shortCalls[1], "--gallery-index-page"), "2");
+  await delay(700);
+  assert.equal(
+    await bridgeCallCount(counterFile, "list-pages", "https://expand.test/gallery/short"),
+    2,
+    "empty expansion steps must not keep looping",
   );
 
   console.log(

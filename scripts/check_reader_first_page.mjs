@@ -39,8 +39,8 @@ def record(command):
 
 if args.command == "list-pages":
     record("list-pages")
-    count = 80
-    pages_per_index = 40
+    count = 40
+    pages_per_index = 20
     cap = max(args.max_gallery_index_pages or 0, 0)
     max_index = cap if cap > 0 else (count + pages_per_index - 1) // pages_per_index
     visible = min(count, max_index * pages_per_index)
@@ -91,7 +91,7 @@ else:
             version: "1.0.0",
             capabilities: ["page_list", "page_image", "online_read"],
             enabled: true,
-            gallery_index_page_size: 40,
+            gallery_index_page_size: 20,
             bridge: {
               kind: "python",
               script: bridgeScript,
@@ -139,39 +139,38 @@ else:
     method: "POST",
     body: JSON.stringify(sessionPayload),
   });
-  assert.equal(session.page_count, 80);
-  assert.equal(session.pages.total, 80);
-  // Session responses are capped at the default 24-item limit.
-  assert.equal(session.pages.items.length, 24);
+  assert.equal(session.page_count, 40);
+  assert.equal(session.pages.total, 40);
+  assert.equal(session.pages.items.length, 20);
   assert.equal(session.pages.items[0].index, 1);
   assert.equal(await bridgeCallCount(counterFile, "list-pages"), 1);
 
-  const expanded = await jsonRequest(`${baseUrl}/v1/reader/sessions/${session.id}/pages?offset=40&limit=1`);
-  assert.equal(expanded.total, 80);
+  const expanded = await jsonRequest(`${baseUrl}/v1/reader/sessions/${session.id}/pages?offset=20&limit=1`);
+  assert.equal(expanded.total, 40);
   assert.equal(expanded.items.length, 1);
-  assert.equal(expanded.items[0].index, 41);
+  assert.equal(expanded.items[0].index, 21);
   assert.equal(await bridgeCallCount(counterFile, "list-pages"), 2);
 
-  const page21 = await fetch(`${baseUrl}/v1/reader/sessions/${session.id}/pages/41`);
+  const page21 = await fetch(`${baseUrl}/v1/reader/sessions/${session.id}/pages/21`);
   assert.equal(page21.status, 200);
   assert.equal(await page21.text(), "fixture-image-bytes");
   assert.equal(await bridgeCallCount(counterFile, "download-page"), 1);
 
-  const page21Cached = await fetch(`${baseUrl}/v1/reader/sessions/${session.id}/pages/41`);
+  const page21Cached = await fetch(`${baseUrl}/v1/reader/sessions/${session.id}/pages/21`);
   assert.equal(page21Cached.status, 200);
   assert.equal(await bridgeCallCount(counterFile, "download-page"), 1);
 
   const resumed = await jsonRequest(`${baseUrl}/v1/reader/sessions/${session.id}`);
-  assert.equal(resumed.page_count, 80);
-  assert.equal(resumed.pages.total, 80);
+  assert.equal(resumed.page_count, 40);
+  assert.equal(resumed.pages.total, 40);
   assert.equal(resumed.pages.items.length, 24);
-  assert.equal(resumed.pages.items[23].index, 24);
+  assert.equal(resumed.pages.items[20].index, 21);
 
   const reused = await jsonRequest(`${baseUrl}/v1/reader/sessions`, {
     method: "POST",
     body: JSON.stringify(sessionPayload),
   });
-  assert.equal(reused.pages.total, 80);
+  assert.equal(reused.pages.total, 40);
   assert.equal(reused.pages.items.length, 24);
   assert.equal(await bridgeCallCount(counterFile, "list-pages"), 2);
 

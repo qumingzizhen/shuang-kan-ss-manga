@@ -1830,8 +1830,9 @@ async function ensureReaderPages(session, requiredCount) {
   const source = sourceById.get(session.source_id);
   const pageSize = sourceGalleryIndexPageSize(source);
   if (session.pages.length >= required || pageSize === null) {
-    return;
+    return 0;
   }
+  let addedCount = 0;
   await readerPageListFetches.run(`reader-pages:${session.id}`, async () => {
     if (session.pages.length >= required) {
       return;
@@ -1851,13 +1852,16 @@ async function ensureReaderPages(session, requiredCount) {
         `source adapter ${session.source_id} returned no readable pages while expanding reader session ${session.id}`,
       );
     }
+    const before = session.pages.length;
     mergeReaderSessionPages(session, pages);
+    addedCount = session.pages.length - before;
     const reportedCount = Number(report.page_count || 0);
     if (Number.isFinite(reportedCount) && reportedCount > 0) {
       session.page_count = Math.max(Number(session.page_count || 0), reportedCount);
     }
     persistReaderSessionsSoon();
   });
+  return addedCount;
 }
 
 function mergeReaderSessionPages(session, pages) {
@@ -1899,8 +1903,8 @@ function scheduleReaderListExpansionStep(sessionId) {
   const timer = setTimeout(() => {
     readerListExpansionTimers.delete(sessionId);
     void ensureReaderPages(session, session.pages.length + 1)
-      .then(() => {
-        if (readerSessions.get(sessionId)) {
+      .then((addedCount) => {
+        if (readerSessions.get(sessionId) && addedCount > 0) {
           scheduleReaderListExpansionStep(sessionId);
         }
       })

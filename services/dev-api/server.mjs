@@ -90,6 +90,10 @@ const readerVariantHelperTimeoutMs = Number(process.env.DEV_API_READER_VARIANT_T
 const scheduleReaderVariantGeneration = createAsyncLimiter(
   normalizeConcurrency(process.env.DEV_API_READER_VARIANT_CONCURRENCY, 2, 8),
 );
+const readerCacheTtlMs = Math.max(Number(process.env.DEV_API_READER_CACHE_TTL_MS || 30 * 24 * 60 * 60 * 1000), 0);
+const readerCacheMaxBytes = Math.max(Number(process.env.DEV_API_READER_CACHE_MAX_BYTES || 4 * 1024 * 1024 * 1024), 0);
+const readerCacheSweepIntervalMs = Math.max(Number(process.env.DEV_API_READER_CACHE_SWEEP_INTERVAL_MS || 24 * 60 * 60 * 1000), 1000);
+const readerCacheGraceMs = Math.max(Number(process.env.DEV_API_READER_CACHE_GRACE_MS || 10 * 60 * 1000), 0);
 
 const tasks = new Map();
 const libraryShelf = new Map();
@@ -147,6 +151,11 @@ const stateStore = await createDevApiStateStore({
 await loadPersistedTasks();
 await loadLibraryShelf();
 await loadReaderSessions();
+void sweepReaderPageCache();
+const readerCacheSweepTimer = setInterval(() => {
+  void sweepReaderPageCache();
+}, readerCacheSweepIntervalMs);
+readerCacheSweepTimer.unref?.();
 
 const server = createServer(async (request, response) => {
   try {
@@ -341,8 +350,18 @@ const server = createServer(async (request, response) => {
           return;
         }
         clearReaderPageFailure(sessionId, pageIndex);
+        const etag = readerCacheTag(page.fileStat);
+        if (request.headers["if-none-match"] === etag) {
+          response.writeHead(304, {
+            etag,
+            "cache-control": "private, max-age=604800",
+          });
+          response.end();
+          return;
+        }
         sendFile(response, page.filePath, page.mimeType, page.fileStat, {
-          "cache-control": "private, max-age=3600",
+          etag,
+          "cache-control": "private, max-age=604800",
         });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -2073,6 +2092,91 @@ function backfillReaderVariants(session, page, cacheRoot) {
       `reader variant backfill failed for session ${session.id} page ${page.index}: ${error instanceof Error ? error.message : String(error)}`,
     );
   });
+}
+
+async function collectReaderCacheFiles() {
+  const files = [];
+  async function walk(directory) {
+    const entries = await safeReadDir(directory);
+    for (const entry of entries) {
+      const filePath = resolve(directory, entry.name);
+      if (!isPathInside(filePath, readerPageCacheDir)) {
+        continue;
+      }
+      if (entry.isDirectory()) {
+        await walk(filePath);
+        continue;
+      }
+      if (!entry.isFile() || !isImageFile(entry.name)) {
+        continue;
+      }
+      const fileStat = await stat(filePath);
+      if (fileStat.isFile()) {
+        files.push({ filePath, fileStat });
+      }
+    }
+  }
+  await walk(readerPageCacheDir);
+  return files;
+}
+
+async function sweepReaderPageCache() {
+  try {
+    const now = Date.now();
+    const files = await collectReaderCacheFiles();
+    let deleted = 0;
+    let freedBytes = 0;
+    const remove = async (file) => {
+      try {
+        await unlink(file.filePath);
+        deleted += 1;
+        freedBytes += file.fileStat.size;
+      } catch (error) {
+        if (!error || error.code !== "ENOENT") {
+          throw error;
+        }
+      }
+    };
+
+    let survivors = files;
+    if (readerCacheTtlMs > 0) {
+      const next = [];
+      for (const file of files) {
+        if (now - file.fileStat.mtimeMs > readerCacheTtlMs) {
+          await remove(file);
+        } else {
+          next.push(file);
+        }
+      }
+      survivors = next;
+    }
+
+    if (readerCacheMaxBytes > 0) {
+      let totalBytes = survivors.reduce((sum, file) => sum + file.fileStat.size, 0);
+      if (totalBytes > readerCacheMaxBytes) {
+        const candidates = survivors
+          .filter((file) => now - file.fileStat.mtimeMs >= readerCacheGraceMs)
+          .sort((left, right) => left.fileStat.mtimeMs - right.fileStat.mtimeMs);
+        for (const file of candidates) {
+          if (totalBytes <= readerCacheMaxBytes) {
+            break;
+          }
+          await remove(file);
+          totalBytes -= file.fileStat.size;
+        }
+      }
+    }
+
+    if (deleted > 0) {
+      console.log(`reader cache sweep removed ${deleted} file(s), freed ${freedBytes} bytes`);
+    }
+  } catch (error) {
+    console.error(`reader cache sweep failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function readerCacheTag(fileStat) {
+  return `"${fileStat.size.toString(16)}-${Math.floor(fileStat.mtimeMs).toString(16)}"`;
 }
 
 async function removeCachedReaderPages(cacheRoot, pageIndex) {

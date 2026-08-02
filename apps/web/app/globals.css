@@ -3517,7 +3517,8 @@ h2 {
   display: grid;
   gap: 12px;
   width: 100%;
-  max-width: 1080px;
+  /* Wider than the old 1080px cap so desktop readers get a full-size feel. */
+  max-width: 1600px;
 }
 
 .reader-scroll-page {

@@ -30,4 +30,12 @@ describe("reader scroll slot height stability", () => {
     expect(frameHeight).not.toBeNull();
     expect(frameHeight).toBe(placeholderHeight);
   });
+
+  it("scroll stack stays wide enough for desktop readers", () => {
+    const stackRule = css.match(/\.reader-scroll-stack\s*\{([^}]*)\}/);
+    const maxWidth = stackRule?.[1].match(/max-width:\s*([^;]+);/)?.[1].trim();
+
+    expect(maxWidth).not.toBeNull();
+    expect(Number.parseFloat(maxWidth ?? "0")).toBeGreaterThanOrEqual(1500);
+  });
 });

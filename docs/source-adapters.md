@@ -392,6 +392,7 @@ ExHentai 的公开页面受会员访问控制保护：匿名请求会被 302 重
 （本地 `source-auth` 面板，或 `EXHENTAI_COOKIE_FILE`/`EXHENTAI_HEADERS_FILE`）。
 适配器不绕过登录、验证码、封禁或限流边界；未授权访问返回 `access_blocked` 错误。
 建议保持低并发读取（`EXHENTAI_DELAY` 默认 2 秒）。
+该源当前默认停用（`enabled: false`），不会出现在前端来源选项中，但适配器、自检与全部配置均已保留；如需启用，把 `config/source-adapters.json` 中 `exhentai.enabled` 改回 `true` 并重启即可。
 ## Adding A New Source
 
 To add another site without breaking the architecture:

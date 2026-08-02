@@ -283,7 +283,17 @@ export function Dashboard() {
   const libraryVisiblePageSaveTimer = useRef<number | null>(null);
   const remoteVisiblePageSaveTimer = useRef<number | null>(null);
   const readerPreloadQueue = useRef<ReaderPreloadQueue | null>(null);
-  const readerScrollRestoredKey = useRef<string | null>(null);
+    const readerScrollRestoredKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selectedSourceId === allSourcesValue) {
+      return;
+    }
+    const selected = sources.find((source) => source.id === selectedSourceId);
+    if (!selected || !selected.enabled) {
+      setSelectedSourceId(allSourcesValue);
+    }
+  }, [selectedSourceId, sources]);
 
   const libraryReaderObservedPageCount = libraryReader ? (libraryPages[libraryReader.item.id]?.length ?? 0) : 0;
   const remoteReaderObservedPageCount = remoteReader ? (remoteReaderPages[remoteReader.session.id]?.length ?? 0) : 0;
@@ -4268,10 +4278,10 @@ export function Dashboard() {
                     <option value={allSourcesValue} disabled={!defaultSearchSources.length}>
                       全部可用源站一起爬取
                     </option>
-                    {sources.map((source) => (
-                      <option key={source.id} value={source.id} disabled={!source.enabled}>
+                    {enabledSources.map((source) => (
+                      <option key={source.id} value={source.id}>
                         {source.name} · {source.version}
-                        {source.enabled && source.available_for_default === false ? "（手动）" : ""}
+                        {source.available_for_default === false ? "（手动）" : ""}
                       </option>
                     ))}
                   </select>

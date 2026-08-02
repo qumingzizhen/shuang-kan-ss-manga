@@ -79,7 +79,7 @@
       "thumbnail_hosts": ["ehgt.org"],
       "version": "0.1.0",
       "capabilities": ["search", "gallery", "download", "retry_folder", "page_list", "page_image", "online_read"],
-      "enabled": true,
+      "enabled": false,
       "notes": "E-Hentai-compatible adapter gated by ExHentai membership access control. Anonymous requests are redirected to the login flow, so search, reading, and download only work with the user's own authorized cookie or headers configured locally. The bridge never bypasses login, captcha, ban, or rate-limit boundaries.",
       "self_tests": [
         { "script": "scripts/exhentai_bridge.py", "args": ["self-test"] }

@@ -37,6 +37,7 @@
 - [全来源搜索链路与 Fangliding 结果解析重构](unified-search-pipeline-refactor-2026-07-28.md)
 - [任务详情抽屉组件拆分说明](task-detail-drawer-refactor-2026-07-27.md)
 - [最近在线阅读组件拆分说明](remote-reader-history-refactor-2026-07-27.md)
+- [在线阅读首图提速说明](在线阅读首图提速-2026-08-02.md) — 建会话只抓首页索引、首图后台预热、页列表惰性补全与短时复用
 
 ## 来源恢复与故障记录
 

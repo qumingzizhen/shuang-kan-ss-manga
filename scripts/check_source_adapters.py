@@ -131,6 +131,15 @@ def validate_source(source: dict[str, Any], seen_ids: set[str]) -> None:
         if len(set(normalized_hosts)) != len(normalized_hosts):
             fail(f"{source_id}: thumbnail_hosts must not contain duplicates")
 
+    gallery_index_page_size = source.get("gallery_index_page_size")
+    if gallery_index_page_size is not None:
+        if (
+            not isinstance(gallery_index_page_size, int)
+            or isinstance(gallery_index_page_size, bool)
+            or gallery_index_page_size <= 0
+        ):
+            fail(f"{source_id}: gallery_index_page_size must be a positive integer when set")
+
 
 def text(value: object) -> str:
     return str(value).strip() if value is not None else ""

@@ -59,6 +59,7 @@ Invoke-Checked { node .\scripts\check_dev_api_search_merge.mjs }
 Invoke-Checked { node .\scripts\check_async_pool.mjs }
 Invoke-Checked { node .\scripts\check_state_store.mjs }
 Invoke-Checked { node .\scripts\check_reader_progress.mjs }
+Invoke-Checked { node .\scripts\check_reader_first_page.mjs }
 Invoke-Checked { node .\scripts\check_library_index.mjs }
 Invoke-Checked { node .\scripts\check_performance_baseline.mjs }
 Invoke-Checked { node .\scripts\check_thumbnail_policy.mjs }

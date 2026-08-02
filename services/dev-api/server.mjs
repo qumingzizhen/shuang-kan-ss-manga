@@ -67,6 +67,12 @@ const searchMaximumPages = Number.isFinite(configuredSearchMaximumPages)
   ? Math.max(2, Math.min(100, Math.trunc(configuredSearchMaximumPages)))
   : 25;
 const readerPageConcurrency = normalizeConcurrency(process.env.DEV_API_READER_PAGE_CONCURRENCY, 3, 8);
+const readerSessionReuseMs = Math.max(Number(process.env.DEV_API_READER_SESSION_REUSE_MS || 24 * 60 * 60 * 1000), 0);
+const configuredReaderPreheatPages = Number(process.env.DEV_API_READER_PREHEAT_PAGES || 3);
+const readerPreheatPages = Number.isFinite(configuredReaderPreheatPages)
+  ? Math.max(Math.min(Math.trunc(configuredReaderPreheatPages), 8), 0)
+  : 3;
+const readerInitialIndexPageCount = 1;
 
 const tasks = new Map();
 const libraryShelf = new Map();
@@ -79,6 +85,7 @@ const history = [];
 const subscribers = new Set();
 const runningChildren = new Map();
 const readerPageFetches = createSingleFlight();
+const readerPageListFetches = createSingleFlight();
 const searchThumbnailFetches = createSingleFlight();
 const searchMoreTasks = new Set();
 const recoveredTaskIds = [];
@@ -284,7 +291,7 @@ const server = createServer(async (request, response) => {
 
     const readerSessionPagesMatch = path.match(/^\/v1\/reader\/sessions\/([^/]+)\/pages$/);
     if (readerSessionPagesMatch && request.method === "GET") {
-      const pages = getReaderSessionPageBatch(readerSessionPagesMatch[1], url.searchParams);
+      const pages = await getReaderSessionPageBatch(readerSessionPagesMatch[1], url.searchParams);
       sendJson(response, pages ? 200 : 404, pages || { error: "reader session not found" });
       return;
     }
@@ -674,6 +681,30 @@ function sourceSupportsOnlineRead(source) {
     (capabilities.has("page_list") && capabilities.has("page_image")) ||
     source.bridge?.page_commands === true
   );
+}
+
+function sourceGalleryIndexPageSize(source) {
+  const value = Number(source?.gallery_index_page_size || 0);
+  return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function shouldReuseReaderSession(session) {
+  if (!session || !Array.isArray(session.pages) || !session.pages.length || readerSessionReuseMs <= 0) {
+    return false;
+  }
+  const updatedAt = Date.parse(session.updated_at || session.created_at || "");
+  return Number.isFinite(updatedAt) && Date.now() - updatedAt < readerSessionReuseMs;
+}
+
+function preheatReaderPages(sessionId, pageCount) {
+  const count = Math.min(Math.max(Math.trunc(Number(pageCount) || 0), 0), readerPreheatPages);
+  for (let pageIndex = 1; pageIndex <= count; pageIndex += 1) {
+    void resolveReaderPageFile(sessionId, pageIndex).catch((error) => {
+      console.error(
+        `reader preheat failed for session ${sessionId} page ${pageIndex}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    });
+  }
 }
 
 function inferReaderSourceFromUrl(galleryUrl) {
@@ -1487,24 +1518,55 @@ async function createReaderSession(payload) {
     throw new Error("gallery_url is required");
   }
   const source = requireReaderSourceForGallery(body.source_id, galleryUrl);
+  const now = new Date().toISOString();
+  const rawSessionId = readerSessionId(source.id, galleryUrl);
+  let existingSession = readerSessions.get(rawSessionId);
+  let report = null;
+  let pages;
+  let pageCount;
+  let sessionGalleryUrl = galleryUrl;
 
-  const report = await runSourceBridge(source.id, ["list-pages", "--gallery-url", galleryUrl]);
-  const pages = normalizeReaderPages(report.pages || [], report.gallery_url || galleryUrl);
-  if (!pages.length) {
-    throw new Error(`source adapter ${source.id} returned no readable pages`);
+  if (shouldReuseReaderSession(existingSession)) {
+    pages = normalizeReaderPages(existingSession.pages, existingSession.gallery_url || galleryUrl);
+    pageCount = Number(existingSession.page_count || pages.length);
+    sessionGalleryUrl = existingSession.gallery_url || galleryUrl;
+  } else {
+    const bridgeArgs = ["list-pages", "--gallery-url", galleryUrl];
+    const cappedSource = sourceGalleryIndexPageSize(source) !== null;
+    if (cappedSource) {
+      bridgeArgs.push("--max-gallery-index-pages", String(readerInitialIndexPageCount));
+    }
+    report = await runSourceBridge(source.id, bridgeArgs);
+    if (cappedSource && !(Number(report.page_count || 0) > 0)) {
+      // The bridge could not report a full page count; fetch the complete list so the
+      // partial list is never mistaken for the gallery total.
+      report = await runSourceBridge(source.id, ["list-pages", "--gallery-url", galleryUrl]);
+    }
+    pages = normalizeReaderPages(report.pages || [], report.gallery_url || galleryUrl);
+    if (!pages.length) {
+      throw new Error(`source adapter ${source.id} returned no readable pages`);
+    }
+    pageCount = Number(report.page_count || pages.length);
+    sessionGalleryUrl = report.gallery_url || galleryUrl;
+    if (sessionGalleryUrl !== galleryUrl) {
+      existingSession = readerSessions.get(readerSessionId(source.id, sessionGalleryUrl)) || existingSession;
+    }
   }
 
-  const sessionId = readerSessionId(source.id, report.gallery_url || galleryUrl);
-  const existingSession = readerSessions.get(sessionId);
-  const now = new Date().toISOString();
+  const sessionId = readerSessionId(source.id, sessionGalleryUrl);
   const session = {
     id: sessionId,
     source_id: source.id,
     source_name: source.name,
-    gallery_url: report.gallery_url || galleryUrl,
-    title: textOrNull(report.title) || textOrNull(body.title) || report.gallery_url || galleryUrl,
-    tags: Array.isArray(report.tags) ? report.tags.filter((tag) => textOrNull(tag)) : [],
-    page_count: Number(report.page_count || pages.length),
+    gallery_url: sessionGalleryUrl,
+    title: textOrNull(report?.title) || existingSession?.title || textOrNull(body.title) || sessionGalleryUrl,
+    tags:
+      report && Array.isArray(report.tags)
+        ? report.tags.filter((tag) => textOrNull(tag))
+        : Array.isArray(existingSession?.tags)
+          ? existingSession.tags.filter((tag) => textOrNull(tag))
+          : [],
+    page_count: pageCount,
     pages,
     last_page: existingSession?.last_page || null,
     last_read_at: existingSession?.last_read_at || null,
@@ -1512,12 +1574,13 @@ async function createReaderSession(payload) {
     reading_direction: normalizeReaderDirection(existingSession?.reading_direction),
     scroll_offset: normalizeReaderScrollOffset(existingSession?.scroll_offset),
     scroll_ratio: normalizeReaderScrollRatio(existingSession?.scroll_ratio),
-    bookmarks: normalizeReaderBookmarks(existingSession?.bookmarks || [], pages.length),
+    bookmarks: normalizeReaderBookmarks(existingSession?.bookmarks || [], Math.max(Number(pageCount || 0), pages.length)),
     created_at: existingSession?.created_at || now,
     updated_at: now,
   };
   readerSessions.set(session.id, session);
   persistReaderSessionsSoon();
+  preheatReaderPages(session.id, readerPreheatPages);
 
   return readerSessionResponse(session, 0, 24);
 }
@@ -1694,29 +1757,63 @@ function readerSessionResponse(session, offset, limit) {
   };
 }
 
-function getReaderSessionPageBatch(sessionId, searchParams) {
+async function getReaderSessionPageBatch(sessionId, searchParams) {
   const session = readerSessions.get(sessionId);
   if (!session) {
     return null;
   }
-  return readerPageBatch(
-    session,
-    parseIntegerParam(searchParams.get("offset"), 0, 0, Number.MAX_SAFE_INTEGER),
-    parseIntegerParam(searchParams.get("limit"), 24, 1, 100),
-  );
+  const offset = parseIntegerParam(searchParams.get("offset"), 0, 0, Number.MAX_SAFE_INTEGER);
+  const limit = parseIntegerParam(searchParams.get("limit"), 24, 1, 100);
+  await ensureReaderPages(session, offset + limit);
+  return readerPageBatch(session, offset, limit);
+}
+
+async function ensureReaderPages(session, requiredCount) {
+  const required = Math.min(Math.max(Number(requiredCount) || 0, 0), Number.MAX_SAFE_INTEGER);
+  const source = sourceById.get(session.source_id);
+  if (session.pages.length >= required || sourceGalleryIndexPageSize(source) === null) {
+    return;
+  }
+  await readerPageListFetches.run(`reader-pages:${session.id}`, async () => {
+    if (session.pages.length >= required) {
+      return;
+    }
+    const report = await runSourceBridge(session.source_id, ["list-pages", "--gallery-url", session.gallery_url]);
+    const pages = normalizeReaderPages(report.pages || [], report.gallery_url || session.gallery_url);
+    if (!pages.length) {
+      throw new Error(
+        `source adapter ${session.source_id} returned no readable pages while expanding reader session ${session.id}`,
+      );
+    }
+    mergeReaderSessionPages(session, pages);
+    const reportedCount = Number(report.page_count || 0);
+    if (Number.isFinite(reportedCount) && reportedCount > 0) {
+      session.page_count = Math.max(Number(session.page_count || 0), reportedCount);
+    }
+    persistReaderSessionsSoon();
+  });
+}
+
+function mergeReaderSessionPages(session, pages) {
+  const merged = new Map(session.pages.map((page) => [page.index, page]));
+  for (const page of pages) {
+    merged.set(page.index, page);
+  }
+  session.pages = Array.from(merged.values()).sort((left, right) => left.index - right.index);
 }
 
 function readerPageBatch(session, offset, limit) {
+  const total = Math.max(Number(session.page_count || 0), session.pages.length);
   const safeOffset = Math.min(Math.max(Number(offset || 0), 0), session.pages.length);
   const safeLimit = Math.min(Math.max(Number(limit || 24), 1), 100);
   const selectedPages = session.pages.slice(safeOffset, safeOffset + safeLimit).map((page) => publicReaderPage(session, page));
   const nextOffset = safeOffset + selectedPages.length;
   return {
     items: selectedPages,
-    total: session.pages.length,
+    total,
     offset: safeOffset,
     limit: safeLimit,
-    next_offset: nextOffset < session.pages.length ? nextOffset : null,
+    next_offset: nextOffset < total ? nextOffset : null,
   };
 }
 
@@ -1736,7 +1833,11 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
   if (!session || !Number.isFinite(pageIndex) || pageIndex <= 0) {
     return null;
   }
-  const page = session.pages.find((candidate) => candidate.index === pageIndex);
+  let page = session.pages.find((candidate) => candidate.index === pageIndex);
+  if (!page && sourceGalleryIndexPageSize(sourceById.get(session.source_id)) !== null) {
+    await ensureReaderPages(session, pageIndex);
+    page = session.pages.find((candidate) => candidate.index === pageIndex);
+  }
   if (!page) {
     return null;
   }
@@ -3154,13 +3255,13 @@ function normalizeLoadedReaderSession(savedSession) {
     tags: Array.isArray(savedSession.tags) ? savedSession.tags.map((tag) => textOrNull(tag)).filter(Boolean) : [],
     page_count: Number(savedSession.page_count || pages.length),
     pages,
-    last_page: normalizeReaderLastPage(savedSession.last_page, pages.length),
+    last_page: normalizeReaderLastPage(savedSession.last_page, Math.max(Number(savedSession.page_count || 0), pages.length)),
     last_read_at: textOrNull(savedSession.last_read_at),
     reading_mode: normalizeReaderMode(savedSession.reading_mode),
     reading_direction: normalizeReaderDirection(savedSession.reading_direction),
     scroll_offset: normalizeReaderScrollOffset(savedSession.scroll_offset),
     scroll_ratio: normalizeReaderScrollRatio(savedSession.scroll_ratio),
-    bookmarks: normalizeReaderBookmarks(savedSession.bookmarks || [], pages.length),
+    bookmarks: normalizeReaderBookmarks(savedSession.bookmarks || [], Math.max(Number(savedSession.page_count || 0), pages.length)),
     created_at: textOrNull(savedSession.created_at) || now,
     updated_at: textOrNull(savedSession.updated_at) || now,
   };
@@ -3213,7 +3314,7 @@ function persistReaderSessionsSoon() {
           reading_direction: normalizeReaderDirection(session.reading_direction),
           scroll_offset: normalizeReaderScrollOffset(session.scroll_offset),
           scroll_ratio: normalizeReaderScrollRatio(session.scroll_ratio),
-          bookmarks: normalizeReaderBookmarks(session.bookmarks || [], session.pages.length),
+          bookmarks: normalizeReaderBookmarks(session.bookmarks || [], Math.max(Number(session.page_count || 0), session.pages.length)),
           created_at: session.created_at,
           updated_at: session.updated_at,
         }));

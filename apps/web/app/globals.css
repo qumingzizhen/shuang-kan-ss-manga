@@ -3185,6 +3185,14 @@ h2 {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+.reader-shell.scroll-mode {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
+
+.reader-shell.scroll-mode.controls-collapsed {
+  grid-template-rows: minmax(0, 1fr);
+}
+
 .reader-header {
   min-height: 74px;
   padding: 14px 16px;
@@ -3194,6 +3202,27 @@ h2 {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+}
+
+.reader-shell.scroll-mode .reader-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  min-height: 56px;
+  padding: 10px 14px;
+  background: linear-gradient(180deg, rgba(21, 16, 42, 0.92), rgba(21, 16, 42, 0.7));
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+  transition: transform 0.22s ease, opacity 0.22s ease;
+}
+
+.reader-shell.scroll-mode.header-hidden .reader-header {
+  transform: translateY(-115%);
+  opacity: 0;
+  pointer-events: none;
 }
 
 .reader-title-block {
@@ -3305,8 +3334,8 @@ h2 {
 .reader-image-stage.scroll-mode {
   align-items: stretch;
   justify-items: center;
-  padding: 12px clamp(8px, 2vw, 28px) 72px;
-  scroll-behavior: smooth;
+  /* Top padding keeps the first page below the floating header. */
+  padding: 68px clamp(8px, 2vw, 28px) 72px;
   scrollbar-gutter: stable;
 }
 
@@ -3495,6 +3524,9 @@ h2 {
   display: grid;
   gap: 4px;
   justify-items: center;
+  /* Offscreen pages skip layout/paint; intrinsic size keeps scroll height stable. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 220px;
 }
 
 .reader-scroll-page .reader-image-frame {
@@ -4277,7 +4309,7 @@ h2 {
     padding: 10px 4px;
   }
   .reader-image-stage.scroll-mode {
-    padding: 8px 0 66px;
+    padding: 56px 0 66px;
   }
   .reader-footer {
     max-height: 48vh;

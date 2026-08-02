@@ -283,7 +283,7 @@ export function Dashboard() {
   const libraryVisiblePageSaveTimer = useRef<number | null>(null);
   const remoteVisiblePageSaveTimer = useRef<number | null>(null);
   const readerPreloadQueue = useRef<ReaderPreloadQueue | null>(null);
-    const readerScrollRestoredKey = useRef<string | null>(null);
+  const readerScrollRestoredKey = useRef<string | null>(null);
 
   useEffect(() => {
     if (selectedSourceId === allSourcesValue) {
@@ -294,6 +294,19 @@ export function Dashboard() {
       setSelectedSourceId(allSourcesValue);
     }
   }, [selectedSourceId, sources]);
+
+  const [readerHeaderHidden, setReaderHeaderHidden] = useState(false);
+  const readerStageLastScrollTopRef = useRef(0);
+
+  function handleReaderStageScroll(stage: HTMLElement) {
+    const last = readerStageLastScrollTopRef.current;
+    const current = stage.scrollTop;
+    readerStageLastScrollTopRef.current = current;
+    const delta = current - last;
+    if (Math.abs(delta) >= 12) {
+      setReaderHeaderHidden(delta > 0);
+    }
+  }
 
   const libraryReaderObservedPageCount = libraryReader ? (libraryPages[libraryReader.item.id]?.length ?? 0) : 0;
   const remoteReaderObservedPageCount = remoteReader ? (remoteReaderPages[remoteReader.session.id]?.length ?? 0) : 0;
@@ -2013,6 +2026,7 @@ export function Dashboard() {
   function closeRemoteReader() {
     readerPreloadQueue.current?.cancelAll();
     readerScrollRestoredKey.current = null;
+    setReaderHeaderHidden(false);
     setRemoteReader(null);
     setRemoteReaderPreload(null);
     setRemoteReaderLoading(false);
@@ -2086,6 +2100,7 @@ export function Dashboard() {
   function closeLibraryReader() {
     readerPreloadQueue.current?.cancelAll();
     readerScrollRestoredKey.current = null;
+    setReaderHeaderHidden(false);
     setLibraryReader(null);
     setLibraryReaderLoading(false);
   }
@@ -2107,6 +2122,7 @@ export function Dashboard() {
       return;
     }
     readerScrollRestoredKey.current = null;
+    setReaderHeaderHidden(false);
     setReaderMode(nextMode);
   }
 
@@ -3326,7 +3342,9 @@ export function Dashboard() {
 
     return (
       <div className="reader-overlay" role="dialog" aria-modal="true" aria-label="漫画阅读器">
-        <section className={readerControlsCollapsed ? "reader-shell controls-collapsed" : "reader-shell"}>
+        <section
+          className={`reader-shell${readerControlsCollapsed ? " controls-collapsed" : ""}${readerMode === "scroll" ? " scroll-mode" : ""}${readerMode === "scroll" && readerHeaderHidden ? " header-hidden" : ""}`}
+        >
           <header className="reader-header">
             <div className="reader-title-block">
               <span>内置阅读器</span>
@@ -3383,7 +3401,13 @@ export function Dashboard() {
             <div
               ref={libraryReaderStageRef}
               className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}
-              onScroll={() => readerMode === "scroll" && syncLibraryVisibleScrollPage(currentPage, false)}
+              onScroll={(event) => {
+                if (readerMode !== "scroll") {
+                  return;
+                }
+                handleReaderStageScroll(event.currentTarget);
+                syncLibraryVisibleScrollPage(currentPage, false);
+              }}
             >
               {libraryReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (
@@ -3545,7 +3569,9 @@ export function Dashboard() {
 
     return (
       <div className="reader-overlay" role="dialog" aria-modal="true" aria-label="在线漫画阅读器">
-        <section className={readerControlsCollapsed ? "reader-shell controls-collapsed" : "reader-shell"}>
+        <section
+          className={`reader-shell${readerControlsCollapsed ? " controls-collapsed" : ""}${readerMode === "scroll" ? " scroll-mode" : ""}${readerMode === "scroll" && readerHeaderHidden ? " header-hidden" : ""}`}
+        >
           <header className="reader-header">
             <div className="reader-title-block">
               <span>在线阅读器 · {reader.session.source_name}</span>
@@ -3602,7 +3628,13 @@ export function Dashboard() {
             <div
               ref={remoteReaderStageRef}
               className={readerMode === "scroll" ? "reader-image-stage scroll-mode" : "reader-image-stage"}
-              onScroll={() => readerMode === "scroll" && syncRemoteVisibleScrollPage(currentPage, false)}
+              onScroll={(event) => {
+                if (readerMode !== "scroll") {
+                  return;
+                }
+                handleReaderStageScroll(event.currentTarget);
+                syncRemoteVisibleScrollPage(currentPage, false);
+              }}
             >
               {remoteReaderLoading && <div className="reader-loading">加载中</div>}
               {readerMode === "scroll" ? (

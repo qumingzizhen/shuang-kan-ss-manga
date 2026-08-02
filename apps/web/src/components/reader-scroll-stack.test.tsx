@@ -13,6 +13,7 @@ function renderStack(options: {
   currentPage?: number;
   disabled?: boolean;
   getStatus?: (page: FakePage) => ReaderPageUiStatus;
+  caption?: boolean;
 }) {
   const pages = new Map((options.pages ?? []).map((page) => [page.index, page]));
   const jumpToPage = vi.fn();
@@ -26,7 +27,7 @@ function renderStack(options: {
       currentPage={options.currentPage ?? 2}
       disabled={options.disabled ?? false}
       getKey={(page) => `k${page.index}`}
-      getCaption={(page) => page.caption}
+      getCaption={options.caption === false ? undefined : (page) => page.caption}
       getStatus={options.getStatus}
       jumpToPage={jumpToPage}
       renderPage={renderPage}
@@ -89,5 +90,10 @@ describe("ReaderScrollStack", () => {
     const { jumpToPage, container } = renderStack({ pages: [{ index: 2, url: "u2", caption: "c2" }], pageNumbers: [2] });
     fireEvent.keyDown(container.querySelector(".reader-scroll-page-button")!, { key: "Enter" });
     expect(jumpToPage).toHaveBeenCalledWith(2);
+  });
+
+  it("does not render a figcaption when caption text is omitted", () => {
+    renderStack({ pages: [{ index: 2, url: "u2", caption: "c2" }], pageNumbers: [2], caption: false });
+    expect(document.querySelector("figcaption")).toBeNull();
   });
 });

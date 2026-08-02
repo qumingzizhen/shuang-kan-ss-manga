@@ -3644,7 +3644,6 @@ export function Dashboard() {
                   currentPage={currentPage}
                   disabled={remoteReaderLoading}
                   getKey={(page) => `${page.index}:${page.page_url}`}
-                  getCaption={(page) => page.page_url}
                   getStatus={(page) => remoteReaderPageVisualStatus(page, statusMap)}
                   jumpToPage={jumpRemoteReaderToPage}
                   renderPage={(page, loading) =>

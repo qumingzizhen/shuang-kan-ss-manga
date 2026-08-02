@@ -12,7 +12,7 @@ type ReaderScrollStackProps<TPage extends ReaderScrollStackPage> = {
   currentPage: number;
   disabled: boolean;
   getKey: (page: TPage) => string;
-  getCaption: (page: TPage) => string;
+  getCaption?: (page: TPage) => string;
   getStatus?: (page: TPage) => ReaderPageUiStatus;
   jumpToPage: (page: number) => void | Promise<void>;
   renderPage: (page: TPage, loading: "eager" | "lazy") => ReactNode;
@@ -70,7 +70,7 @@ export function ReaderScrollStack<TPage extends ReaderScrollStackPage>(options: 
               <span className="reader-scroll-page-index">p{page.index}</span>
               {options.renderPage(page, page.index === options.currentPage ? "eager" : "lazy")}
             </div>
-            <figcaption>{options.getCaption(page)}</figcaption>
+            {options.getCaption ? <figcaption>{options.getCaption(page)}</figcaption> : null}
           </figure>
         );
       })}

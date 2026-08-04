@@ -1565,12 +1565,20 @@ export function Dashboard() {
     }
   }
 
+  function clearReaderServiceWorkerCache() {
+    if (typeof navigator === "undefined" || !navigator.serviceWorker?.controller) {
+      return;
+    }
+    navigator.serviceWorker.controller.postMessage({ type: "clear-reader-cache" });
+  }
+
   async function clearRemoteReaderCurrentPageCache(reader: RemoteReaderState) {
     const maintenanceKey = `clear-page:${reader.session.id}:${reader.page.index}`;
     setRemoteReaderMaintenanceKey(maintenanceKey);
     setError(null);
     try {
       await clearRemoteReaderSessionCache(reader.session.id, { page_index: reader.page.index });
+      clearReaderServiceWorkerCache();
       setRemoteReaderPageStatuses((current) => {
         const sessionStatuses = { ...(current[reader.session.id] ?? {}) };
         delete sessionStatuses[reader.page.index];
@@ -1591,6 +1599,7 @@ export function Dashboard() {
     setError(null);
     try {
       await clearRemoteReaderSessionCache(reader.session.id);
+      clearReaderServiceWorkerCache();
       const knownPages = remoteReaderKnownPages(reader);
       bumpReaderImageReloadKeys(knownPages.map((page) => page.url));
       setRemoteReaderPageStatuses((current) => ({ ...current, [reader.session.id]: {} }));
@@ -1608,6 +1617,7 @@ export function Dashboard() {
     setError(null);
     try {
       await clearRemoteReaderSessionCache(session.id);
+      clearReaderServiceWorkerCache();
       clearRemoteReaderLocalState(session.id);
       pushLog(`cleared remote reader cache for ${session.title}`);
     } catch (caught) {

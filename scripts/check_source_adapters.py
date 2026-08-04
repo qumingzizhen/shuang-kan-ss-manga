@@ -162,6 +162,20 @@ def main() -> int:
                 fail("each source must be an object")
             validate_source(source, seen_ids)
 
+        for source in sources:
+            source_id = text(source.get("id"))
+            mirrors = source.get("reader_mirror_sources")
+            if mirrors is None:
+                continue
+            if not isinstance(mirrors, list) or not mirrors or not all(text(item) for item in mirrors):
+                fail(f"{source_id}: reader_mirror_sources must be a non-empty string list when set")
+            for mirror in mirrors:
+                mirror_id = text(mirror)
+                if mirror_id == source_id:
+                    fail(f"{source_id}: reader_mirror_sources must not include itself")
+                if mirror_id not in seen_ids:
+                    fail(f"{source_id}: reader_mirror_sources references unknown source {mirror_id}")
+
         default_source_id = text(data.get("default_source_id"))
         if not default_source_id:
             fail("default_source_id is required")

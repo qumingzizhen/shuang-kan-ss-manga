@@ -742,6 +742,20 @@ function sourceSupportsReaderVariants(source) {
   return Boolean(source?.reader_variants === true);
 }
 
+function readerMirrorSources(source) {
+  const raw = Array.isArray(source?.reader_mirror_sources) ? source.reader_mirror_sources : [];
+  return raw
+    .map((id) => sourceById.get(String(id)))
+    .filter((mirror) => mirror && mirror.enabled !== false);
+}
+
+function swapUrlHost(url, baseUrl) {
+  const parsed = new URL(String(url));
+  const base = new URL(String(baseUrl));
+  parsed.host = base.host;
+  return parsed.toString();
+}
+
 function shouldReuseReaderSession(session) {
   if (!session || !Array.isArray(session.pages) || !session.pages.length || readerSessionReuseMs <= 0) {
     return false;
@@ -2084,6 +2098,46 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
   );
 }
 
+async function runReaderDownloadPageWithFallback(session, page, cacheRoot, bridgeArgs) {
+  const source = sourceById.get(session.source_id);
+  try {
+    return await runSourceBridge(session.source_id, bridgeArgs);
+  } catch (primaryError) {
+    const mirrors = readerMirrorSources(source);
+    if (!mirrors.length) {
+      throw primaryError;
+    }
+    let lastError = primaryError;
+    for (const mirror of mirrors) {
+      try {
+        const mirrorArgs = [
+          "download-page",
+          "--base-url",
+          mirror.homepage,
+          "--gallery-url",
+          swapUrlHost(session.gallery_url, mirror.homepage),
+          "--page-url",
+          swapUrlHost(page.page_url, mirror.homepage),
+          "--page-index",
+          String(page.index),
+          "--page-output",
+          cacheRoot,
+        ];
+        if (sourceSupportsReaderVariants(mirror)) {
+          mirrorArgs.push("--variant-specs", JSON.stringify(readerVariantSpecs));
+        }
+        console.error(
+          `reader page download failed on ${session.source_id}, retrying via mirror ${mirror.id} for session ${session.id} page ${page.index}: ${primaryError instanceof Error ? primaryError.message : String(primaryError)}`,
+        );
+        return await runSourceBridge(mirror.id, mirrorArgs);
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    throw lastError;
+  }
+}
+
 async function fetchReaderPageFile(session, page, cacheRoot) {
   await mkdir(cacheRoot, { recursive: true });
   const bridgeArgs = [
@@ -2100,7 +2154,7 @@ async function fetchReaderPageFile(session, page, cacheRoot) {
   if (sourceSupportsReaderVariants(sourceById.get(session.source_id))) {
     bridgeArgs.push("--variant-specs", JSON.stringify(readerVariantSpecs));
   }
-  const report = await runSourceBridge(session.source_id, bridgeArgs);
+  const report = await runReaderDownloadPageWithFallback(session, page, cacheRoot, bridgeArgs);
   const filePath = resolve(String(report.storage_key || ""));
   if (!isPathInside(filePath, cacheRoot) || !isImageFile(basename(filePath))) {
     throw new Error("source adapter returned an unsafe reader cache path");

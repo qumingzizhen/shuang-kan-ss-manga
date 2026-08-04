@@ -2511,6 +2511,12 @@ export function Dashboard() {
     return `${source}${separator}${variantQuery}&reader_retry=${reloadKey}`;
   }
 
+  function readerImageBlurSrc(url: string) {
+    const source = apiUrl(url);
+    const separator = source.includes("?") ? "&" : "?";
+    return `${source}${separator}variant=blur`;
+  }
+
 
   function remoteReaderPageVisualStatus(page: RemoteReaderPage, statusMap: Record<number, RemoteReaderPageStatus>): ReaderPageUiStatus {
     const imageStatus = readerImageStates[page.url];
@@ -2621,6 +2627,16 @@ export function Dashboard() {
 
     return (
       <div className={`reader-image-frame ${status} fit-${libraryReaderFit}`} aria-busy={loading}>
+        {loading && (
+          <img
+            className="reader-image reader-image-blur"
+            src={readerImageBlurSrc(options.url)}
+            alt=""
+            aria-hidden="true"
+            draggable={false}
+            decoding="async"
+          />
+        )}
         <img
           className={`reader-image reader-image-main fit-${libraryReaderFit}`}
           src={readerImageSrc(options.url)}

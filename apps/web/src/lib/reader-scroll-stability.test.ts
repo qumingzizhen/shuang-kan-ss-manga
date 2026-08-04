@@ -49,4 +49,9 @@ describe("reader scroll slot height stability", () => {
     const rule = css.match(/\.reader-scroll-page-button \.reader-image\.fit-width\s*\{([^}]*)\}/);
     expect(rule?.[1]).toMatch(/aspect-ratio:\s*[^;]+;/);
   });
+
+  it("loading frames render a blurred placeholder behind the main image", () => {
+    expect(css).toMatch(/\.reader-image-blur\s*\{[^}]*object-fit:\s*contain/);
+    expect(css).toMatch(/\.reader-image-main\s*\{[^}]*position:\s*relative/);
+  });
 });

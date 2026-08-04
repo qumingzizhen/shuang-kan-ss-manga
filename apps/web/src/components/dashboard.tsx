@@ -165,6 +165,7 @@ import { prettyJson } from "@/lib/json";
 import {
   readerScrollPageNumbers,
   readerScrollSyncDelayMs,
+  scrollReaderStageToPage,
   type ReaderPageUiStatus,
 } from "@/lib/reader-scroll";
 import { ReaderScrollStack } from "@/components/reader-scroll-stack";
@@ -1964,6 +1965,11 @@ export function Dashboard() {
       mergeRemoteReaderPages(session.id, [page], batch.total);
       const nextSession = { ...session, page_count: batch.total, pages: batch, last_page: page.index };
       setRemoteReader({ session: nextSession, page, total: batch.total });
+      if (readerMode === "scroll" && remoteReaderStageRef.current) {
+        const stage = remoteReaderStageRef.current;
+        const targetPage = page.index;
+        window.requestAnimationFrame(() => scrollReaderStageToPage(stage, targetPage));
+      }
       const summary = await updateRemoteReaderProgress(session.id, readerProgressPatch(page.index, batch.total, remoteReaderStageRef.current));
       mergeRemoteReaderSessionSummary(summary);
       setRemoteReader((current) =>
@@ -2023,7 +2029,7 @@ export function Dashboard() {
     setRemoteReaderLoading(false);
   }
 
-  async function openLibraryReader(item: LibraryItem, requestedPage = 1) {
+  async function openLibraryReader(item: LibraryItem, requestedPage = 1, scrollToPage = false) {
     const knownTotal = libraryPageTotals[item.id] ?? libraryPageTotal(item);
     const targetPage = clampPageNumber(requestedPage, knownTotal);
     setLibraryPagesLoadingId(item.id);
@@ -2050,6 +2056,11 @@ export function Dashboard() {
         page,
         total: batch.total,
       });
+      if (scrollToPage && readerMode === "scroll" && libraryReaderStageRef.current) {
+        const stage = libraryReaderStageRef.current;
+        const targetPage = page.index;
+        window.requestAnimationFrame(() => scrollReaderStageToPage(stage, targetPage));
+      }
       pushLog(`opened reader p${page.index} for ${item.title}`);
     } catch (caught) {
       handleError(caught);
@@ -2067,7 +2078,7 @@ export function Dashboard() {
     if (nextPage === libraryReader.page.index) {
       return;
     }
-    await openLibraryReader(libraryReader.item, nextPage);
+    await openLibraryReader(libraryReader.item, nextPage, true);
   }
 
   async function jumpLibraryReaderToPage(page: number) {
@@ -2079,7 +2090,7 @@ export function Dashboard() {
       setLibraryReaderPageInput(String(nextPage));
       return;
     }
-    await openLibraryReader(libraryReader.item, nextPage);
+    await openLibraryReader(libraryReader.item, nextPage, true);
   }
 
   async function submitLibraryReaderJump(event: FormEvent<HTMLFormElement>) {
@@ -2500,6 +2511,7 @@ export function Dashboard() {
     return `${source}${separator}${variantQuery}&reader_retry=${reloadKey}`;
   }
 
+
   function remoteReaderPageVisualStatus(page: RemoteReaderPage, statusMap: Record<number, RemoteReaderPageStatus>): ReaderPageUiStatus {
     const imageStatus = readerImageStates[page.url];
     if (imageStatus === "failed") {
@@ -2610,7 +2622,7 @@ export function Dashboard() {
     return (
       <div className={`reader-image-frame ${status} fit-${libraryReaderFit}`} aria-busy={loading}>
         <img
-          className={`reader-image fit-${libraryReaderFit}`}
+          className={`reader-image reader-image-main fit-${libraryReaderFit}`}
           src={readerImageSrc(options.url)}
           alt={`${options.title} p${options.page}`}
           draggable={false}

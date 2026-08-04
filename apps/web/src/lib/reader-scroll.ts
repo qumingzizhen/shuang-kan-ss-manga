@@ -52,5 +52,20 @@ export function restoreReaderScrollPosition(
 }
 
 export function readerScrollPageNumbers(currentPage: number, totalPages: number): number[] {
-  return readerLoadPlan(currentPage, totalPages, "scroll").pageNumbers;
+  const plan = readerLoadPlan(currentPage, totalPages, "scroll");
+  // Render a contiguous, append-only stack from page 1. Removing rendered pages
+  // above the viewport during fast scrolling makes the browser lose its scroll
+  // anchor and clamp back to the top; append-only keeps the document stable.
+  return Array.from({ length: plan.endPage }, (_, index) => index + 1);
+}
+
+export function scrollReaderStageToPage(stage: HTMLElement, pageIndex: number): void {
+  const element = stage.querySelector<HTMLElement>(`[data-reader-page="${pageIndex}"]`);
+  if (!element) {
+    return;
+  }
+  const paddingTop = Number.parseFloat(window.getComputedStyle(stage).paddingTop) || 0;
+  const stageRect = stage.getBoundingClientRect();
+  const elementRect = element.getBoundingClientRect();
+  stage.scrollTop = Math.max(stage.scrollTop + elementRect.top - stageRect.top - paddingTop, 0);
 }

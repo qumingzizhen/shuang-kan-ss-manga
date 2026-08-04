@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   readerScrollPageNumbers,
   restoreReaderScrollPosition,
+  scrollReaderStageToPage,
   visibleReaderPageFromEntries,
 } from "@/lib/reader-scroll";
 
@@ -88,12 +89,51 @@ describe("restoreReaderScrollPosition", () => {
 });
 
 describe("readerScrollPageNumbers", () => {
-  it("连续模式只规划当前页附近的小窗口", () => {
-    expect(readerScrollPageNumbers(50, 100)).toEqual([48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58]);
+  it("renders an append-only stack from page 1 so fast scrolling never loses the scroll anchor", () => {
+    expect(readerScrollPageNumbers(50, 100)).toEqual(Array.from({ length: 58 }, (_, index) => index + 1));
+    expect(readerScrollPageNumbers(50, 100)).toContain(1);
+    expect(readerScrollPageNumbers(52, 100)).toHaveLength(60);
   });
 
-  it("首尾页码被收窄到合法范围", () => {
+  it("clamps first and last page numbers to the valid range", () => {
     expect(readerScrollPageNumbers(1, 5)).toEqual([1, 2, 3, 4, 5]);
-    expect(readerScrollPageNumbers(5, 5)).toEqual([3, 4, 5]);
+    expect(readerScrollPageNumbers(5, 5)).toEqual([1, 2, 3, 4, 5]);
+  });
+});
+
+describe("scrollReaderStageToPage", () => {
+  function stage() {
+    const element = document.createElement("div");
+    Object.defineProperty(element, "scrollTop", { value: 0, writable: true, configurable: true });
+    Object.defineProperty(element, "getBoundingClientRect", {
+      value: () => ({ top: 100, left: 0, right: 1000, bottom: 900, width: 1000, height: 800, x: 0, y: 100, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    return element;
+  }
+
+  it("scrolls the target page to the stage top minus its top padding", () => {
+    const element = stage();
+    const figure = document.createElement("figure");
+    figure.dataset.readerPage = "5";
+    element.appendChild(figure);
+    Object.defineProperty(figure, "getBoundingClientRect", {
+      value: () => ({ top: 1500, left: 0, right: 1000, bottom: 2800, width: 1000, height: 1300, x: 0, y: 1500, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    const originalComputed = window.getComputedStyle;
+    window.getComputedStyle = () => ({ paddingTop: "68px" }) as CSSStyleDeclaration;
+    try {
+      scrollReaderStageToPage(element, 5);
+      expect(element.scrollTop).toBe(1500 - 100 - 68);
+    } finally {
+      window.getComputedStyle = originalComputed;
+    }
+  });
+
+  it("leaves the scroll position unchanged when the target page is missing", () => {
+    const element = stage();
+    scrollReaderStageToPage(element, 99);
+    expect(element.scrollTop).toBe(0);
   });
 });

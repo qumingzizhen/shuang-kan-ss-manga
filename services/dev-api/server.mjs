@@ -95,6 +95,12 @@ const readerCacheMaxBytes = Math.max(Number(process.env.DEV_API_READER_CACHE_MAX
 const readerCacheSweepIntervalMs = Math.max(Number(process.env.DEV_API_READER_CACHE_SWEEP_INTERVAL_MS || 24 * 60 * 60 * 1000), 1000);
 const readerCacheGraceMs = Math.max(Number(process.env.DEV_API_READER_CACHE_GRACE_MS || 10 * 60 * 1000), 0);
 const readerListExpansionPaceMs = Math.max(Number(process.env.DEV_API_READER_LIST_PACE_MS || 2500), 100);
+const readerAlbumPrefetchEnabled = process.env.DEV_API_READER_ALBUM_PREFETCH !== "0";
+const readerAlbumPrefetchPaceMs = Math.max(Number(process.env.DEV_API_READER_ALBUM_PREFETCH_PACE_MS || 2000), 100);
+const readerAlbumPrefetchMaxFailures = Math.max(
+  Math.min(Math.trunc(Number(process.env.DEV_API_READER_ALBUM_PREFETCH_MAX_FAILURES || 3)), 20),
+  1,
+);
 
 const tasks = new Map();
 const libraryShelf = new Map();
@@ -109,6 +115,7 @@ const runningChildren = new Map();
 const readerPageFetches = createSingleFlight();
 const readerPageListFetches = createSingleFlight();
 const readerListExpansionTimers = new Map();
+const readerAlbumPrefetchState = new Map();
 const searchThumbnailFetches = createSingleFlight();
 const searchMoreTasks = new Set();
 const recoveredTaskIds = [];
@@ -270,6 +277,7 @@ const server = createServer(async (request, response) => {
       sendJson(response, session ? 200 : 404, session ? readerSessionResponse(session, 0, 24) : { error: "reader session not found" });
       if (session) {
         startReaderListExpansion(session);
+        startReaderAlbumPrefetch(session);
       }
       return;
     }
@@ -1628,6 +1636,7 @@ async function createReaderSession(payload) {
   persistReaderSessionsSoon();
   preheatReaderPages(session.id, readerPreheatPages);
   startReaderListExpansion(session);
+  startReaderAlbumPrefetch(session);
 
   return readerSessionResponse(session, 0, 24);
 }
@@ -1915,6 +1924,78 @@ function scheduleReaderListExpansionStep(sessionId) {
       });
   }, readerListExpansionPaceMs);
   readerListExpansionTimers.set(sessionId, timer);
+}
+
+function startReaderAlbumPrefetch(session) {
+  if (!readerAlbumPrefetchEnabled) {
+    return;
+  }
+  stopReaderAlbumPrefetch(session.id);
+  scheduleReaderAlbumPrefetchStep(session.id);
+}
+
+function stopReaderAlbumPrefetch(sessionId) {
+  const state = readerAlbumPrefetchState.get(sessionId);
+  if (state?.timer) {
+    clearTimeout(state.timer);
+  }
+  readerAlbumPrefetchState.delete(sessionId);
+}
+
+function scheduleReaderAlbumPrefetchStep(sessionId, delayMs = readerAlbumPrefetchPaceMs) {
+  const session = readerSessions.get(sessionId);
+  if (!session) {
+    readerAlbumPrefetchState.delete(sessionId);
+    return;
+  }
+  const knownTotal = Math.max(Number(session.page_count || 0), session.pages.length);
+  let state = readerAlbumPrefetchState.get(sessionId);
+  if (!state) {
+    state = { timer: null, cursor: 1, failures: 0 };
+    readerAlbumPrefetchState.set(sessionId, state);
+  }
+  if (state.cursor > knownTotal) {
+    readerAlbumPrefetchState.delete(sessionId);
+    return;
+  }
+  state.timer = setTimeout(() => {
+    state.timer = null;
+    void prefetchReaderPage(session, state, knownTotal);
+  }, Math.max(Math.trunc(Number(delayMs) || 0), 0));
+}
+
+async function prefetchReaderPage(session, state, knownTotal) {
+  const pageIndex = state.cursor;
+  if (pageIndex > knownTotal) {
+    readerAlbumPrefetchState.delete(session.id);
+    return;
+  }
+  const cacheRoot = resolve(readerPageCacheDir, session.source_id, session.id);
+  const cached = await findCachedReaderPage(cacheRoot, pageIndex);
+  if (cached) {
+    state.cursor += 1;
+    if (readerSessions.get(session.id)) {
+      scheduleReaderAlbumPrefetchStep(session.id, 0);
+    }
+    return;
+  }
+  try {
+    await resolveReaderPageFile(session.id, pageIndex);
+    state.failures = 0;
+  } catch (error) {
+    state.failures += 1;
+    console.error(
+      `reader album prefetch failed for session ${session.id} page ${pageIndex}: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    if (state.failures >= readerAlbumPrefetchMaxFailures) {
+      readerAlbumPrefetchState.delete(session.id);
+      return;
+    }
+  }
+  state.cursor += 1;
+  if (readerSessions.get(session.id)) {
+    scheduleReaderAlbumPrefetchStep(session.id);
+  }
 }
 
 function readerPageBatch(session, offset, limit) {
@@ -2431,6 +2512,7 @@ async function deleteReaderSession(sessionId) {
 
   readerSessions.delete(sessionId);
   stopReaderListExpansion(sessionId);
+  stopReaderAlbumPrefetch(sessionId);
   clearReaderSessionFailures(sessionId);
   const cacheResult = await clearReaderSessionCacheFiles(session);
   persistReaderSessionsSoon();

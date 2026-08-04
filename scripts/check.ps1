@@ -63,6 +63,7 @@ Invoke-Checked { node .\scripts\check_reader_first_page.mjs }
 Invoke-Checked { node .\scripts\check_reader_variants.mjs }
 Invoke-Checked { node .\scripts\check_reader_cache_governance.mjs }
 Invoke-Checked { node .\scripts\check_reader_list_expansion.mjs }
+Invoke-Checked { node .\scripts\check_reader_album_prefetch.mjs }
 Invoke-Checked { node .\scripts\check_library_index.mjs }
 Invoke-Checked { node .\scripts\check_performance_baseline.mjs }
 Invoke-Checked { node .\scripts\check_thumbnail_policy.mjs }

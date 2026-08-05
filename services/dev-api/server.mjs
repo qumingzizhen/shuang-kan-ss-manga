@@ -15,7 +15,7 @@ import {
 import { createAsyncLimiter, createSingleFlight, mapWithConcurrency, normalizeConcurrency } from "./async-pool.mjs";
 import { createDownloadQuota, DownloadQuotaCanceledError } from "./download-quota.mjs";
 import { bridgeErrorFromOutput } from "./bridge-protocol.mjs";
-import { buildDiagnosticReport } from "./diagnostics.mjs";
+import { buildDiagnosticReport, redactDiagnostics } from "./diagnostics.mjs";
 import { cleanTagList } from "./search-filter.mjs";
 import { executeSearchPipeline, SearchPipelineCanceledError } from "./search-pipeline.mjs";
 import { mergeSearchResults, sortSearchResultsByNewest } from "./search-results.mjs";
@@ -116,6 +116,67 @@ const readerPageFetches = createSingleFlight();
 const readerPageListFetches = createSingleFlight();
 const readerListExpansionTimers = new Map();
 const readerAlbumPrefetchState = new Map();
+const perfStats = {
+  bridge: new Map(),
+  readerPageCache: { hits: 0, misses: 0 },
+  readerPageFetch: { calls: 0, totalMs: 0, maxMs: 0, lastMs: 0, lastBytes: 0 },
+  readerVariant: { backfills: 0, generated: 0, totalMs: 0 },
+  readerListExpansion: { steps: 0, lastMs: 0 },
+  readerPrefetch: { pages: 0, failures: 0 },
+  readerCacheSweep: { runs: 0, removed: 0, freedBytes: 0 },
+};
+
+function recordBridgePerf(sourceId, args, startedAt, error) {
+  const durationMs = Date.now() - startedAt;
+  const current = perfStats.bridge.get(sourceId) ?? {
+    calls: 0,
+    ok: 0,
+    failed: 0,
+    totalMs: 0,
+    maxMs: 0,
+    lastMs: 0,
+    lastError: null,
+  };
+  current.calls += 1;
+  if (error) {
+    current.failed += 1;
+    current.lastError = redactDiagnostics(String(error instanceof Error ? error.message : error)).slice(0, 200);
+  } else {
+    current.ok += 1;
+    current.lastError = null;
+  }
+  current.totalMs += durationMs;
+  current.maxMs = Math.max(current.maxMs, durationMs);
+  current.lastMs = durationMs;
+  perfStats.bridge.set(sourceId, current);
+  console.log(
+    `[perf] ${JSON.stringify({ event: "bridge_call", source_id: sourceId, command: String(args?.[0] || ""), duration_ms: durationMs, ok: !error })}`,
+  );
+}
+
+function recordReaderFetchPerf(startedAt, result) {
+  const durationMs = Date.now() - startedAt;
+  perfStats.readerPageFetch.calls += 1;
+  perfStats.readerPageFetch.totalMs += durationMs;
+  perfStats.readerPageFetch.maxMs = Math.max(perfStats.readerPageFetch.maxMs, durationMs);
+  perfStats.readerPageFetch.lastMs = durationMs;
+  if (result?.fileStat?.size) {
+    perfStats.readerPageFetch.lastBytes = result.fileStat.size;
+  }
+  console.log(`[perf] ${JSON.stringify({ event: "reader_page_fetch", duration_ms: durationMs, ok: Boolean(result) })}`);
+}
+
+function perfStatsSnapshot() {
+  return {
+    bridge: Array.from(perfStats.bridge.entries()).map(([sourceId, stats]) => ({ source_id: sourceId, ...stats })),
+    reader_cache: { ...perfStats.readerPageCache },
+    reader_fetch: { ...perfStats.readerPageFetch },
+    reader_variant: { ...perfStats.readerVariant },
+    reader_list_expansion: { ...perfStats.readerListExpansion },
+    reader_prefetch: { ...perfStats.readerPrefetch },
+    reader_cache_sweep: { ...perfStats.readerCacheSweep },
+  };
+}
 const searchThumbnailFetches = createSingleFlight();
 const searchMoreTasks = new Set();
 const recoveredTaskIds = [];
@@ -197,6 +258,7 @@ const server = createServer(async (request, response) => {
           sources,
           libraryRootCount: libraryRoots.length,
           downloadQuota: downloadQuota.stats(),
+          performanceStats: perfStatsSnapshot(),
         }),
       );
       return;
@@ -1207,6 +1269,16 @@ function runBridge(task, args, sourceIdOverride = null, bridgeOptions = {}) {
 }
 
 function runSourceBridge(sourceId, args, options = {}) {
+  const startedAt = Date.now();
+  const promise = runSourceBridgeInner(sourceId, args, options);
+  promise.then(
+    () => recordBridgePerf(sourceId, args, startedAt, null),
+    (error) => recordBridgePerf(sourceId, args, startedAt, error),
+  );
+  return promise;
+}
+
+function runSourceBridgeInner(sourceId, args, options = {}) {
   return new Promise((resolvePromise, rejectPromise) => {
     const sourceAdapter = sourceById.get(String(sourceId || defaultSourceId));
     if (!sourceAdapter?.bridgeScript) {
@@ -1925,8 +1997,11 @@ function scheduleReaderListExpansionStep(sessionId) {
   }
   const timer = setTimeout(() => {
     readerListExpansionTimers.delete(sessionId);
+    const stepStartedAt = Date.now();
     void ensureReaderPages(session, session.pages.length + 1)
       .then((addedCount) => {
+        perfStats.readerListExpansion.steps += 1;
+        perfStats.readerListExpansion.lastMs = Date.now() - stepStartedAt;
         if (readerSessions.get(sessionId) && addedCount > 0) {
           scheduleReaderListExpansionStep(sessionId);
         }
@@ -1996,8 +2071,10 @@ async function prefetchReaderPage(session, state, knownTotal) {
   try {
     await resolveReaderPageFile(session.id, pageIndex);
     state.failures = 0;
+    perfStats.readerPrefetch.pages += 1;
   } catch (error) {
     state.failures += 1;
+    perfStats.readerPrefetch.failures += 1;
     console.error(
       `reader album prefetch failed for session ${session.id} page ${pageIndex}: ${error instanceof Error ? error.message : String(error)}`,
     );
@@ -2071,6 +2148,7 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
   if (variantName) {
     const cachedVariant = await findCachedReaderVariant(cacheRoot, page.index, variantName);
     if (cachedVariant) {
+      perfStats.readerPageCache.hits += 1;
       return cachedVariant;
     }
     const original = await resolveReaderPageFile(sessionId, pageIndex, { forceRefresh: false });
@@ -2079,6 +2157,7 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
     }
     const freshVariant = await findCachedReaderVariant(cacheRoot, page.index, variantName);
     if (freshVariant) {
+      perfStats.readerPageCache.hits += 1;
       return freshVariant;
     }
     if (sourceSupportsReaderVariants(sourceById.get(session.source_id))) {
@@ -2089,12 +2168,19 @@ async function resolveReaderPageFile(sessionId, pageIndex, options = {}) {
 
   const cached = await findCachedReaderPage(cacheRoot, page.index);
   if (cached) {
+    perfStats.readerPageCache.hits += 1;
     return cached;
   }
 
+  perfStats.readerPageCache.misses += 1;
   const fetchKey = readerPageFetchKey(sessionId, page.index);
+  const fetchStartedAt = Date.now();
   return readerPageFetches.run(fetchKey, () =>
-    scheduleReaderPageFetch(() => fetchReaderPageFile(session, page, cacheRoot)),
+    scheduleReaderPageFetch(async () => {
+      const result = await fetchReaderPageFile(session, page, cacheRoot);
+      recordReaderFetchPerf(fetchStartedAt, result);
+      return result;
+    }),
   );
 }
 
@@ -2253,6 +2339,7 @@ function backfillReaderVariants(session, page, cacheRoot) {
   if (!sourceSupportsReaderVariants(source) || !readerVariantSpecs.length) {
     return;
   }
+  const backfillStartedAt = Date.now();
   void scheduleReaderVariantGeneration(async () => {
     const original = await findCachedReaderPage(cacheRoot, page.index);
     if (!original) {
@@ -2291,6 +2378,15 @@ function backfillReaderVariants(session, page, cacheRoot) {
       page.height = Number(displayVariant.height);
       persistReaderSessionsSoon();
     }
+    const backfillDurationMs = Date.now() - backfillStartedAt;
+    perfStats.readerVariant.backfills += 1;
+    perfStats.readerVariant.totalMs += backfillDurationMs;
+    if (displayVariant) {
+      perfStats.readerVariant.generated += 1;
+    }
+    console.log(
+      `[perf] ${JSON.stringify({ event: "reader_variant_backfill", session_id: session.id, page_index: page.index, duration_ms: backfillDurationMs, generated: Boolean(displayVariant) })}`,
+    );
   }).catch((error) => {
     console.error(
       `reader variant backfill failed for session ${session.id} page ${page.index}: ${error instanceof Error ? error.message : String(error)}`,
@@ -2374,6 +2470,9 @@ async function sweepReaderPageCache() {
     if (deleted > 0) {
       console.log(`reader cache sweep removed ${deleted} file(s), freed ${freedBytes} bytes`);
     }
+    perfStats.readerCacheSweep.runs += 1;
+    perfStats.readerCacheSweep.removed += deleted;
+    perfStats.readerCacheSweep.freedBytes += freedBytes;
   } catch (error) {
     console.error(`reader cache sweep failed: ${error instanceof Error ? error.message : String(error)}`);
   }

@@ -26,5 +26,6 @@ const report = buildDiagnosticReport({
 assert.equal(report.tasks.total, 2);
 assert.equal(report.tasks.recent_errors[0].message.includes("dangerous-token"), false);
 assert.equal(report.storage.library_root_count, 2);
+assert.equal(report.performance, null);
 
 console.log(JSON.stringify({ ok: true, redacted: true, report: true }));

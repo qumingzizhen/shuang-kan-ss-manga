@@ -64,5 +64,6 @@ export function buildDiagnosticReport(input) {
       unavailable_reason: source.unavailable_reason,
     })),
     download_quota: input.downloadQuota,
+    performance: input.performanceStats ?? null,
   });
 }

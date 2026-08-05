@@ -8,6 +8,10 @@ import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 const { chromium } = require("../apps/web/node_modules/playwright");
 
+// With --budget the script exits non-zero when measured values exceed the
+// performance budget (jump-to-top events, minimum DOM growth, JS heap).
+const enforceBudget = process.argv.includes("--budget");
+
 const projectRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const fixtureRoot = join(projectRoot, ".tmp", "bench-reader-dom");
 const serverScript = join(projectRoot, "services", "dev-api", "server.mjs");
@@ -261,6 +265,24 @@ else:
     });
 
     console.log(JSON.stringify(metrics, null, 2));
+    if (enforceBudget) {
+      const violations = [];
+      if (metrics.jumpsToTop !== 0) {
+        violations.push(`jumpsToTop=${metrics.jumpsToTop}`);
+      }
+      if (metrics.endFigures < 100) {
+        violations.push(`endFigures=${metrics.endFigures}`);
+      }
+      if (metrics.memory && metrics.memory.usedBytes > 50 * 1024 * 1024) {
+        violations.push(`heap=${metrics.memory.usedBytes}`);
+      }
+      if (violations.length) {
+        console.error(`reader benchmark budget violated: ${violations.join(", ")}`);
+        process.exitCode = 1;
+      } else {
+        console.log("reader benchmark budget ok");
+      }
+    }
   } finally {
     await browser.close();
   }
